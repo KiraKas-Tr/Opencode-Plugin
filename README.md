@@ -76,7 +76,7 @@ Project config overrides user config.
     "env_context": { "enabled": true },
     "auto_format": { "enabled": false },
     "typecheck_gate": { "enabled": false },
-    "session_notification": { "enabled": true },
+    "session_notification": { "enabled": false },
     "truncator": { "enabled": true },
     "compaction": { "enabled": true },
     "swarm_enforcer": { "enabled": true }
@@ -108,7 +108,7 @@ Project config overrides user config.
 | `env_context` | on | Injects git branch, package info, project structure |
 | `auto_format` | **off** | Runs prettier/biome/dprint after file edits |
 | `typecheck_gate` | **off** | Runs tsc after TypeScript file edits |
-| `session_notification` | on | Desktop notifications on idle/error (Linux/macOS/Windows) |
+| `session_notification` | **off** | Desktop notifications on idle/error (Linux/macOS/Windows) |
 | `truncator` | on | Truncates large outputs to prevent context overflow |
 | `compaction` | on | Preserves beads state + memory during context compaction |
 | `swarm_enforcer` | on | Enforces task isolation in multi-agent swarms |

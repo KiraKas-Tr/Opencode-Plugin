@@ -3646,7 +3646,7 @@ var DEFAULT_CONFIG = {
       block_on_error: false
     },
     session_notification: {
-      enabled: true,
+      enabled: false,
       on_idle: true,
       on_error: true,
       title_prefix: "OpenCode"
