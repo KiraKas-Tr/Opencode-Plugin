@@ -1,7 +1,7 @@
 {
   "name": "clikit-plugin",
-  "version": "0.2.28",
-  "description": "OpenCode plugin with 10 agents, 19 commands, 48 skills, 14 hooks",
+  "version": "0.2.36",
+  "description": "OpenCode plugin with 10 agents, 19 commands, 48 skills, 10 hooks",
   "type": "module",
   "main": "./dist/index.js",
   "types": "./dist/index.d.ts",
@@ -25,10 +25,13 @@
     "README.md"
   ],
   "scripts": {
-    "build": "bun build src/index.ts src/cli.ts --outdir dist --target bun --format esm && tsc --emitDeclarationOnly && cp src/clikit.schema.json dist/ 2>/dev/null || true",
+    "build": "bun build src/index.ts src/cli.ts --outdir dist --target bun --format esm && tsc --emitDeclarationOnly && cp src/clikit.schema.json dist/clikit.schema.json",
     "clean": "rm -rf dist",
+    "lint": "tsc --noEmit",
     "prepublishOnly": "bun run clean && bun run build",
+    "test": "bun test",
     "typecheck": "tsc --noEmit",
+    "verify": "bun run lint && bun run test && bun run build",
     "dev": "bun run build --watch"
   },
   "keywords": [
@@ -52,7 +55,7 @@
   },
   "homepage": "https://github.com/KiraKas-Tr/CliKit#readme",
   "dependencies": {
-    "@opencode-ai/plugin": "1.2.5",
+    "@opencode-ai/plugin": "1.2.15",
     "gray-matter": "^4.0.3"
   },
   "devDependencies": {

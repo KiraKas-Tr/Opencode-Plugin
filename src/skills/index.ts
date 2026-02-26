@@ -2,7 +2,20 @@ import * as fs from "fs";
 import * as path from "path";
 import matter from "gray-matter";
 
-const SKILLS_DIR = path.join(import.meta.dir, "../../skill");
+const SKILLS_DIR_CANDIDATES = [
+  path.join(import.meta.dir, "../skill"),
+  path.join(import.meta.dir, "../../skill"),
+  path.join(import.meta.dir, "../../../skill"),
+];
+
+export function resolveSkillsDir(): string {
+  for (const dir of SKILLS_DIR_CANDIDATES) {
+    if (fs.existsSync(dir)) {
+      return dir;
+    }
+  }
+  return SKILLS_DIR_CANDIDATES[0];
+}
 
 export interface SkillConfig {
   name: string;
@@ -13,19 +26,20 @@ export interface SkillConfig {
 
 export function getBuiltinSkills(): Record<string, SkillConfig> {
   const skills: Record<string, SkillConfig> = {};
+  const skillsDir = resolveSkillsDir();
 
-  if (!fs.existsSync(SKILLS_DIR)) {
-    console.warn("[CliKit] Skills directory not found:", SKILLS_DIR);
+  if (!fs.existsSync(skillsDir)) {
+    console.warn("[CliKit] Skills directory not found:", skillsDir);
     return skills;
   }
 
-  const skillDirs = fs.readdirSync(SKILLS_DIR, { withFileTypes: true });
+  const skillDirs = fs.readdirSync(skillsDir, { withFileTypes: true });
 
   for (const dirent of skillDirs) {
     if (!dirent.isDirectory()) continue;
 
     const skillName = dirent.name;
-    const skillPath = path.join(SKILLS_DIR, skillName);
+    const skillPath = path.join(skillsDir, skillName);
     const skillMdPath = path.join(skillPath, "SKILL.md");
 
     if (!fs.existsSync(skillMdPath)) {

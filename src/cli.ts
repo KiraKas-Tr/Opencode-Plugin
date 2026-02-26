@@ -5,13 +5,14 @@ import * as os from "os";
 import { fileURLToPath } from "url";
 
 const PLUGIN_NAME = "clikit-plugin";
-const VERSION = "0.2.20";
+const VERSION = "0.0.0";
 
 interface ScaffoldStats {
   copied: number;
   skipped: number;
   missingSources: string[];
 }
+
 
 function getPackageRoot(): string {
   const currentFile = fileURLToPath(import.meta.url);
@@ -36,8 +37,9 @@ function getPackageVersion(): string {
 }
 
 function getPluginEntry(): string {
-  return `${PLUGIN_NAME}@${getPackageVersion()}`;
+  return `${PLUGIN_NAME}@latest`;
 }
+
 
 export function resolveProjectDir(
   env: NodeJS.ProcessEnv = process.env,
@@ -61,11 +63,12 @@ export function resolveProjectDir(
   return cwd;
 }
 
-export function upsertPluginEntry(existingPlugins: string[], pluginName: string, version: string): string[] {
+export function upsertPluginEntry(existingPlugins: string[], pluginEntry: string): string[] {
+  const pluginName = pluginEntry.split("@")[0] || pluginEntry;
   const filteredPlugins = existingPlugins.filter(
     (p) => p !== pluginName && !p.startsWith(`${pluginName}@`)
   );
-  filteredPlugins.push(`${pluginName}@${version}`);
+  filteredPlugins.push(pluginEntry);
   return filteredPlugins;
 }
 
@@ -204,6 +207,10 @@ function getRealHome(): string {
 }
 
 function getConfigDir(): string {
+  if (process.env.OPENCODE_CONFIG_DIR) {
+    return process.env.OPENCODE_CONFIG_DIR;
+  }
+
   const home = getRealHome();
   if (process.platform === "win32") {
     return path.join(process.env.APPDATA || path.join(home, "AppData", "Roaming"), "opencode");
@@ -215,10 +222,23 @@ function getConfigPath(): string {
   const configDir = getConfigDir();
   const jsonPath = path.join(configDir, "opencode.json");
   const jsoncPath = path.join(configDir, "opencode.jsonc");
-  
-  if (fs.existsSync(jsonPath)) return jsonPath;
+
   if (fs.existsSync(jsoncPath)) return jsoncPath;
+  if (fs.existsSync(jsonPath)) return jsonPath;
   return jsonPath;
+}
+
+function getCliKitConfigPath(configDir = getConfigDir()): string {
+  const candidates = ["clikit.jsonc", "clikit.json", "clikit.config.json"];
+
+  for (const name of candidates) {
+    const fullPath = path.join(configDir, name);
+    if (fs.existsSync(fullPath)) {
+      return fullPath;
+    }
+  }
+
+  return path.join(configDir, "clikit.json");
 }
 
 function ensureConfigDir(): void {
@@ -266,133 +286,70 @@ interface InstallOptions {
 }
 
 async function install(options: InstallOptions): Promise<number> {
-  console.log("\n  CliKit Installer\n  ================\n");
-  const pluginVersion = getPackageVersion();
+  const pluginEntry = getPluginEntry();
 
-  // Step 1: Add plugin to OpenCode config
-  console.log("[1/5] Adding CliKit plugin to OpenCode config...");
-  
   try {
     ensureConfigDir();
-  } catch (err) {
-    console.error(`✗ Failed to create config directory: ${err}`);
-    return 1;
-  }
 
-  const configPath = getConfigPath();
-  
-  try {
-    // Read existing config (preserves all existing keys)
+    const configPath = getConfigPath();
     const result = parseConfig(configPath);
-    
-    // If parse failed and there was content, abort to prevent data loss
     if (result.parseError && result.raw.trim()) {
       console.error(`✗ Config file has syntax errors and cannot be safely modified.`);
       console.error(`  Error: ${result.parseError}`);
       console.error(`  Please fix the config file manually.`);
       return 1;
     }
-    
+
     const config = result.config;
     const existingPlugins = Array.isArray(config.plugin)
       ? config.plugin.filter((p): p is string => typeof p === "string")
       : [];
-    
-    // Show what's being preserved
-    const preservedKeys = Object.keys(config).filter(k => k !== 'plugin');
-    if (preservedKeys.length > 0) {
-      console.log(`  Preserving existing config: ${preservedKeys.join(', ')}`);
-    }
-    
-    // Remove existing clikit-plugin entries and add fresh
-    const filteredPlugins = upsertPluginEntry(existingPlugins, PLUGIN_NAME, pluginVersion);
-    
-    // Merge: keep all existing keys, update plugin array
-    const newConfig = { ...config, plugin: filteredPlugins };
-    
-    writeConfig(configPath, newConfig);
-    console.log(`✓ Plugin added to ${configPath} as ${getPluginEntry()}`);
-  } catch (err) {
-    console.error(`✗ Failed to update OpenCode config: ${err}`);
-    return 1;
-  }
+    const filteredPlugins = upsertPluginEntry(existingPlugins, pluginEntry);
+    const pluginMergedConfig = { ...config, plugin: filteredPlugins };
+    writeConfig(configPath, pluginMergedConfig);
 
-  // Step 2: Optional project scaffold
-  if (options.includeProjectScaffold) {
-    console.log("\n[2/5] Scaffolding project .opencode assets...");
-    try {
+    if (options.includeProjectScaffold) {
       const projectDir = resolveProjectDir();
-      const stats = scaffoldProjectOpencode(projectDir);
-      console.log(`✓ Project assets ready in ${path.join(projectDir, ".opencode")}`);
-      console.log(`  Copied: ${stats.copied}, Skipped existing: ${stats.skipped}`);
-      if (stats.missingSources.length > 0) {
-        console.log("  Missing bundled sources (skipped):");
-        for (const missing of stats.missingSources) {
-          console.log(`    - ${missing}`);
-        }
-      }
-    } catch (err) {
-      console.error(`✗ Failed to scaffold project assets: ${err}`);
-      return 1;
+      scaffoldProjectOpencode(projectDir);
     }
-  } else {
-    console.log("\n[2/5] Skipping project scaffold (global-only install)");
-  }
 
-  // Step 3: Clean up legacy local plugin assets
-  console.log("\n[3/5] Cleaning legacy local plugin assets...");
-  try {
     removeLegacyGlobalPluginAssets(getConfigDir());
-    console.log("✓ Global install mode uses npm plugin from opencode config");
+
+    const memoryDir = path.join(getConfigDir(), "memory");
+    const memorySubdirs = ["specs", "plans", "research", "reviews", "handoffs", "beads", "prds"];
+    for (const subdir of memorySubdirs) {
+      const dir = path.join(memoryDir, subdir);
+      if (!fs.existsSync(dir)) {
+        fs.mkdirSync(dir, { recursive: true });
+      }
+    }
+
+    const clikitConfigPath = getCliKitConfigPath();
+    if (!fs.existsSync(clikitConfigPath)) {
+      const defaultConfig = {
+        "$schema": `https://unpkg.com/${PLUGIN_NAME}@latest/schema.json`,
+        "disabled_agents": [],
+        "disabled_commands": [],
+        "disabled_skills": [],
+        "agents": {},
+        "commands": {},
+        "skills": {
+          "enable": [],
+          "disable": []
+        },
+        "hooks": {}
+      };
+      writeConfig(clikitConfigPath, defaultConfig);
+    }
+
+    console.log(`✓ CliKit installed (${pluginEntry})`);
+    console.log(`✓ Config: ${configPath}`);
+    console.log("✓ Restart OpenCode");
+    return 0;
   } catch (err) {
-    console.error(`✗ Failed to clean legacy assets: ${err}`);
+    console.error(`✗ Install failed: ${err}`);
     return 1;
   }
-
-  // Step 4: Create global memory directories
-  console.log("\n[4/5] Creating memory directories...");
-  
-  const memoryDir = path.join(getConfigDir(), "memory");
-  const memorySubdirs = ["specs", "plans", "research", "reviews", "handoffs", "beads", "prds"];
-  
-  for (const subdir of memorySubdirs) {
-    const dir = path.join(memoryDir, subdir);
-    if (!fs.existsSync(dir)) {
-      fs.mkdirSync(dir, { recursive: true });
-    }
-  }
-  console.log(`✓ Memory directories created in ${memoryDir}`);
-
-  // Step 5: Create default clikit config
-  console.log("\n[5/5] Creating CliKit config...");
-  
-  const clikitConfigPath = path.join(getConfigDir(), "clikit.config.json");
-  if (!fs.existsSync(clikitConfigPath)) {
-    const defaultConfig = {
-      "$schema": `https://unpkg.com/${PLUGIN_NAME}@latest/schema.json`,
-      "disabled_agents": [],
-      "disabled_commands": [],
-      "agents": {},
-      "hooks": {}
-    };
-    writeConfig(clikitConfigPath, defaultConfig);
-    console.log(`✓ Config created at ${clikitConfigPath}`);
-  } else {
-    console.log(`✓ Config already exists at ${clikitConfigPath}`);
-  }
-
-  console.log("\n✓ CliKit installed successfully!\n");
-  console.log("Available commands:");
-  console.log("  /create   - Start new task with specification");
-  console.log("  /start    - Begin implementing from plan");
-  console.log("  /plan     - Create implementation plan");
-  console.log("  /verify   - Run verification suite");
-  console.log("  /ship     - Commit, PR, and cleanup");
-  console.log("  /review   - Request code review");
-  console.log("  /debug    - Debug issues");
-  console.log("\nRestart OpenCode to use CliKit.\n");
-
-  return 0;
 }
 
 function help(): void {

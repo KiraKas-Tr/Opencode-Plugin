@@ -8,9 +8,8 @@ Curated agents, commands, skills, and memory system for OpenCode.
 - **19 Slash Commands**: /create, /start, /plan, /ship, /verify, /review, /debug, /pr, and more
 - **48 Workflow Skills**: TDD, debugging, design, UI/UX, integrations, ritual-workflow, and more
 - **6 Internal Utilities**: memory (read/search/get/timeline/update/admin), observation, swarm, beads-memory-sync, quick-research, context-summary (used by hooks, not directly registered as agent tools)
-- **14 Runtime Hooks**: git guard, security check, auto-format, typecheck gate, truncator, compaction, ritual enforcer, swarm enforcer, session notifications, and more
+- **10 Runtime Hooks**: todo enforcer, empty output sanitizer, git guard, security check, subagent blocker, truncator, swarm enforcer, memory digest, and todo→beads sync
 - **Memory System**: Templates, specs, plans, research artifacts with FTS5 search
-- **Ritual Workflow**: Enforces DISCOVER → PLAN → IMPLEMENT → VERIFY → COMPLETE phases
 - **Extended Permissions**: doom_loop, external_directory controls
 - **Configurable**: Enable/disable agents, override models, customize behavior
 
@@ -25,6 +24,18 @@ bun x clikit-plugin install
 
 That's it! The plugin will be registered in `~/.config/opencode/opencode.json`.
 
+Installer also adds default MCP servers if missing:
+
+- `beads-village` (`npx beads-village`)
+- `context7` (`https://mcp.context7.com/mcp`)
+- `grep` (`https://mcp.grep.app`)
+- `human-mcp` (`npx @goonnguyen/human-mcp`)
+
+Recommended environment variables:
+
+- `CONTEXT7_API_KEY` for Context7
+- `GOOGLE_GEMINI_API_KEY` for Human MCP
+
 ## Quick Start
 
 After installation, use these commands:
@@ -35,12 +46,14 @@ After installation, use these commands:
 
 ## Configuration
 
-Create `clikit.config.json` in one of these locations:
+Create `clikit.jsonc` (preferred) or `clikit.json` in one of these locations:
 
 - **User (global)**:
-  - Linux/macOS: `~/.config/opencode/clikit.config.json`
-  - Windows: `%APPDATA%\opencode\clikit.config.json`
-- **Project**: `.opencode/clikit.config.json`
+  - Linux/macOS: `~/.config/opencode/clikit.jsonc` (or `clikit.json`)
+  - Windows: `%APPDATA%\opencode\clikit.jsonc` (or `clikit.json`)
+- **Project**: `.opencode/clikit.jsonc` (or `clikit.json`)
+
+Legacy `clikit.config.json` is still supported for backward compatibility.
 
 Project config overrides user config.
 
@@ -48,9 +61,14 @@ Project config overrides user config.
 
 ```json
 {
-  "$schema": "https://unpkg.com/clikit-plugin/schema.json",
+  "$schema": "https://unpkg.com/clikit-plugin@latest/schema.json",
   "disabled_agents": ["scout"],
   "disabled_commands": ["security"],
+  "disabled_skills": ["playwright"],
+  "skills": {
+    "enable": ["test-driven-development", "systematic-debugging"],
+    "disable": ["sharing-skills"]
+  },
   "agents": {
     "oracle": {
       "model": "openai/gpt-4o"
@@ -72,14 +90,10 @@ Project config overrides user config.
     "git_guard": { "enabled": true },
     "security_check": { "enabled": true },
     "subagent_question_blocker": { "enabled": true },
-    "comment_checker": { "enabled": true, "threshold": 0.3 },
-    "env_context": { "enabled": true },
-    "auto_format": { "enabled": false },
-    "typecheck_gate": { "enabled": false },
-    "session_notification": { "enabled": false },
     "truncator": { "enabled": true },
-    "compaction": { "enabled": true },
-    "swarm_enforcer": { "enabled": true }
+    "swarm_enforcer": { "enabled": true },
+    "memory_digest": { "enabled": true },
+    "todo_beads_sync": { "enabled": true }
   }
 }
 ```
@@ -90,8 +104,10 @@ Project config overrides user config.
 |--------|------|---------|-------------|
 | `disabled_agents` | `string[]` | `[]` | Agent names to disable |
 | `disabled_commands` | `string[]` | `[]` | Command names to disable |
+| `disabled_skills` | `string[]` | `[]` | Skill names to disable |
 | `agents` | `object` | `{}` | Per-agent overrides (model, temperature, etc.) |
 | `commands` | `object` | `{}` | Per-command overrides |
+| `skills` | `object \| string[]` | `{}` | Skill enable/disable and per-skill overrides |
 | `hooks.session_logging` | `boolean` | `false` | Session lifecycle logging |
 | `hooks.tool_logging` | `boolean` | `false` | Tool execution logging |
 
@@ -104,15 +120,10 @@ Project config overrides user config.
 | `git_guard` | on | Blocks dangerous git commands (force push, hard reset, rm -rf) |
 | `security_check` | on | Scans for secrets/credentials before git commits |
 | `subagent_question_blocker` | on | Prevents subagents from asking clarifying questions |
-| `comment_checker` | on | Detects excessive AI-generated comments in code |
-| `env_context` | on | Injects git branch, package info, project structure |
-| `auto_format` | **off** | Runs prettier/biome/dprint after file edits |
-| `typecheck_gate` | **off** | Runs tsc after TypeScript file edits |
-| `session_notification` | **off** | Desktop notifications on idle/error (Linux/macOS/Windows) |
 | `truncator` | on | Truncates large outputs to prevent context overflow |
-| `compaction` | on | Preserves beads state + memory during context compaction |
 | `swarm_enforcer` | on | Enforces task isolation in multi-agent swarms |
-| `ritual_enforcer` | on | Enforces DISCOVER → PLAN → IMPLEMENT → VERIFY → COMPLETE phases |
+| `memory_digest` | on | Generates `memory/_digest.md` from SQLite observations |
+| `todo_beads_sync` | on | Mirrors OpenCode todos into Beads issues |
 
 ## Agents
 
@@ -148,7 +159,7 @@ Run with `/command-name` in OpenCode:
 - `/design` - UI/UX design implementation
 - `/handoff` - Save state for session break
 - `/resume` - Continue from handoff
-- `/status` - Workspace and bead overview
+- `/status-beads` - Workspace and bead overview
 - `/commit` - Intelligent git commit
 - `/issue` - Quick issue creation
 - `/import-plan` - Import from Jira/Notion/Linear
@@ -248,6 +259,12 @@ bun run build
 # Type check
 bun run typecheck
 
+# Unit tests
+bun run test
+
+# Full local verification
+bun run verify
+
 # Watch mode
 bun run dev
 ```
@@ -263,7 +280,7 @@ bun run dev
 │   ├── agents/       # Agent loaders
 │   ├── skills/       # Skill loaders
 │   ├── tools/        # Internal utilities (memory, swarm, etc.)
-│   └── hooks/        # Runtime hooks (14 modules)
+│   └── hooks/        # Runtime hooks (10 modules)
 ├── skill/            # Skill definitions (*.md)
 ├── command/          # Command definitions (*.md)
 ├── memory/           # Memory system
@@ -275,7 +292,7 @@ bun run dev
 │   ├── handoffs/     # Session handoffs
 │   ├── beads/        # Beads task artifacts
 │   └── prds/         # Product requirements
-└── clikit.config.json
+└── clikit.jsonc
 ```
 
 ## License

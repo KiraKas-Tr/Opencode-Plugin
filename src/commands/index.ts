@@ -3,7 +3,20 @@ import * as fs from "fs";
 import * as path from "path";
 import matter from "gray-matter";
 
-const COMMANDS_DIR = path.join(import.meta.dir, "../../command");
+const COMMANDS_DIR_CANDIDATES = [
+  path.join(import.meta.dir, "../command"),
+  path.join(import.meta.dir, "../../command"),
+  path.join(import.meta.dir, "../../../command"),
+];
+
+function resolveCommandsDir(): string {
+  for (const dir of COMMANDS_DIR_CANDIDATES) {
+    if (fs.existsSync(dir)) {
+      return dir;
+    }
+  }
+  return COMMANDS_DIR_CANDIDATES[0];
+}
 
 function parseCommandMarkdown(filePath: string): CommandConfig | null {
   try {
@@ -34,16 +47,19 @@ function parseCommandMarkdown(filePath: string): CommandConfig | null {
 
 export function loadCommands(): Record<string, CommandConfig> {
   const commands: Record<string, CommandConfig> = {};
+  const commandsDir = resolveCommandsDir();
 
-  if (!fs.existsSync(COMMANDS_DIR)) {
+  if (!fs.existsSync(commandsDir)) {
     return commands;
   }
 
-  const files = fs.readdirSync(COMMANDS_DIR).filter((f) => f.endsWith(".md"));
+  const files = fs.readdirSync(commandsDir)
+    .filter((f) => f.endsWith(".md"))
+    .sort();
 
   for (const file of files) {
     const commandName = path.basename(file, ".md");
-    const commandPath = path.join(COMMANDS_DIR, file);
+    const commandPath = path.join(commandsDir, file);
     const command = parseCommandMarkdown(commandPath);
 
     if (command) {
@@ -54,6 +70,17 @@ export function loadCommands(): Record<string, CommandConfig> {
   return commands;
 }
 
+let _cachedCommands: Record<string, CommandConfig> | null = null;
+let _cachedCommandsMtime = 0;
+
 export function getBuiltinCommands(): Record<string, CommandConfig> {
-  return loadCommands();
+  try {
+    const mtime = fs.statSync(resolveCommandsDir()).mtimeMs;
+    if (_cachedCommands && _cachedCommandsMtime === mtime) return _cachedCommands;
+    _cachedCommands = loadCommands();
+    _cachedCommandsMtime = mtime;
+    return _cachedCommands;
+  } catch {
+    return _cachedCommands ?? loadCommands();
+  }
 }

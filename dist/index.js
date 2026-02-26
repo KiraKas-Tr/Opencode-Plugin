@@ -3491,11 +3491,26 @@ var require_gray_matter = __commonJS((exports, module) => {
   module.exports = matter;
 });
 
+// src/index.ts
+import { execFile } from "child_process";
+import { promisify } from "util";
+
 // src/agents/index.ts
 var import_gray_matter = __toESM(require_gray_matter(), 1);
 import * as fs from "fs";
 import * as path from "path";
-var AGENTS_DIR = import.meta.dir;
+var AGENTS_DIR_CANDIDATES = [
+  import.meta.dir,
+  path.join(import.meta.dir, "../../src/agents")
+];
+function resolveAgentsDir() {
+  for (const dir of AGENTS_DIR_CANDIDATES) {
+    if (fs.existsSync(dir)) {
+      return dir;
+    }
+  }
+  return AGENTS_DIR_CANDIDATES[0];
+}
 function parseAgentMarkdown(filePath) {
   try {
     const content = fs.readFileSync(filePath, "utf-8");
@@ -3526,13 +3541,14 @@ function parseAgentMarkdown(filePath) {
 }
 function loadAgents() {
   const agents = {};
-  if (!fs.existsSync(AGENTS_DIR)) {
+  const agentsDir = resolveAgentsDir();
+  if (!fs.existsSync(agentsDir)) {
     return agents;
   }
-  const files = fs.readdirSync(AGENTS_DIR).filter((f) => f.endsWith(".md"));
+  const files = fs.readdirSync(agentsDir).filter((f) => f.endsWith(".md") && f !== "AGENTS.md").sort();
   for (const file of files) {
     const agentName = path.basename(file, ".md");
-    const agentPath = path.join(AGENTS_DIR, file);
+    const agentPath = path.join(agentsDir, file);
     const agent = parseAgentMarkdown(agentPath);
     if (agent) {
       agents[agentName] = agent;
@@ -3540,15 +3556,38 @@ function loadAgents() {
   }
   return agents;
 }
+var _cachedAgents = null;
+var _cachedAgentsMtime = 0;
 function getBuiltinAgents() {
-  return loadAgents();
+  try {
+    const mtime = fs.statSync(resolveAgentsDir()).mtimeMs;
+    if (_cachedAgents && _cachedAgentsMtime === mtime)
+      return _cachedAgents;
+    _cachedAgents = loadAgents();
+    _cachedAgentsMtime = mtime;
+    return _cachedAgents;
+  } catch {
+    return _cachedAgents ?? loadAgents();
+  }
 }
 
 // src/commands/index.ts
 var import_gray_matter2 = __toESM(require_gray_matter(), 1);
 import * as fs2 from "fs";
 import * as path2 from "path";
-var COMMANDS_DIR = path2.join(import.meta.dir, "../../command");
+var COMMANDS_DIR_CANDIDATES = [
+  path2.join(import.meta.dir, "../command"),
+  path2.join(import.meta.dir, "../../command"),
+  path2.join(import.meta.dir, "../../../command")
+];
+function resolveCommandsDir() {
+  for (const dir of COMMANDS_DIR_CANDIDATES) {
+    if (fs2.existsSync(dir)) {
+      return dir;
+    }
+  }
+  return COMMANDS_DIR_CANDIDATES[0];
+}
 function parseCommandMarkdown(filePath) {
   try {
     const content = fs2.readFileSync(filePath, "utf-8");
@@ -3574,13 +3613,14 @@ function parseCommandMarkdown(filePath) {
 }
 function loadCommands() {
   const commands = {};
-  if (!fs2.existsSync(COMMANDS_DIR)) {
+  const commandsDir = resolveCommandsDir();
+  if (!fs2.existsSync(commandsDir)) {
     return commands;
   }
-  const files = fs2.readdirSync(COMMANDS_DIR).filter((f) => f.endsWith(".md"));
+  const files = fs2.readdirSync(commandsDir).filter((f) => f.endsWith(".md")).sort();
   for (const file of files) {
     const commandName = path2.basename(file, ".md");
-    const commandPath = path2.join(COMMANDS_DIR, file);
+    const commandPath = path2.join(commandsDir, file);
     const command = parseCommandMarkdown(commandPath);
     if (command) {
       commands[commandName] = command;
@@ -3588,19 +3628,83 @@ function loadCommands() {
   }
   return commands;
 }
+var _cachedCommands = null;
+var _cachedCommandsMtime = 0;
 function getBuiltinCommands() {
-  return loadCommands();
+  try {
+    const mtime = fs2.statSync(resolveCommandsDir()).mtimeMs;
+    if (_cachedCommands && _cachedCommandsMtime === mtime)
+      return _cachedCommands;
+    _cachedCommands = loadCommands();
+    _cachedCommandsMtime = mtime;
+    return _cachedCommands;
+  } catch {
+    return _cachedCommands ?? loadCommands();
+  }
+}
+
+// src/skills/index.ts
+var import_gray_matter3 = __toESM(require_gray_matter(), 1);
+import * as fs3 from "fs";
+import * as path3 from "path";
+var SKILLS_DIR_CANDIDATES = [
+  path3.join(import.meta.dir, "../skill"),
+  path3.join(import.meta.dir, "../../skill"),
+  path3.join(import.meta.dir, "../../../skill")
+];
+function resolveSkillsDir() {
+  for (const dir of SKILLS_DIR_CANDIDATES) {
+    if (fs3.existsSync(dir)) {
+      return dir;
+    }
+  }
+  return SKILLS_DIR_CANDIDATES[0];
+}
+function getBuiltinSkills() {
+  const skills = {};
+  const skillsDir = resolveSkillsDir();
+  if (!fs3.existsSync(skillsDir)) {
+    console.warn("[CliKit] Skills directory not found:", skillsDir);
+    return skills;
+  }
+  const skillDirs = fs3.readdirSync(skillsDir, { withFileTypes: true });
+  for (const dirent of skillDirs) {
+    if (!dirent.isDirectory())
+      continue;
+    const skillName = dirent.name;
+    const skillPath = path3.join(skillsDir, skillName);
+    const skillMdPath = path3.join(skillPath, "SKILL.md");
+    if (!fs3.existsSync(skillMdPath)) {
+      console.warn(`[CliKit] Missing SKILL.md for skill: ${skillName}`);
+      continue;
+    }
+    try {
+      const fileContent = fs3.readFileSync(skillMdPath, "utf-8");
+      const { data, content } = import_gray_matter3.default(fileContent);
+      skills[skillName] = {
+        name: data.name || skillName,
+        description: data.description || "",
+        content: content.trim(),
+        location: skillPath
+      };
+    } catch (err) {
+      console.warn(`[CliKit] Failed to parse skill ${skillName}:`, err);
+    }
+  }
+  return skills;
 }
 
 // src/config.ts
-import * as fs3 from "fs";
-import * as path3 from "path";
+import * as fs4 from "fs";
+import * as path4 from "path";
 import * as os from "os";
 var DEFAULT_CONFIG = {
   disabled_agents: [],
   disabled_commands: [],
+  disabled_skills: [],
   agents: {},
   commands: {},
+  skills: {},
   lsp: {},
   hooks: {
     session_logging: false,
@@ -3654,17 +3758,83 @@ var DEFAULT_CONFIG = {
 };
 function getUserConfigDir() {
   if (process.platform === "win32") {
-    return process.env.APPDATA || path3.join(os.homedir(), "AppData", "Roaming");
+    return process.env.APPDATA || path4.join(os.homedir(), "AppData", "Roaming");
   }
-  return process.env.XDG_CONFIG_HOME || path3.join(os.homedir(), ".config");
+  return process.env.XDG_CONFIG_HOME || path4.join(os.homedir(), ".config");
+}
+function getOpenCodeConfigDir() {
+  if (process.env.OPENCODE_CONFIG_DIR) {
+    return process.env.OPENCODE_CONFIG_DIR;
+  }
+  return path4.join(getUserConfigDir(), "opencode");
+}
+function stripJsonComments(content) {
+  let result = "";
+  let inString = false;
+  let inSingleLineComment = false;
+  let inMultiLineComment = false;
+  let escaped = false;
+  for (let i = 0;i < content.length; i += 1) {
+    const char = content[i];
+    const nextChar = content[i + 1];
+    if (inSingleLineComment) {
+      if (char === `
+`) {
+        inSingleLineComment = false;
+        result += char;
+      }
+      continue;
+    }
+    if (inMultiLineComment) {
+      if (char === "*" && nextChar === "/") {
+        inMultiLineComment = false;
+        i += 1;
+      }
+      continue;
+    }
+    if (inString) {
+      result += char;
+      if (escaped) {
+        escaped = false;
+      } else if (char === "\\") {
+        escaped = true;
+      } else if (char === '"') {
+        inString = false;
+      }
+      continue;
+    }
+    if (char === '"') {
+      inString = true;
+      result += char;
+      continue;
+    }
+    if (char === "/" && nextChar === "/") {
+      inSingleLineComment = true;
+      i += 1;
+      continue;
+    }
+    if (char === "/" && nextChar === "*") {
+      inMultiLineComment = true;
+      i += 1;
+      continue;
+    }
+    result += char;
+  }
+  return result;
 }
 function loadJsonFile(filePath) {
   try {
-    if (!fs3.existsSync(filePath)) {
+    if (!fs4.existsSync(filePath)) {
       return null;
     }
-    const content = fs3.readFileSync(filePath, "utf-8");
-    return JSON.parse(content);
+    const content = fs4.readFileSync(filePath, "utf-8");
+    try {
+      return JSON.parse(content);
+    } catch {
+      const withoutComments = stripJsonComments(content);
+      const withoutTrailingCommas = withoutComments.replace(/,\s*([}\]])/g, "$1");
+      return JSON.parse(withoutTrailingCommas);
+    }
   } catch (error) {
     console.warn(`[CliKit] Failed to load config from ${filePath}:`, error);
     return null;
@@ -3685,16 +3855,25 @@ function deepMerge(base, override) {
 }
 function loadCliKitConfig(projectDirectory) {
   const safeDir = typeof projectDirectory === "string" && projectDirectory ? projectDirectory : process.cwd();
-  const userConfigPath = path3.join(getUserConfigDir(), "opencode", "clikit.config.json");
-  const projectConfigPath = path3.join(safeDir, ".opencode", "clikit.config.json");
+  const userBaseDir = getOpenCodeConfigDir();
+  const projectBaseDir = path4.join(safeDir, ".opencode");
+  const configCandidates = ["clikit.jsonc", "clikit.json", "clikit.config.json"];
   let config = { ...DEFAULT_CONFIG };
-  const userConfig = loadJsonFile(userConfigPath);
-  if (userConfig) {
-    config = deepMerge(config, userConfig);
+  for (const candidate of configCandidates) {
+    const userConfigPath = path4.join(userBaseDir, candidate);
+    const userConfig = loadJsonFile(userConfigPath);
+    if (userConfig) {
+      config = deepMerge(config, userConfig);
+      break;
+    }
   }
-  const projectConfig = loadJsonFile(projectConfigPath);
-  if (projectConfig) {
-    config = deepMerge(config, projectConfig);
+  for (const candidate of configCandidates) {
+    const projectConfigPath = path4.join(projectBaseDir, candidate);
+    const projectConfig = loadJsonFile(projectConfigPath);
+    if (projectConfig) {
+      config = deepMerge(config, projectConfig);
+      break;
+    }
   }
   return config;
 }
@@ -3736,6 +3915,53 @@ function filterCommands(commands, config) {
     } else {
       filtered[name] = command;
     }
+  }
+  return filtered;
+}
+function isSkillsConfigObject(value) {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+function filterSkills(skills, config) {
+  if (!config?.skills) {
+    return skills;
+  }
+  const skillsConfig = config.skills;
+  if (Array.isArray(skillsConfig)) {
+    return Object.fromEntries(Object.entries(skills).filter(([name]) => skillsConfig.includes(name)));
+  }
+  let enabledSet = null;
+  let disabledSet = new Set(config.disabled_skills || []);
+  let overrides = {};
+  if (isSkillsConfigObject(skillsConfig)) {
+    if (Array.isArray(skillsConfig.enable) && skillsConfig.enable.length > 0) {
+      enabledSet = new Set(skillsConfig.enable);
+    }
+    if (Array.isArray(skillsConfig.disable) && skillsConfig.disable.length > 0) {
+      disabledSet = new Set(skillsConfig.disable);
+    }
+    const { sources: _sources, enable: _enable, disable: _disable, ...rest } = skillsConfig;
+    overrides = rest;
+  }
+  const filtered = {};
+  for (const [name, skill] of Object.entries(skills)) {
+    if (enabledSet && !enabledSet.has(name)) {
+      continue;
+    }
+    if (disabledSet.has(name)) {
+      continue;
+    }
+    const override = overrides[name];
+    if (override === false) {
+      continue;
+    }
+    if (override && typeof override === "object") {
+      filtered[name] = {
+        ...skill,
+        ...override.description ? { description: override.description } : {}
+      };
+      continue;
+    }
+    filtered[name] = skill;
   }
   return filtered;
 }
@@ -4128,20 +4354,20 @@ function formatTruncationLog(result) {
   return `[CliKit:truncator] Truncated output: ${result.originalLines} \u2192 ${result.truncatedLines} lines, saved ${(saved / 1024).toFixed(1)}KB`;
 }
 // src/hooks/swarm-enforcer.ts
-import * as path4 from "path";
+import * as path5 from "path";
 function isFileInScope(filePath, scope) {
   if (typeof filePath !== "string")
     return false;
-  const normalizedPath = path4.resolve(filePath);
+  const normalizedPath = path5.resolve(filePath);
   for (const reserved of scope.reservedFiles) {
-    const normalizedReserved = path4.resolve(reserved);
+    const normalizedReserved = path5.resolve(reserved);
     if (normalizedPath === normalizedReserved) {
       return true;
     }
   }
   if (scope.allowedPatterns) {
     for (const pattern of scope.allowedPatterns) {
-      if (normalizedPath.includes(pattern) || normalizedPath.startsWith(path4.resolve(pattern))) {
+      if (normalizedPath.includes(pattern) || normalizedPath.startsWith(path5.resolve(pattern))) {
         return true;
       }
     }
@@ -4209,8 +4435,8 @@ function formatEnforcementWarning(result) {
 `);
 }
 // src/hooks/memory-digest.ts
-import * as fs4 from "fs";
-import * as path5 from "path";
+import * as fs5 from "fs";
+import * as path6 from "path";
 import { Database } from "bun:sqlite";
 function parseJsonArray(value) {
   if (typeof value !== "string" || !value.trim())
@@ -4233,9 +4459,9 @@ function generateMemoryDigest(projectDir, config) {
   const result = { written: false, path: "", counts: {} };
   if (typeof projectDir !== "string" || !projectDir)
     return result;
-  const memoryDir = path5.join(projectDir, ".opencode", "memory");
-  const dbPath = path5.join(memoryDir, "memory.db");
-  if (!fs4.existsSync(dbPath)) {
+  const memoryDir = path6.join(projectDir, ".opencode", "memory");
+  const dbPath = path6.join(memoryDir, "memory.db");
+  if (!fs5.existsSync(dbPath)) {
     return result;
   }
   const maxPerType = config?.max_per_type ?? 10;
@@ -4323,14 +4549,14 @@ function generateMemoryDigest(projectDir, config) {
     sections.push("*No observations found in memory database.*");
     sections.push("");
   }
-  const digestPath = path5.join(memoryDir, "_digest.md");
+  const digestPath = path6.join(memoryDir, "_digest.md");
   const content = sections.join(`
 `);
   try {
-    if (!fs4.existsSync(memoryDir)) {
-      fs4.mkdirSync(memoryDir, { recursive: true });
+    if (!fs5.existsSync(memoryDir)) {
+      fs5.mkdirSync(memoryDir, { recursive: true });
     }
-    fs4.writeFileSync(digestPath, content, "utf-8");
+    fs5.writeFileSync(digestPath, content, "utf-8");
     result.written = true;
     result.path = digestPath;
   } catch {}
@@ -4344,8 +4570,8 @@ function formatDigestLog(result) {
   return `[CliKit:memory-digest] Generated digest: ${parts || "empty"}`;
 }
 // src/hooks/todo-beads-sync.ts
-import * as fs5 from "fs";
-import * as path6 from "path";
+import * as fs6 from "fs";
+import * as path7 from "path";
 import { Database as Database2 } from "bun:sqlite";
 function mapTodoStatusToIssueStatus(status) {
   const value = status.toLowerCase();
@@ -4375,8 +4601,8 @@ function buildIssueId(sessionID, todoID) {
   return `oc-${sessionPart}-${todoPart}`;
 }
 function syncTodosToBeads(projectDirectory, sessionID, todos, config) {
-  const beadsDbPath = path6.join(projectDirectory, ".beads", "beads.db");
-  if (!fs5.existsSync(beadsDbPath)) {
+  const beadsDbPath = path7.join(projectDirectory, ".beads", "beads.db");
+  if (!fs6.existsSync(beadsDbPath)) {
     return {
       synced: false,
       sessionID,
@@ -4454,8 +4680,38 @@ function formatTodoBeadsSyncLog(result) {
   return `[CliKit:todo-beads-sync] session=${result.sessionID} todos=${result.totalTodos} created=${result.created} updated=${result.updated} closed=${result.closed}`;
 }
 // src/index.ts
+var execFileAsync = promisify(execFile);
 var CliKitPlugin = async (ctx) => {
   const todosBySession = new Map;
+  const defaultMcpEntries = {
+    "beads-village": {
+      type: "local",
+      command: ["npx", "-y", "beads-village"],
+      enabled: true
+    },
+    context7: {
+      type: "remote",
+      url: "https://mcp.context7.com/mcp",
+      enabled: true,
+      headers: {
+        CONTEXT7_API_KEY: process.env.CONTEXT7_API_KEY || "{env:CONTEXT7_API_KEY}"
+      }
+    },
+    grep: {
+      type: "remote",
+      url: "https://mcp.grep.app",
+      enabled: true
+    },
+    "human-mcp": {
+      type: "local",
+      command: ["npx", "-y", "@goonnguyen/human-mcp"],
+      enabled: true,
+      environment: {
+        GOOGLE_GEMINI_API_KEY: process.env.GOOGLE_GEMINI_API_KEY || "{env:GOOGLE_GEMINI_API_KEY}",
+        TRANSPORT_TYPE: "stdio"
+      }
+    }
+  };
   function getToolInput(args) {
     return args && typeof args === "object" ? args : {};
   }
@@ -4495,18 +4751,47 @@ var CliKitPlugin = async (ctx) => {
     }
     return normalized;
   }
+  async function getStagedFiles() {
+    try {
+      const { stdout } = await execFileAsync("git", ["diff", "--cached", "--name-only"], {
+        cwd: ctx.directory,
+        encoding: "utf-8"
+      });
+      return stdout.split(`
+`).map((line) => line.trim()).filter((line) => line.length > 0);
+    } catch {
+      return [];
+    }
+  }
+  async function getStagedDiff() {
+    try {
+      const { stdout } = await execFileAsync("git", ["diff", "--cached", "--no-color"], {
+        cwd: ctx.directory,
+        encoding: "utf-8"
+      });
+      return stdout;
+    } catch {
+      return "";
+    }
+  }
   const pluginConfig = loadCliKitConfig(ctx.directory) ?? {};
   const debugLogsEnabled = pluginConfig.hooks?.session_logging === true && process.env.CLIKIT_DEBUG === "1";
   const toolLogsEnabled = pluginConfig.hooks?.tool_logging === true && process.env.CLIKIT_DEBUG === "1";
+  const DIGEST_THROTTLE_MS = 60000;
+  let lastDigestTime = 0;
+  let lastTodoHash = "";
   const builtinAgents = getBuiltinAgents();
   const builtinCommands = getBuiltinCommands();
+  const builtinSkills = getBuiltinSkills();
   const filteredAgents = filterAgents(builtinAgents, pluginConfig);
   const filteredCommands = filterCommands(builtinCommands, pluginConfig);
+  const filteredSkills = filterSkills(builtinSkills, pluginConfig);
   if (debugLogsEnabled) {
     console.log("[CliKit] Plugin initializing...");
     console.log("[CliKit] Context:", JSON.stringify({ directory: ctx?.directory, hasClient: !!ctx?.client }));
     console.log(`[CliKit] Loaded ${Object.keys(filteredAgents).length}/${Object.keys(builtinAgents).length} agents`);
     console.log(`[CliKit] Loaded ${Object.keys(filteredCommands).length}/${Object.keys(builtinCommands).length} commands`);
+    console.log(`[CliKit] Loaded ${Object.keys(filteredSkills).length}/${Object.keys(builtinSkills).length} skills`);
     if (pluginConfig.disabled_agents?.length) {
       console.log(`[CliKit] Disabled agents: ${pluginConfig.disabled_agents.join(", ")}`);
     }
@@ -4523,6 +4808,21 @@ var CliKitPlugin = async (ctx) => {
       config.command = {
         ...filteredCommands,
         ...config.command
+      };
+      const runtimeConfig = config;
+      runtimeConfig.skill = {
+        ...filteredSkills,
+        ...runtimeConfig.skill || {}
+      };
+      const existingSkillPaths = runtimeConfig.skills?.paths || [];
+      const resolvedSkillsDir = resolveSkillsDir();
+      runtimeConfig.skills = {
+        ...runtimeConfig.skills || {},
+        paths: existingSkillPaths.includes(resolvedSkillsDir) ? existingSkillPaths : [resolvedSkillsDir, ...existingSkillPaths]
+      };
+      runtimeConfig.mcp = {
+        ...defaultMcpEntries,
+        ...runtimeConfig.mcp || {}
       };
       if (pluginConfig.lsp && Object.keys(pluginConfig.lsp).length > 0) {
         const enabledLsp = {};
@@ -4552,6 +4852,7 @@ var CliKitPlugin = async (ctx) => {
         }
         if (pluginConfig.hooks?.memory_digest?.enabled !== false) {
           const digestResult = generateMemoryDigest(ctx.directory, pluginConfig.hooks?.memory_digest);
+          lastDigestTime = Date.now();
           if (pluginConfig.hooks?.memory_digest?.log !== false) {
             console.log(formatDigestLog(digestResult));
           }
@@ -4568,10 +4869,14 @@ var CliKitPlugin = async (ctx) => {
         if (typeof sessionID === "string") {
           const todos = normalizeTodos(props?.todos);
           todosBySession.set(sessionID, todos);
-          if (pluginConfig.hooks?.todo_beads_sync?.enabled !== false) {
-            const result = syncTodosToBeads(ctx.directory, sessionID, todos, pluginConfig.hooks?.todo_beads_sync);
-            if (pluginConfig.hooks?.todo_beads_sync?.log === true) {
-              console.log(formatTodoBeadsSyncLog(result));
+          const todoHash = JSON.stringify(todos.map((t) => `${t.id}:${t.status}`));
+          if (todoHash !== lastTodoHash) {
+            lastTodoHash = todoHash;
+            if (pluginConfig.hooks?.todo_beads_sync?.enabled !== false) {
+              const result = syncTodosToBeads(ctx.directory, sessionID, todos, pluginConfig.hooks?.todo_beads_sync);
+              if (pluginConfig.hooks?.todo_beads_sync?.log === true) {
+                console.log(formatTodoBeadsSyncLog(result));
+              }
             }
           }
         }
@@ -4594,7 +4899,11 @@ var CliKitPlugin = async (ctx) => {
           }
         }
         if (pluginConfig.hooks?.memory_digest?.enabled !== false) {
-          generateMemoryDigest(ctx.directory, pluginConfig.hooks?.memory_digest);
+          const now = Date.now();
+          if (now - lastDigestTime >= DIGEST_THROTTLE_MS) {
+            generateMemoryDigest(ctx.directory, pluginConfig.hooks?.memory_digest);
+            lastDigestTime = now;
+          }
         }
       }
       if (event.type === "session.deleted") {
@@ -4631,18 +4940,18 @@ var CliKitPlugin = async (ctx) => {
           if (command && /git\s+(commit|add)/.test(command)) {
             const secConfig = pluginConfig.hooks?.security_check;
             let shouldBlock = false;
-            const files = toolInput.files;
-            if (files) {
-              for (const file of files) {
-                if (isSensitiveFile(file)) {
-                  console.warn(`[CliKit:security] Sensitive file staged: ${file}`);
-                  shouldBlock = true;
-                }
+            const [stagedFiles, stagedDiff] = await Promise.all([
+              getStagedFiles(),
+              getStagedDiff()
+            ]);
+            for (const file of stagedFiles) {
+              if (isSensitiveFile(file)) {
+                console.warn(`[CliKit:security] Sensitive file staged: ${file}`);
+                shouldBlock = true;
               }
             }
-            const content = toolInput.content;
-            if (content) {
-              const scanResult = scanContentForSecrets(content);
+            if (stagedDiff) {
+              const scanResult = scanContentForSecrets(stagedDiff);
               if (!scanResult.safe) {
                 console.warn(formatSecurityWarning(scanResult));
                 shouldBlock = true;

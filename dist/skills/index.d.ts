@@ -1,3 +1,4 @@
+export declare function resolveSkillsDir(): string;
 export interface SkillConfig {
     name: string;
     description: string;

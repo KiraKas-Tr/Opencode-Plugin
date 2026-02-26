@@ -90,7 +90,7 @@ mcp__beads_village__add(
 ### Next Steps
 - Claim with `/implement`
 - Add to plan with `/plan`
-- View all with `/status`
+- View all with `/status-beads`
 ```
 
 ## Advanced Options

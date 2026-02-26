@@ -1,11 +1,16 @@
 import type { Plugin } from "@opencode-ai/plugin";
+import { execFile } from "node:child_process";
+import { promisify } from "node:util";
+
+const execFileAsync = promisify(execFile);
 import { getBuiltinAgents } from "./agents";
 import { getBuiltinCommands } from "./commands";
-import { getBuiltinSkills, findSkill } from "./skills";
+import { getBuiltinSkills, resolveSkillsDir } from "./skills";
 import {
   loadCliKitConfig,
   filterAgents,
   filterCommands,
+  filterSkills,
   type LspServerConfig,
 } from "./config";
 import {
@@ -45,6 +50,36 @@ import {
 
 const CliKitPlugin: Plugin = async (ctx) => {
   const todosBySession = new Map<string, OpenCodeTodo[]>();
+
+  const defaultMcpEntries = {
+    "beads-village": {
+      type: "local",
+      command: ["npx", "-y", "beads-village"],
+      enabled: true,
+    },
+    context7: {
+      type: "remote",
+      url: "https://mcp.context7.com/mcp",
+      enabled: true,
+      headers: {
+        CONTEXT7_API_KEY: process.env.CONTEXT7_API_KEY || "{env:CONTEXT7_API_KEY}",
+      },
+    },
+    grep: {
+      type: "remote",
+      url: "https://mcp.grep.app",
+      enabled: true,
+    },
+    "human-mcp": {
+      type: "local",
+      command: ["npx", "-y", "@goonnguyen/human-mcp"],
+      enabled: true,
+      environment: {
+        GOOGLE_GEMINI_API_KEY: process.env.GOOGLE_GEMINI_API_KEY || "{env:GOOGLE_GEMINI_API_KEY}",
+        TRANSPORT_TYPE: "stdio",
+      },
+    },
+  } as const;
 
   function getToolInput(args: unknown): Record<string, unknown> {
     return args && typeof args === "object" ? (args as Record<string, unknown>) : {};
@@ -96,15 +131,51 @@ const CliKitPlugin: Plugin = async (ctx) => {
     return normalized;
   }
 
+  async function getStagedFiles(): Promise<string[]> {
+    try {
+      const { stdout } = await execFileAsync("git", ["diff", "--cached", "--name-only"], {
+        cwd: ctx.directory,
+        encoding: "utf-8",
+      });
+      return stdout
+        .split("\n")
+        .map((line) => line.trim())
+        .filter((line) => line.length > 0);
+    } catch {
+      return [];
+    }
+  }
+
+  async function getStagedDiff(): Promise<string> {
+    try {
+      const { stdout } = await execFileAsync("git", ["diff", "--cached", "--no-color"], {
+        cwd: ctx.directory,
+        encoding: "utf-8",
+      });
+      return stdout;
+    } catch {
+      return "";
+    }
+  }
+
   const pluginConfig = loadCliKitConfig(ctx.directory) ?? {};
   const debugLogsEnabled = pluginConfig.hooks?.session_logging === true && process.env.CLIKIT_DEBUG === "1";
   const toolLogsEnabled = pluginConfig.hooks?.tool_logging === true && process.env.CLIKIT_DEBUG === "1";
 
+  // Throttle: skip digest regeneration if called within this interval
+  const DIGEST_THROTTLE_MS = 60_000;
+  let lastDigestTime = 0;
+
+  // Debounce: track last todo hash to skip redundant syncs
+  let lastTodoHash = "";
+
   const builtinAgents = getBuiltinAgents();
   const builtinCommands = getBuiltinCommands();
+  const builtinSkills = getBuiltinSkills();
 
   const filteredAgents = filterAgents(builtinAgents, pluginConfig);
   const filteredCommands = filterCommands(builtinCommands, pluginConfig);
+  const filteredSkills = filterSkills(builtinSkills, pluginConfig);
 
   if (debugLogsEnabled) {
     console.log("[CliKit] Plugin initializing...");
@@ -114,6 +185,9 @@ const CliKitPlugin: Plugin = async (ctx) => {
     );
     console.log(
       `[CliKit] Loaded ${Object.keys(filteredCommands).length}/${Object.keys(builtinCommands).length} commands`
+    );
+    console.log(
+      `[CliKit] Loaded ${Object.keys(filteredSkills).length}/${Object.keys(builtinSkills).length} skills`
     );
 
     if (pluginConfig.disabled_agents?.length) {
@@ -134,6 +208,28 @@ const CliKitPlugin: Plugin = async (ctx) => {
       config.command = {
         ...filteredCommands,
         ...config.command,
+      };
+
+      const runtimeConfig = config as unknown as {
+        skill?: Record<string, unknown>;
+        skills?: { paths?: string[]; urls?: string[] };
+        mcp?: Record<string, unknown>;
+      };
+      runtimeConfig.skill = {
+        ...filteredSkills,
+        ...(runtimeConfig.skill || {}),
+      };
+      const existingSkillPaths = runtimeConfig.skills?.paths || [];
+      const resolvedSkillsDir = resolveSkillsDir();
+      runtimeConfig.skills = {
+        ...(runtimeConfig.skills || {}),
+        paths: existingSkillPaths.includes(resolvedSkillsDir)
+          ? existingSkillPaths
+          : [resolvedSkillsDir, ...existingSkillPaths],
+      };
+      runtimeConfig.mcp = {
+        ...defaultMcpEntries,
+        ...(runtimeConfig.mcp || {}),
       };
 
       if (pluginConfig.lsp && Object.keys(pluginConfig.lsp).length > 0) {
@@ -171,6 +267,7 @@ const CliKitPlugin: Plugin = async (ctx) => {
         // Memory Digest: generate _digest.md from SQLite observations
         if (pluginConfig.hooks?.memory_digest?.enabled !== false) {
           const digestResult = generateMemoryDigest(ctx.directory, pluginConfig.hooks?.memory_digest);
+          lastDigestTime = Date.now();
           if (pluginConfig.hooks?.memory_digest?.log !== false) {
             console.log(formatDigestLog(digestResult));
           }
@@ -195,10 +292,15 @@ const CliKitPlugin: Plugin = async (ctx) => {
           const todos = normalizeTodos(props?.todos);
           todosBySession.set(sessionID, todos);
 
-          if (pluginConfig.hooks?.todo_beads_sync?.enabled !== false) {
-            const result = syncTodosToBeads(ctx.directory, sessionID, todos, pluginConfig.hooks?.todo_beads_sync);
-            if (pluginConfig.hooks?.todo_beads_sync?.log === true) {
-              console.log(formatTodoBeadsSyncLog(result));
+          // Debounce: skip sync if todos haven't changed
+          const todoHash = JSON.stringify(todos.map((t) => `${t.id}:${t.status}`));
+          if (todoHash !== lastTodoHash) {
+            lastTodoHash = todoHash;
+            if (pluginConfig.hooks?.todo_beads_sync?.enabled !== false) {
+              const result = syncTodosToBeads(ctx.directory, sessionID, todos, pluginConfig.hooks?.todo_beads_sync);
+              if (pluginConfig.hooks?.todo_beads_sync?.log === true) {
+                console.log(formatTodoBeadsSyncLog(result));
+              }
             }
           }
         }
@@ -232,9 +334,13 @@ const CliKitPlugin: Plugin = async (ctx) => {
           }
         }
 
-        // Memory Digest: refresh on idle (keeps _digest.md current)
+        // Memory Digest: refresh on idle (throttled to avoid repeated I/O)
         if (pluginConfig.hooks?.memory_digest?.enabled !== false) {
-          generateMemoryDigest(ctx.directory, pluginConfig.hooks?.memory_digest);
+          const now = Date.now();
+          if (now - lastDigestTime >= DIGEST_THROTTLE_MS) {
+            generateMemoryDigest(ctx.directory, pluginConfig.hooks?.memory_digest);
+            lastDigestTime = now;
+          }
         }
 
       }
@@ -280,32 +386,34 @@ const CliKitPlugin: Plugin = async (ctx) => {
           if (command && /git\s+(commit|add)/.test(command)) {
             const secConfig = pluginConfig.hooks?.security_check;
             let shouldBlock = false;
-            
-            const files = toolInput.files as string[] | undefined;
-            if (files) {
-              for (const file of files) {
-                if (isSensitiveFile(file)) {
-                  console.warn(`[CliKit:security] Sensitive file staged: ${file}`);
-                  shouldBlock = true;
-                }
+
+            // Run both git calls concurrently
+            const [stagedFiles, stagedDiff] = await Promise.all([
+              getStagedFiles(),
+              getStagedDiff(),
+            ]);
+
+            for (const file of stagedFiles) {
+              if (isSensitiveFile(file)) {
+                console.warn(`[CliKit:security] Sensitive file staged: ${file}`);
+                shouldBlock = true;
               }
             }
-            
-            const content = toolInput.content as string | undefined;
-            if (content) {
-              const scanResult = scanContentForSecrets(content);
+
+            if (stagedDiff) {
+              const scanResult = scanContentForSecrets(stagedDiff);
               if (!scanResult.safe) {
                 console.warn(formatSecurityWarning(scanResult));
                 shouldBlock = true;
               }
             }
-            
+
             if (shouldBlock && secConfig?.block_commits) {
               await showToast("Blocked commit due to sensitive data", "error", "CliKit Security");
               blockToolExecution("Sensitive data detected in commit");
             }
-            }
           }
+        }
       }
 
       // Swarm Enforcer: block edits outside task scope
