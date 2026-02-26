@@ -1,0 +1,66 @@
+{
+  "name": "clikit-plugin",
+  "version": "0.2.28",
+  "description": "OpenCode plugin with 10 agents, 19 commands, 48 skills, 14 hooks",
+  "type": "module",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "bin": {
+    "clikit": "./dist/cli.js"
+  },
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    },
+    "./schema.json": "./dist/clikit.schema.json"
+  },
+  "files": [
+    "dist",
+    "src/agents",
+    "skill",
+    "command",
+    "memory",
+    "AGENTS.md",
+    "README.md"
+  ],
+  "scripts": {
+    "build": "bun build src/index.ts src/cli.ts --outdir dist --target bun --format esm && tsc --emitDeclarationOnly && cp src/clikit.schema.json dist/ 2>/dev/null || true",
+    "clean": "rm -rf dist",
+    "prepublishOnly": "bun run clean && bun run build",
+    "typecheck": "tsc --noEmit",
+    "dev": "bun run build --watch"
+  },
+  "keywords": [
+    "opencode",
+    "plugin",
+    "agents",
+    "ai",
+    "llm",
+    "cli",
+    "claude",
+    "gpt"
+  ],
+  "author": "Kira",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/KiraKas-Tr/CliKit.git"
+  },
+  "bugs": {
+    "url": "https://github.com/KiraKas-Tr/CliKit/issues"
+  },
+  "homepage": "https://github.com/KiraKas-Tr/CliKit#readme",
+  "dependencies": {
+    "@opencode-ai/plugin": "1.2.5",
+    "gray-matter": "^4.0.3"
+  },
+  "devDependencies": {
+    "bun-types": "latest",
+    "clikit-plugin": "^0.2.15",
+    "typescript": "^5.7.3"
+  },
+  "peerDependencies": {
+    "bun": ">=1.0.0"
+  }
+}

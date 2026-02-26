@@ -1,0 +1,1 @@
+{"version":3,"file":"git-guard.d.ts","sourceRoot":"","sources":["../../src/hooks/git-guard.ts"],"names":[],"mappings":"AAAA;;;;;GAKG;AAaH,MAAM,WAAW,cAAc;IAC7B,OAAO,EAAE,OAAO,CAAC;IACjB,OAAO,EAAE,MAAM,CAAC;IAChB,MAAM,CAAC,EAAE,MAAM,CAAC;CACjB;AAED,wBAAgB,qBAAqB,CAAC,OAAO,EAAE,OAAO,EAAE,mBAAmB,UAAO,GAAG,cAAc,CAalG;AAED,wBAAgB,oBAAoB,CAAC,MAAM,EAAE,cAAc,GAAG,MAAM,CAEnE"}

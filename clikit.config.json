@@ -1,0 +1,23 @@
+{
+  "$schema": "./src/clikit.schema.json",
+  "disabled_agents": [],
+  "disabled_commands": [],
+  "agents": {
+    "oracle": {
+      "model": "proxypal/gpt-5.2-max"
+    },
+    "build": {
+      "model": "Modal/zai-org/GLM-5-FP8"
+    }
+  },
+  "commands": {},
+  "hooks": {
+    "session_logging": true,
+    "tool_logging": false,
+    "todo_beads_sync": {
+      "enabled": true,
+      "close_missing": true,
+      "log": true
+    }
+  }
+}
