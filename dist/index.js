@@ -5473,7 +5473,7 @@ var CliKitPlugin = async (ctx) => {
         if (pluginConfig.hooks?.session_logging) {
           console.error(`[CliKit] Session error:`, error);
         }
-        if (pluginConfig.hooks?.session_notification?.enabled !== false && pluginConfig.hooks?.session_notification?.on_error !== false) {
+        if (pluginConfig.hooks?.session_notification?.enabled === true && pluginConfig.hooks?.session_notification?.on_error !== false) {
           const notifConfig = pluginConfig.hooks?.session_notification;
           const sessionId = props?.sessionID;
           const payload = buildErrorNotification(error, sessionId, notifConfig?.title_prefix);
@@ -5511,7 +5511,7 @@ var CliKitPlugin = async (ctx) => {
             }
           }
         }
-        if (pluginConfig.hooks?.session_notification?.enabled !== false && pluginConfig.hooks?.session_notification?.on_idle !== false) {
+        if (pluginConfig.hooks?.session_notification?.enabled === true && pluginConfig.hooks?.session_notification?.on_idle !== false) {
           const notifConfig = pluginConfig.hooks?.session_notification;
           const payload = buildIdleNotification(sessionID, notifConfig?.title_prefix);
           const sent = sendNotification(payload);

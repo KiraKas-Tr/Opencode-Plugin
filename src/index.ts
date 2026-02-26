@@ -232,7 +232,7 @@ const CliKitPlugin: Plugin = async (ctx) => {
         }
 
         // Session Notification: notify on error
-        if (pluginConfig.hooks?.session_notification?.enabled !== false &&
+        if (pluginConfig.hooks?.session_notification?.enabled === true &&
             pluginConfig.hooks?.session_notification?.on_error !== false) {
           const notifConfig = pluginConfig.hooks?.session_notification;
           const sessionId = props?.sessionID as string | undefined;
@@ -287,7 +287,7 @@ const CliKitPlugin: Plugin = async (ctx) => {
         }
 
         // Session Notification: notify on idle
-        if (pluginConfig.hooks?.session_notification?.enabled !== false &&
+        if (pluginConfig.hooks?.session_notification?.enabled === true &&
             pluginConfig.hooks?.session_notification?.on_idle !== false) {
           const notifConfig = pluginConfig.hooks?.session_notification;
           const payload = buildIdleNotification(sessionID, notifConfig?.title_prefix);
