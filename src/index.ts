@@ -6,9 +6,7 @@ import {
   loadCliKitConfig,
   filterAgents,
   filterCommands,
-  type CliKitConfig,
   type LspServerConfig,
-  type HooksConfig,
 } from "./config";
 import {
   // Todo Enforcer
@@ -28,42 +26,14 @@ import {
   containsQuestion,
   isSubagentTool,
   formatBlockerWarning,
-  // Comment Checker
-  checkCommentDensity,
-  hasExcessiveAIComments,
-  formatCommentWarning,
-  // Environment Context
-  collectEnvInfo,
-  buildEnvBlock,
-  formatEnvSummary,
-  // Auto-Format
-  shouldFormat,
-  runFormatter,
-  formatAutoFormatLog,
-  // TypeCheck Gate
-  isTypeScriptFile,
-  runTypeCheck,
-  formatTypeCheckWarning,
-  // Session Notification
-  sendNotification,
-  buildIdleNotification,
-  buildErrorNotification,
-  formatNotificationLog,
   // Truncator
   shouldTruncate,
   truncateOutput,
   formatTruncationLog,
-  // Compaction
-  collectCompactionPayload,
-  buildCompactionBlock,
-  formatCompactionLog,
   // Swarm Enforcer
   checkEditPermission,
   extractFileFromToolInput,
   formatEnforcementWarning,
-  // Ritual Enforcer
-  checkRitualProgress,
-  formatRitualStatus,
   // Memory Digest
   generateMemoryDigest,
   formatDigestLog,
@@ -74,26 +44,29 @@ import {
 } from "./hooks";
 
 const CliKitPlugin: Plugin = async (ctx) => {
-  const envBlockBySession = new Map<string, string>();
-  const compactionBlockBySession = new Map<string, string>();
   const todosBySession = new Map<string, OpenCodeTodo[]>();
 
   function getToolInput(args: unknown): Record<string, unknown> {
     return args && typeof args === "object" ? (args as Record<string, unknown>) : {};
   }
 
-  function getEditTargetPath(input: Record<string, unknown>): string | undefined {
-    const candidates = [input.filePath, input.file, input.path];
-    for (const candidate of candidates) {
-      if (typeof candidate === "string" && candidate.length > 0) {
-        return candidate;
-      }
-    }
-    return undefined;
-  }
-
   function blockToolExecution(reason: string): never {
     throw new Error(`[CliKit] Blocked tool execution: ${reason}`);
+  }
+
+  async function showToast(message: string, variant: "info" | "success" | "warning" | "error", title = "CliKit"): Promise<void> {
+    try {
+      await ctx.client.tui.showToast({
+        body: {
+          title,
+          message,
+          variant,
+          duration: 3500,
+        },
+      });
+    } catch {
+      // Toasts are best-effort; never break hook flow.
+    }
   }
 
   function normalizeTodos(rawTodos: unknown): OpenCodeTodo[] {
@@ -124,6 +97,8 @@ const CliKitPlugin: Plugin = async (ctx) => {
   }
 
   const pluginConfig = loadCliKitConfig(ctx.directory) ?? {};
+  const debugLogsEnabled = pluginConfig.hooks?.session_logging === true && process.env.CLIKIT_DEBUG === "1";
+  const toolLogsEnabled = pluginConfig.hooks?.tool_logging === true && process.env.CLIKIT_DEBUG === "1";
 
   const builtinAgents = getBuiltinAgents();
   const builtinCommands = getBuiltinCommands();
@@ -131,7 +106,7 @@ const CliKitPlugin: Plugin = async (ctx) => {
   const filteredAgents = filterAgents(builtinAgents, pluginConfig);
   const filteredCommands = filterCommands(builtinCommands, pluginConfig);
 
-  if (pluginConfig.hooks?.session_logging) {
+  if (debugLogsEnabled) {
     console.log("[CliKit] Plugin initializing...");
     console.log("[CliKit] Context:", JSON.stringify({ directory: ctx?.directory, hasClient: !!ctx?.client }));
     console.log(
@@ -174,7 +149,7 @@ const CliKitPlugin: Plugin = async (ctx) => {
             ...enabledLsp,
             ...(config.lsp || {}),
           };
-          if (pluginConfig.hooks?.session_logging) {
+          if (debugLogsEnabled) {
             console.log(`[CliKit] Injected ${Object.keys(enabledLsp).length} LSP server(s)`);
           }
         }
@@ -188,23 +163,9 @@ const CliKitPlugin: Plugin = async (ctx) => {
       // --- Session Created ---
       if (event.type === "session.created") {
         const info = props?.info as { id?: string; title?: string } | undefined;
-        const sessionID = info?.id;
 
-        if (pluginConfig.hooks?.session_logging) {
+        if (debugLogsEnabled) {
           console.log(`[CliKit] Session created: ${info?.id || "unknown"}`);
-        }
-
-        // Environment Context: inject env info
-        if (pluginConfig.hooks?.env_context?.enabled !== false) {
-          const envConfig = pluginConfig.hooks?.env_context;
-          const envInfo = collectEnvInfo(ctx.directory, envConfig);
-          const envBlock = buildEnvBlock(envInfo);
-          if (pluginConfig.hooks?.session_logging) {
-            console.log(formatEnvSummary(envInfo));
-          }
-          if (sessionID) {
-            envBlockBySession.set(sessionID, envBlock);
-          }
         }
 
         // Memory Digest: generate _digest.md from SQLite observations
@@ -215,37 +176,16 @@ const CliKitPlugin: Plugin = async (ctx) => {
           }
         }
 
-        // Ritual Enforcer: log current ritual phase on session start
-        if (pluginConfig.hooks?.ritual_enforcer?.enabled !== false) {
-          const ritualProgress = checkRitualProgress();
-          if (pluginConfig.hooks?.ritual_enforcer?.log !== false) {
-            console.log(formatRitualStatus());
-          }
-          if (!ritualProgress.canProceed) {
-            console.warn(`[CliKit:ritual] ${ritualProgress.progress}`);
-          }
-        }
       }
 
       // --- Session Error ---
       if (event.type === "session.error") {
         const error = props?.error;
 
-        if (pluginConfig.hooks?.session_logging) {
+        if (debugLogsEnabled) {
           console.error(`[CliKit] Session error:`, error);
         }
 
-        // Session Notification: notify on error
-        if (pluginConfig.hooks?.session_notification?.enabled === true &&
-            pluginConfig.hooks?.session_notification?.on_error !== false) {
-          const notifConfig = pluginConfig.hooks?.session_notification;
-          const sessionId = props?.sessionID as string | undefined;
-          const payload = buildErrorNotification(error, sessionId, notifConfig?.title_prefix);
-          const sent = sendNotification(payload);
-          if (pluginConfig.hooks?.session_logging) {
-            console.log(formatNotificationLog(payload, sent));
-          }
-        }
       }
 
       // --- Todo Updated ---
@@ -257,7 +197,7 @@ const CliKitPlugin: Plugin = async (ctx) => {
 
           if (pluginConfig.hooks?.todo_beads_sync?.enabled !== false) {
             const result = syncTodosToBeads(ctx.directory, sessionID, todos, pluginConfig.hooks?.todo_beads_sync);
-            if (pluginConfig.hooks?.todo_beads_sync?.log !== false) {
+            if (pluginConfig.hooks?.todo_beads_sync?.log === true) {
               console.log(formatTodoBeadsSyncLog(result));
             }
           }
@@ -269,7 +209,7 @@ const CliKitPlugin: Plugin = async (ctx) => {
         const sessionID = props?.sessionID as string | undefined;
         const sessionTodos = sessionID ? (todosBySession.get(sessionID) || []) : [];
 
-        if (pluginConfig.hooks?.session_logging) {
+        if (debugLogsEnabled) {
           console.log(`[CliKit] Session idle: ${sessionID || "unknown"}`);
         }
 
@@ -292,42 +232,11 @@ const CliKitPlugin: Plugin = async (ctx) => {
           }
         }
 
-        // Session Notification: notify on idle
-        if (pluginConfig.hooks?.session_notification?.enabled === true &&
-            pluginConfig.hooks?.session_notification?.on_idle !== false) {
-          const notifConfig = pluginConfig.hooks?.session_notification;
-          const payload = buildIdleNotification(sessionID, notifConfig?.title_prefix);
-          const sent = sendNotification(payload);
-          if (pluginConfig.hooks?.session_logging) {
-            console.log(formatNotificationLog(payload, sent));
-          }
-        }
-
         // Memory Digest: refresh on idle (keeps _digest.md current)
         if (pluginConfig.hooks?.memory_digest?.enabled !== false) {
           generateMemoryDigest(ctx.directory, pluginConfig.hooks?.memory_digest);
         }
 
-        // Compaction: inject state when nearing compaction
-        if (pluginConfig.hooks?.compaction?.enabled !== false) {
-          const compConfig = pluginConfig.hooks?.compaction;
-          const compPayload = collectCompactionPayload(ctx.directory, compConfig);
-          const todos = normalizeTodos(props?.todos);
-          const effectiveTodos = todos.length > 0 ? todos : sessionTodos;
-
-          // Add todo state if available
-          if (compConfig?.include_todo_state !== false && effectiveTodos.length > 0) {
-            compPayload.todos = effectiveTodos;
-          }
-
-          const block = buildCompactionBlock(compPayload, compConfig?.max_state_chars);
-          if (compConfig?.log === true) {
-            console.log(formatCompactionLog(compPayload));
-          }
-          if (sessionID) {
-            compactionBlockBySession.set(sessionID, block);
-          }
-        }
       }
 
       // --- Session Deleted ---
@@ -335,27 +244,8 @@ const CliKitPlugin: Plugin = async (ctx) => {
         const info = props?.info as { id?: string } | undefined;
         const sessionID = info?.id;
         if (sessionID) {
-          envBlockBySession.delete(sessionID);
-          compactionBlockBySession.delete(sessionID);
           todosBySession.delete(sessionID);
         }
-      }
-    },
-
-    "experimental.chat.system.transform": async (input, output) => {
-      if (!input.sessionID) {
-        return;
-      }
-      const envBlock = envBlockBySession.get(input.sessionID);
-      if (envBlock) {
-        output.system.push(envBlock);
-      }
-    },
-
-    "experimental.session.compacting": async (input, output) => {
-      const block = compactionBlockBySession.get(input.sessionID);
-      if (block) {
-        output.context.push(block);
       }
     },
 
@@ -363,7 +253,7 @@ const CliKitPlugin: Plugin = async (ctx) => {
       const toolName = input.tool;
       const toolInput = getToolInput(output.args);
 
-      if (pluginConfig.hooks?.tool_logging) {
+      if (toolLogsEnabled) {
         console.log(`[CliKit] Tool executing: ${toolName}`);
       }
 
@@ -376,6 +266,7 @@ const CliKitPlugin: Plugin = async (ctx) => {
             const result = checkDangerousCommand(command, allowForceWithLease);
             if (result.blocked) {
               console.warn(formatBlockedWarning(result));
+              await showToast(result.reason || "Blocked dangerous git command", "warning", "CliKit Guard");
               blockToolExecution(result.reason || "Dangerous git command");
             }
           }
@@ -410,6 +301,7 @@ const CliKitPlugin: Plugin = async (ctx) => {
             }
             
             if (shouldBlock && secConfig?.block_commits) {
+              await showToast("Blocked commit due to sensitive data", "error", "CliKit Security");
               blockToolExecution("Sensitive data detected in commit");
             }
             }
@@ -432,20 +324,13 @@ const CliKitPlugin: Plugin = async (ctx) => {
             if (!enforcement.allowed) {
               console.warn(formatEnforcementWarning(enforcement));
               if (pluginConfig.hooks?.swarm_enforcer?.block_unreserved_edits) {
+                await showToast(enforcement.reason || "Edit blocked outside task scope", "warning", "CliKit Swarm");
                 blockToolExecution(enforcement.reason || "Edit outside reserved task scope");
               }
-            } else if (pluginConfig.hooks?.swarm_enforcer?.log) {
+            } else if (pluginConfig.hooks?.swarm_enforcer?.log === true) {
               console.log(`[CliKit:swarm-enforcer] Allowed edit: ${targetFile}`);
             }
           }
-        }
-      }
-
-      // Ritual Enforcer: check phase before tool execution
-      if (pluginConfig.hooks?.ritual_enforcer?.enabled !== false) {
-        const ritualProgress = checkRitualProgress();
-        if (!ritualProgress.canProceed && pluginConfig.hooks?.ritual_enforcer?.enforceOrder) {
-          console.warn(`[CliKit:ritual] Phase violation: ${ritualProgress.progress}`);
         }
       }
 
@@ -455,6 +340,7 @@ const CliKitPlugin: Plugin = async (ctx) => {
           const prompt = toolInput.prompt as string | undefined;
           if (prompt && containsQuestion(prompt)) {
             console.warn(formatBlockerWarning());
+            await showToast("Subagent prompt blocked: avoid direct questions", "warning", "CliKit Guard");
             blockToolExecution("Subagents should not ask questions");
           }
         }
@@ -466,7 +352,7 @@ const CliKitPlugin: Plugin = async (ctx) => {
       const toolInput = getToolInput(input.args);
       let toolOutputContent: string = output.output;
 
-      if (pluginConfig.hooks?.tool_logging) {
+      if (toolLogsEnabled) {
         console.log(`[CliKit] Tool completed: ${toolName} -> ${output.title}`);
       }
 
@@ -476,7 +362,7 @@ const CliKitPlugin: Plugin = async (ctx) => {
         if (isEmptyContent(toolOutputContent)) {
           const placeholder = sanitizerConfig?.placeholder || "(No output)";
 
-          if (sanitizerConfig?.log_empty !== false) {
+          if (sanitizerConfig?.log_empty === true) {
             console.log(`[CliKit] Empty output detected for tool: ${toolName}`);
           }
 
@@ -488,23 +374,6 @@ const CliKitPlugin: Plugin = async (ctx) => {
         }
       }
 
-      // Comment Checker: detect excessive AI comments in written/edited files
-      if (pluginConfig.hooks?.comment_checker?.enabled !== false) {
-        if (toolName === "edit" || toolName === "Edit" || toolName === "write" || toolName === "Write") {
-          const content = toolOutputContent;
-          if (typeof content === "string" && content.length > 100) {
-            const threshold = pluginConfig.hooks?.comment_checker?.threshold ?? 0.3;
-            const densityResult = checkCommentDensity(content, threshold);
-            if (densityResult.excessive) {
-              console.warn(formatCommentWarning(densityResult));
-            }
-            if (hasExcessiveAIComments(content)) {
-              console.warn("[CliKit:comment-checker] Detected AI-style boilerplate comments. Remove unnecessary comments.");
-            }
-          }
-        }
-      }
-
       // Truncator: trim large outputs
       if (pluginConfig.hooks?.truncator?.enabled !== false) {
         if (shouldTruncate(toolOutputContent, pluginConfig.hooks?.truncator)) {
@@ -512,47 +381,13 @@ const CliKitPlugin: Plugin = async (ctx) => {
           if (result.truncated) {
             toolOutputContent = result.content;
             output.output = result.content;
-            if (pluginConfig.hooks?.truncator?.log !== false) {
+            if (pluginConfig.hooks?.truncator?.log === true) {
               console.log(formatTruncationLog(result));
             }
           }
         }
       }
 
-      // Auto-Format: run formatter after file edits
-      if (pluginConfig.hooks?.auto_format?.enabled) {
-        if (toolName === "edit" || toolName === "Edit" || toolName === "write" || toolName === "Write") {
-          const filePath = getEditTargetPath(toolInput);
-          if (filePath) {
-            const fmtConfig = pluginConfig.hooks.auto_format;
-            if (shouldFormat(filePath, fmtConfig?.extensions)) {
-              const result = runFormatter(filePath, ctx.directory, fmtConfig?.formatter);
-              if (fmtConfig?.log !== false) {
-                console.log(formatAutoFormatLog(result));
-              }
-            }
-          }
-        }
-      }
-
-      // TypeCheck Gate: run tsc after TypeScript edits
-      if (pluginConfig.hooks?.typecheck_gate?.enabled) {
-        if (toolName === "edit" || toolName === "Edit" || toolName === "write" || toolName === "Write") {
-          const filePath = getEditTargetPath(toolInput);
-          if (filePath && isTypeScriptFile(filePath)) {
-            const tcConfig = pluginConfig.hooks.typecheck_gate;
-            const result = runTypeCheck(filePath, ctx.directory, tcConfig);
-            if (!result.clean) {
-              console.warn(formatTypeCheckWarning(result));
-              if (tcConfig?.block_on_error) {
-                blockToolExecution(`Type errors in ${filePath}`);
-              }
-            } else if (tcConfig?.log !== false) {
-              console.log(formatTypeCheckWarning(result));
-            }
-          }
-        }
-      }
     },
   };
 };

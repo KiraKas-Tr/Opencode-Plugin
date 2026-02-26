@@ -3625,32 +3625,6 @@ var DEFAULT_CONFIG = {
     subagent_question_blocker: {
       enabled: true
     },
-    comment_checker: {
-      enabled: true,
-      threshold: 0.3
-    },
-    env_context: {
-      enabled: true,
-      include_git: true,
-      include_package: true,
-      include_structure: true,
-      max_depth: 2
-    },
-    auto_format: {
-      enabled: false,
-      log: false
-    },
-    typecheck_gate: {
-      enabled: false,
-      log: false,
-      block_on_error: false
-    },
-    session_notification: {
-      enabled: false,
-      on_idle: true,
-      on_error: true,
-      title_prefix: "OpenCode"
-    },
     truncator: {
       enabled: true,
       max_output_chars: 30000,
@@ -3659,23 +3633,10 @@ var DEFAULT_CONFIG = {
       preserve_tail_lines: 50,
       log: false
     },
-    compaction: {
-      enabled: true,
-      include_beads_state: true,
-      include_memory_refs: true,
-      include_todo_state: true,
-      max_state_chars: 5000,
-      log: false
-    },
     swarm_enforcer: {
       enabled: true,
       strict_file_locking: true,
       block_unreserved_edits: false,
-      log: false
-    },
-    ritual_enforcer: {
-      enabled: true,
-      enforceOrder: true,
       log: false
     },
     memory_digest: {
@@ -4059,520 +4020,6 @@ function isSubagentTool(toolName) {
 function formatBlockerWarning() {
   return `[CliKit:subagent-blocker] Subagent attempted to ask clarifying questions. Subagents should execute autonomously.`;
 }
-// src/hooks/comment-checker.ts
-var EXCESSIVE_COMMENT_PATTERNS = [
-  /\/\/\s*TODO:?\s*$/i,
-  /\/\/\s*This (?:function|method|class|variable|constant)/i,
-  /\/\/\s*(?:Initialize|Create|Set up|Configure|Define|Declare) the/i,
-  /\/\/\s*(?:Import|Export|Return|Handle|Process|Get|Set|Update|Delete|Add|Remove) /i,
-  /\/\*\*?\s*\n\s*\*\s*(?:This|The|A|An) (?:function|method|class|component)/i,
-  /#\s*(?:This|The|A|An) (?:function|method|class|script)/i
-];
-function checkCommentDensity(content, threshold = 0.3) {
-  if (typeof content !== "string") {
-    return { excessive: false, count: 0, totalLines: 0, ratio: 0 };
-  }
-  const lines = content.split(`
-`);
-  const totalLines = lines.filter((l) => l.trim().length > 0).length;
-  if (totalLines === 0) {
-    return { excessive: false, count: 0, totalLines: 0, ratio: 0 };
-  }
-  let commentLines = 0;
-  let inBlockComment = false;
-  for (const line of lines) {
-    const trimmed = line.trim();
-    if (inBlockComment) {
-      commentLines++;
-      if (trimmed.includes("*/")) {
-        inBlockComment = false;
-      }
-      continue;
-    }
-    if (trimmed.startsWith("/*")) {
-      commentLines++;
-      if (!trimmed.includes("*/")) {
-        inBlockComment = true;
-      }
-      continue;
-    }
-    if (trimmed.startsWith("//")) {
-      commentLines++;
-    } else if (trimmed.startsWith("#") && !trimmed.startsWith("#!") && !trimmed.startsWith("# ")) {
-      const rest = trimmed.slice(1).trim();
-      if (rest.length > 0 && !rest.includes(":") && !rest.startsWith(" ") === false) {
-        commentLines++;
-      }
-    }
-  }
-  const ratio = commentLines / totalLines;
-  return {
-    excessive: ratio > threshold,
-    count: commentLines,
-    totalLines,
-    ratio
-  };
-}
-function hasExcessiveAIComments(content) {
-  if (typeof content !== "string") {
-    return false;
-  }
-  let matches = 0;
-  for (const pattern of EXCESSIVE_COMMENT_PATTERNS) {
-    const found = content.match(new RegExp(pattern, "gm"));
-    if (found) {
-      matches += found.length;
-    }
-  }
-  return matches >= 5;
-}
-function formatCommentWarning(result) {
-  const pct = (result.ratio * 100).toFixed(0);
-  return `[CliKit:comment-checker] ${result.count}/${result.totalLines} lines are comments (${pct}%). Reduce unnecessary comments \u2014 code should be self-documenting.`;
-}
-// src/hooks/env-context.ts
-import * as fs4 from "fs";
-import * as path4 from "path";
-import { execSync } from "child_process";
-function isRecord(value) {
-  return !!value && typeof value === "object" && !Array.isArray(value);
-}
-function runSilent(cmd, cwd) {
-  try {
-    return execSync(cmd, { cwd, encoding: "utf-8", timeout: 5000, stdio: ["pipe", "pipe", "pipe"] }).trim();
-  } catch {
-    return null;
-  }
-}
-function getGitInfo(cwd) {
-  const branch = runSilent("git rev-parse --abbrev-ref HEAD", cwd);
-  if (!branch)
-    return;
-  const status = runSilent("git status --porcelain", cwd);
-  const remoteUrl = runSilent("git remote get-url origin", cwd);
-  const lastCommit = runSilent("git log -1 --format=%s", cwd);
-  return {
-    branch,
-    hasChanges: !!status && status.length > 0,
-    remoteUrl: remoteUrl || undefined,
-    lastCommit: lastCommit || undefined
-  };
-}
-function getPackageInfo(cwd) {
-  const pkgPath = path4.join(cwd, "package.json");
-  if (!fs4.existsSync(pkgPath))
-    return;
-  try {
-    const parsed = JSON.parse(fs4.readFileSync(pkgPath, "utf-8"));
-    const pkg = isRecord(parsed) ? parsed : {};
-    const scriptsObj = isRecord(pkg.scripts) ? pkg.scripts : {};
-    const scripts = Object.keys(scriptsObj);
-    let packageManager;
-    if (fs4.existsSync(path4.join(cwd, "bun.lockb")) || fs4.existsSync(path4.join(cwd, "bun.lock"))) {
-      packageManager = "bun";
-    } else if (fs4.existsSync(path4.join(cwd, "pnpm-lock.yaml"))) {
-      packageManager = "pnpm";
-    } else if (fs4.existsSync(path4.join(cwd, "yarn.lock"))) {
-      packageManager = "yarn";
-    } else if (fs4.existsSync(path4.join(cwd, "package-lock.json"))) {
-      packageManager = "npm";
-    }
-    let framework;
-    const deps = isRecord(pkg.dependencies) ? pkg.dependencies : {};
-    const devDeps = isRecord(pkg.devDependencies) ? pkg.devDependencies : {};
-    const allDeps = { ...deps, ...devDeps };
-    if (allDeps["next"])
-      framework = "Next.js";
-    else if (allDeps["nuxt"])
-      framework = "Nuxt";
-    else if (allDeps["@angular/core"])
-      framework = "Angular";
-    else if (allDeps["svelte"])
-      framework = "Svelte";
-    else if (allDeps["vue"])
-      framework = "Vue";
-    else if (allDeps["react"])
-      framework = "React";
-    else if (allDeps["express"])
-      framework = "Express";
-    else if (allDeps["fastify"])
-      framework = "Fastify";
-    else if (allDeps["hono"])
-      framework = "Hono";
-    return {
-      name: typeof pkg.name === "string" ? pkg.name : undefined,
-      version: typeof pkg.version === "string" ? pkg.version : undefined,
-      packageManager,
-      scripts,
-      framework
-    };
-  } catch {
-    return;
-  }
-}
-function getTopLevelStructure(cwd, maxDepth = 2) {
-  const entries = [];
-  function walk(dir, depth, prefix) {
-    if (depth > maxDepth)
-      return;
-    try {
-      const items = fs4.readdirSync(dir, { withFileTypes: true });
-      const filtered = items.filter((i) => !i.name.startsWith(".") && i.name !== "node_modules" && i.name !== "dist" && i.name !== "__pycache__").sort((a, b) => {
-        if (a.isDirectory() && !b.isDirectory())
-          return -1;
-        if (!a.isDirectory() && b.isDirectory())
-          return 1;
-        return a.name.localeCompare(b.name);
-      });
-      for (const item of filtered.slice(0, 20)) {
-        const suffix = item.isDirectory() ? "/" : "";
-        entries.push(`${prefix}${item.name}${suffix}`);
-        if (item.isDirectory() && depth < maxDepth) {
-          walk(path4.join(dir, item.name), depth + 1, prefix + "  ");
-        }
-      }
-    } catch {}
-  }
-  walk(cwd, 1, "");
-  return entries;
-}
-function collectEnvInfo(cwd, config) {
-  const safeCwd = typeof cwd === "string" && cwd ? cwd : process.cwd();
-  const info = {
-    platform: process.platform,
-    nodeVersion: process.version,
-    cwd: safeCwd
-  };
-  if (config?.include_git !== false) {
-    info.git = getGitInfo(safeCwd);
-  }
-  if (config?.include_package !== false) {
-    info.package = getPackageInfo(safeCwd);
-  }
-  if (config?.include_structure !== false) {
-    info.structure = getTopLevelStructure(safeCwd, config?.max_depth ?? 2);
-  }
-  return info;
-}
-function buildEnvBlock(info) {
-  const lines = ["<env-context>"];
-  lines.push(`Platform: ${info.platform}`);
-  lines.push(`Node: ${info.nodeVersion}`);
-  lines.push(`CWD: ${info.cwd}`);
-  if (info.git) {
-    lines.push(`
-Git:`);
-    lines.push(`  Branch: ${info.git.branch}`);
-    lines.push(`  Dirty: ${info.git.hasChanges}`);
-    if (info.git.remoteUrl)
-      lines.push(`  Remote: ${info.git.remoteUrl}`);
-    if (info.git.lastCommit)
-      lines.push(`  Last commit: ${info.git.lastCommit}`);
-  }
-  if (info.package) {
-    lines.push(`
-Package:`);
-    if (info.package.name)
-      lines.push(`  Name: ${info.package.name}`);
-    if (info.package.version)
-      lines.push(`  Version: ${info.package.version}`);
-    if (info.package.packageManager)
-      lines.push(`  Package manager: ${info.package.packageManager}`);
-    if (info.package.framework)
-      lines.push(`  Framework: ${info.package.framework}`);
-    if (info.package.scripts?.length) {
-      lines.push(`  Scripts: ${info.package.scripts.join(", ")}`);
-    }
-  }
-  if (info.structure?.length) {
-    lines.push(`
-Project structure:`);
-    for (const entry of info.structure) {
-      lines.push(`  ${entry}`);
-    }
-  }
-  lines.push("</env-context>");
-  return lines.join(`
-`);
-}
-function formatEnvSummary(info) {
-  const parts = [`${info.platform}/${info.nodeVersion}`];
-  if (info.git)
-    parts.push(`branch:${info.git.branch}`);
-  if (info.package?.framework)
-    parts.push(info.package.framework);
-  if (info.package?.packageManager)
-    parts.push(info.package.packageManager);
-  return `[CliKit:env-context] ${parts.join(", ")}`;
-}
-// src/hooks/auto-format.ts
-import * as fs5 from "fs";
-import * as path5 from "path";
-import { execSync as execSync2 } from "child_process";
-var FORMATTERS = [
-  {
-    name: "prettier",
-    configFiles: [".prettierrc", ".prettierrc.json", ".prettierrc.js", ".prettierrc.cjs", ".prettierrc.yaml", ".prettierrc.yml", "prettier.config.js", "prettier.config.cjs"],
-    command: (file) => `npx prettier --write "${file}"`
-  },
-  {
-    name: "biome",
-    configFiles: ["biome.json", "biome.jsonc"],
-    command: (file) => `npx @biomejs/biome format --write "${file}"`
-  },
-  {
-    name: "dprint",
-    configFiles: ["dprint.json", ".dprint.json"],
-    command: (file) => `dprint fmt "${file}"`
-  }
-];
-var DEFAULT_EXTENSIONS = [".ts", ".tsx", ".js", ".jsx", ".json", ".css", ".scss", ".html", ".md", ".yaml", ".yml"];
-function detectFormatter(projectDir) {
-  const pkgPath = path5.join(projectDir, "package.json");
-  let pkgDeps = {};
-  try {
-    if (fs5.existsSync(pkgPath)) {
-      const pkg = JSON.parse(fs5.readFileSync(pkgPath, "utf-8"));
-      pkgDeps = { ...pkg.dependencies, ...pkg.devDependencies };
-    }
-  } catch {}
-  for (const formatter of FORMATTERS) {
-    for (const configFile of formatter.configFiles) {
-      if (fs5.existsSync(path5.join(projectDir, configFile))) {
-        return formatter;
-      }
-    }
-    if (pkgDeps[formatter.name] || pkgDeps[`@biomejs/${formatter.name}`]) {
-      return formatter;
-    }
-  }
-  return;
-}
-function shouldFormat(filePath, extensions) {
-  if (typeof filePath !== "string")
-    return false;
-  const ext = path5.extname(filePath).toLowerCase();
-  const allowedExts = extensions || DEFAULT_EXTENSIONS;
-  return allowedExts.includes(ext);
-}
-function runFormatter(filePath, projectDir, formatterOverride) {
-  const safePath = typeof filePath === "string" && filePath ? filePath : "";
-  const safeDir = typeof projectDir === "string" && projectDir ? projectDir : process.cwd();
-  const formatter = formatterOverride ? FORMATTERS.find((f) => f.name === formatterOverride) : detectFormatter(safeDir);
-  if (!formatter || !safePath) {
-    return {
-      formatted: false,
-      file: safePath,
-      formatter: "none",
-      error: formatter ? "No file path provided" : "No formatter detected"
-    };
-  }
-  try {
-    const cmd = formatter.command(safePath);
-    execSync2(cmd, {
-      cwd: safeDir,
-      timeout: 1e4,
-      stdio: ["pipe", "pipe", "pipe"]
-    });
-    return {
-      formatted: true,
-      file: safePath,
-      formatter: formatter.name
-    };
-  } catch (err) {
-    return {
-      formatted: false,
-      file: safePath,
-      formatter: formatter.name,
-      error: err instanceof Error ? err.message : String(err)
-    };
-  }
-}
-function formatAutoFormatLog(result) {
-  if (result.formatted) {
-    return `[CliKit:auto-format] Formatted ${result.file} with ${result.formatter}`;
-  }
-  return `[CliKit:auto-format] Failed to format ${result.file}: ${result.error}`;
-}
-// src/hooks/typecheck-gate.ts
-import * as fs6 from "fs";
-import * as path6 from "path";
-import { execSync as execSync3 } from "child_process";
-function normalizeTypeCheckResult(result) {
-  if (!result || typeof result !== "object") {
-    return { clean: true, errors: [], checkedFile: "" };
-  }
-  const raw = result;
-  const errors = Array.isArray(raw.errors) ? raw.errors.filter((item) => !!item && typeof item === "object").map((item) => ({
-    file: typeof item.file === "string" ? item.file : "",
-    line: typeof item.line === "number" ? item.line : 0,
-    column: typeof item.column === "number" ? item.column : 0,
-    code: typeof item.code === "string" ? item.code : "TS0000",
-    message: typeof item.message === "string" ? item.message : "Unknown typecheck error"
-  })) : [];
-  const checkedFile = typeof raw.checkedFile === "string" ? raw.checkedFile : "";
-  const clean = typeof raw.clean === "boolean" ? raw.clean : errors.length === 0;
-  return { clean, errors, checkedFile };
-}
-var TS_EXTENSIONS = [".ts", ".tsx", ".mts", ".cts"];
-function isTypeScriptFile(filePath) {
-  if (typeof filePath !== "string")
-    return false;
-  return TS_EXTENSIONS.includes(path6.extname(filePath).toLowerCase());
-}
-function findTsConfig(projectDir, override) {
-  const safeDir = typeof projectDir === "string" && projectDir ? projectDir : process.cwd();
-  if (override) {
-    const overridePath = path6.resolve(safeDir, override);
-    return fs6.existsSync(overridePath) ? overridePath : undefined;
-  }
-  const candidates = ["tsconfig.json", "tsconfig.build.json"];
-  for (const candidate of candidates) {
-    const fullPath = path6.join(safeDir, candidate);
-    if (fs6.existsSync(fullPath)) {
-      return fullPath;
-    }
-  }
-  return;
-}
-function runTypeCheck(filePath, projectDir, config) {
-  const safePath = typeof filePath === "string" && filePath ? filePath : "";
-  const safeDir = typeof projectDir === "string" && projectDir ? projectDir : process.cwd();
-  const tsConfig = findTsConfig(safeDir, config?.tsconfig);
-  if (!tsConfig) {
-    return { clean: true, errors: [], checkedFile: safePath };
-  }
-  try {
-    const tscCmd = `npx tsc --noEmit --pretty false -p "${tsConfig}"`;
-    execSync3(tscCmd, {
-      cwd: safeDir,
-      timeout: 30000,
-      stdio: ["pipe", "pipe", "pipe"],
-      encoding: "utf-8"
-    });
-    return { clean: true, errors: [], checkedFile: safePath };
-  } catch (err) {
-    const output = err instanceof Error && "stdout" in err ? String(err.stdout) : "";
-    const errors = parseTscOutput(output, safePath);
-    return {
-      clean: errors.length === 0,
-      errors,
-      checkedFile: safePath
-    };
-  }
-}
-function parseTscOutput(output, filterFile) {
-  if (typeof output !== "string")
-    return [];
-  const diagnostics = [];
-  const lines = output.split(`
-`);
-  const pattern = /^(.+?)\((\d+),(\d+)\):\s+error\s+(TS\d+):\s+(.+)$/;
-  for (const line of lines) {
-    const match = line.match(pattern);
-    if (match) {
-      const [, file, lineNum, col, code, message] = match;
-      const diagnostic = {
-        file: file.trim(),
-        line: parseInt(lineNum, 10),
-        column: parseInt(col, 10),
-        code,
-        message: message.trim()
-      };
-      if (filterFile) {
-        const normalizedFilter = path6.resolve(filterFile);
-        const normalizedDiag = path6.resolve(diagnostic.file);
-        if (normalizedDiag === normalizedFilter) {
-          diagnostics.push(diagnostic);
-        }
-      } else {
-        diagnostics.push(diagnostic);
-      }
-    }
-  }
-  return diagnostics;
-}
-function formatTypeCheckWarning(result) {
-  const safeResult = normalizeTypeCheckResult(result);
-  if (safeResult.clean) {
-    return `[CliKit:typecheck] ${safeResult.checkedFile} \u2014 no type errors`;
-  }
-  const lines = [`[CliKit:typecheck] ${safeResult.errors.length} type error(s) in ${safeResult.checkedFile}:`];
-  for (const err of safeResult.errors.slice(0, 10)) {
-    lines.push(`  ${err.file}:${err.line}:${err.column} ${err.code}: ${err.message}`);
-  }
-  if (safeResult.errors.length > 10) {
-    lines.push(`  ... and ${safeResult.errors.length - 10} more`);
-  }
-  return lines.join(`
-`);
-}
-// src/hooks/session-notification.ts
-import { execSync as execSync4 } from "child_process";
-function escapeSingleQuotes(str2) {
-  return str2.replace(/'/g, "'\\''");
-}
-function getNotifyCommand(payload) {
-  const { title, body, urgency } = payload;
-  const safeTitle = typeof title === "string" ? title : "Notification";
-  const safeBody = typeof body === "string" ? body : "";
-  const escapedTitle = safeTitle.replace(/"/g, "\\\"");
-  const escapedBody = safeBody.replace(/"/g, "\\\"");
-  switch (process.platform) {
-    case "linux":
-      return `notify-send "${escapedTitle}" "${escapedBody}" --urgency=${urgency || "normal"}`;
-    case "darwin":
-      return `osascript -e 'display notification "${escapedBody}" with title "${escapedTitle}"'`;
-    case "win32":
-      return `powershell -command "[void] [System.Reflection.Assembly]::LoadWithPartialName('System.Windows.Forms'); $n = New-Object System.Windows.Forms.NotifyIcon; $n.Icon = [System.Drawing.SystemIcons]::Information; $n.Visible = $true; $n.ShowBalloonTip(5000, '${escapeSingleQuotes(safeTitle)}', '${escapeSingleQuotes(safeBody)}', [System.Windows.Forms.ToolTipIcon]::Info)"`;
-    default:
-      return null;
-  }
-}
-function sendNotification(payload) {
-  const cmd = getNotifyCommand(payload);
-  if (!cmd)
-    return false;
-  try {
-    execSync4(cmd, { timeout: 5000, stdio: ["pipe", "pipe", "pipe"] });
-    return true;
-  } catch {
-    if (process.platform === "linux") {
-      try {
-        const wslTitle = escapeSingleQuotes(typeof payload.title === "string" ? payload.title : "Notification");
-        const wslBody = escapeSingleQuotes(typeof payload.body === "string" ? payload.body : "");
-        const wslCmd = `powershell.exe -command "[void] [System.Reflection.Assembly]::LoadWithPartialName('System.Windows.Forms'); $n = New-Object System.Windows.Forms.NotifyIcon; $n.Icon = [System.Drawing.SystemIcons]::Information; $n.Visible = $true; $n.ShowBalloonTip(5000, '${wslTitle}', '${wslBody}', [System.Windows.Forms.ToolTipIcon]::Info)"`;
-        execSync4(wslCmd, { timeout: 5000, stdio: ["pipe", "pipe", "pipe"] });
-        return true;
-      } catch {
-        return false;
-      }
-    }
-    return false;
-  }
-}
-function buildIdleNotification(sessionId, prefix) {
-  const titlePrefix = prefix || "OpenCode";
-  const sid = typeof sessionId === "string" ? sessionId : undefined;
-  return {
-    title: `${titlePrefix} \u2014 Task Complete`,
-    body: sid ? `Session ${sid.substring(0, 8)} is idle and waiting for input.` : "Session is idle and waiting for input.",
-    urgency: "normal"
-  };
-}
-function buildErrorNotification(error, sessionId, prefix) {
-  const titlePrefix = prefix || "OpenCode";
-  const errorStr = typeof error === "string" ? error : error instanceof Error ? error.message : String(error);
-  const sid = typeof sessionId === "string" ? sessionId : undefined;
-  return {
-    title: `${titlePrefix} \u2014 Error`,
-    body: sid ? `Session ${sid.substring(0, 8)}: ${errorStr.substring(0, 100)}` : errorStr.substring(0, 120),
-    urgency: "critical"
-  };
-}
-function formatNotificationLog(payload, sent) {
-  return sent ? `[CliKit:notification] Sent: "${payload.title}"` : `[CliKit:notification] Failed to send notification (platform: ${process.platform})`;
-}
 // src/hooks/truncator.ts
 var DEFAULT_MAX_CHARS = 30000;
 var DEFAULT_MAX_LINES = 500;
@@ -4680,262 +4127,21 @@ function formatTruncationLog(result) {
   const saved = result.originalLength - result.truncatedLength;
   return `[CliKit:truncator] Truncated output: ${result.originalLines} \u2192 ${result.truncatedLines} lines, saved ${(saved / 1024).toFixed(1)}KB`;
 }
-// src/hooks/compaction.ts
-import * as fs7 from "fs";
-import * as path7 from "path";
-import { execSync as execSync5 } from "child_process";
-function isRecord2(value) {
-  return !!value && typeof value === "object" && !Array.isArray(value);
-}
-function isTodoStatus(value) {
-  return value === "todo" || value === "in-progress" || value === "in_progress" || value === "completed";
-}
-function normalizeTodoEntries(todos) {
-  if (!Array.isArray(todos)) {
-    return [];
-  }
-  const normalized = [];
-  for (const entry of todos) {
-    if (!isRecord2(entry) || !isTodoStatus(entry.status)) {
-      continue;
-    }
-    normalized.push({
-      id: typeof entry.id === "string" ? entry.id : "unknown",
-      content: typeof entry.content === "string" ? entry.content : "(no content)",
-      status: entry.status === "in_progress" ? "in-progress" : entry.status
-    });
-  }
-  return normalized;
-}
-function readBeadsState(projectDir) {
-  if (typeof projectDir !== "string" || !projectDir) {
-    return;
-  }
-  const beadsDir = path7.join(projectDir, ".beads");
-  if (!fs7.existsSync(beadsDir))
-    return;
-  const state = {};
-  try {
-    const metaPath = path7.join(beadsDir, "metadata.json");
-    if (!fs7.existsSync(metaPath))
-      return;
-    const meta = JSON.parse(fs7.readFileSync(metaPath, "utf-8"));
-    if (!meta.database)
-      return;
-  } catch {
-    return;
-  }
-  const reservationsDir = path7.join(projectDir, ".reservations");
-  if (fs7.existsSync(reservationsDir)) {
-    try {
-      const lockFiles = fs7.readdirSync(reservationsDir).filter((f) => f.endsWith(".lock"));
-      const reservedFiles = [];
-      for (const lockFile of lockFiles) {
-        try {
-          const raw = fs7.readFileSync(path7.join(reservationsDir, lockFile), "utf-8");
-          const lock = JSON.parse(raw);
-          if (isRecord2(lock) && typeof lock.path === "string") {
-            reservedFiles.push(lock.path);
-          }
-          if (isRecord2(lock) && typeof lock.agent === "string") {
-            state.agentId = lock.agent;
-          }
-        } catch {}
-      }
-      if (reservedFiles.length > 0) {
-        state.reservedFiles = reservedFiles;
-      }
-    } catch {}
-  }
-  try {
-    const output = execSync5("bd ls --status in_progress --json 2>/dev/null", {
-      cwd: projectDir,
-      timeout: 5000,
-      encoding: "utf-8",
-      stdio: ["pipe", "pipe", "pipe"]
-    });
-    if (output.trim()) {
-      const tasks = JSON.parse(output);
-      if (Array.isArray(tasks) && tasks.length > 0) {
-        const first = tasks[0];
-        if (isRecord2(first)) {
-          const title = typeof first.title === "string" ? first.title : undefined;
-          const shortTitle = typeof first.t === "string" ? first.t : undefined;
-          const id = typeof first.id === "string" ? first.id : undefined;
-          if (title || shortTitle)
-            state.currentTask = title || shortTitle;
-          if (id)
-            state.taskId = id;
-        }
-        state.inProgressCount = tasks.length;
-      }
-    }
-  } catch {}
-  try {
-    const output = execSync5("bd ls --status open --json 2>/dev/null", {
-      cwd: projectDir,
-      timeout: 5000,
-      encoding: "utf-8",
-      stdio: ["pipe", "pipe", "pipe"]
-    });
-    if (output.trim()) {
-      const tasks = JSON.parse(output);
-      if (Array.isArray(tasks)) {
-        state.openCount = tasks.length;
-      }
-    }
-  } catch {}
-  if (state.currentTask || state.reservedFiles?.length || state.agentId || state.inProgressCount || state.openCount) {
-    return state;
-  }
-  return;
-}
-function readMemoryRefs(projectDir, limit = 10) {
-  if (typeof projectDir !== "string" || !projectDir) {
-    return [];
-  }
-  const memoryDir = path7.join(projectDir, ".opencode", "memory");
-  if (!fs7.existsSync(memoryDir))
-    return [];
-  const MEMORY_SUBDIRS = ["specs", "plans", "research", "reviews", "handoffs", "beads", "prds"];
-  const refs = [];
-  try {
-    for (const subdir of MEMORY_SUBDIRS) {
-      const subdirPath = path7.join(memoryDir, subdir);
-      if (!fs7.existsSync(subdirPath))
-        continue;
-      const files = fs7.readdirSync(subdirPath).filter((f) => f.endsWith(".md") || f.endsWith(".json")).sort();
-      for (const file of files) {
-        if (file === ".gitkeep")
-          continue;
-        try {
-          const fullPath = path7.join(subdirPath, file);
-          const stat = fs7.statSync(fullPath);
-          const raw = fs7.readFileSync(fullPath, "utf-8");
-          if (typeof raw !== "string" || !raw.trim())
-            continue;
-          let summary;
-          const ext = path7.extname(file);
-          if (ext === ".md") {
-            const headingMatch = raw.match(/^#\s+(.+)$/m);
-            summary = headingMatch ? headingMatch[1] : raw.substring(0, 100).trim();
-          } else if (ext === ".json") {
-            const parsed = JSON.parse(raw);
-            const safe = isRecord2(parsed) ? parsed : {};
-            const content = safe.content;
-            const summaryText = typeof safe.summary === "string" ? safe.summary : undefined;
-            const titleText = typeof safe.title === "string" ? safe.title : undefined;
-            const contentText = typeof content === "string" ? content.substring(0, 100) : "";
-            summary = summaryText || titleText || contentText || "";
-          } else {
-            summary = raw.substring(0, 100).trim();
-          }
-          refs.push({
-            key: path7.basename(file, ext),
-            summary,
-            timestamp: stat.mtimeMs,
-            category: subdir
-          });
-        } catch {}
-      }
-    }
-    return refs.sort((a, b) => b.timestamp - a.timestamp).slice(0, limit);
-  } catch {
-    return [];
-  }
-}
-function buildCompactionBlock(payload, maxChars = 5000) {
-  const lines = ["<compaction-context>"];
-  if (payload.sessionSummary) {
-    lines.push(`
-Session Summary: ${payload.sessionSummary}`);
-  }
-  if (payload.beads) {
-    lines.push(`
-Beads State:`);
-    if (payload.beads.currentTask)
-      lines.push(`  Current task: ${payload.beads.currentTask}`);
-    if (payload.beads.taskId)
-      lines.push(`  Task ID: ${payload.beads.taskId}`);
-    if (payload.beads.agentId)
-      lines.push(`  Agent: ${payload.beads.agentId}`);
-    if (payload.beads.team)
-      lines.push(`  Team: ${payload.beads.team}`);
-    if (payload.beads.inProgressCount)
-      lines.push(`  In-progress tasks: ${payload.beads.inProgressCount}`);
-    if (payload.beads.openCount)
-      lines.push(`  Open tasks: ${payload.beads.openCount}`);
-    if (payload.beads.reservedFiles?.length) {
-      lines.push(`  Reserved files: ${payload.beads.reservedFiles.join(", ")}`);
-    }
-  }
-  const normalizedTodos = normalizeTodoEntries(payload.todos);
-  if (normalizedTodos.length) {
-    lines.push(`
-Todo State:`);
-    for (const todo of normalizedTodos) {
-      const icon = todo.status === "completed" ? "[x]" : todo.status === "in-progress" ? "[~]" : "[ ]";
-      lines.push(`  ${icon} ${todo.id}: ${todo.content}`);
-    }
-  }
-  if (payload.memories?.length) {
-    lines.push(`
-Recent Memory References:`);
-    for (const mem of payload.memories) {
-      lines.push(`  - [${mem.category}] ${mem.key}: ${mem.summary}`);
-    }
-  }
-  lines.push("</compaction-context>");
-  const block = lines.join(`
-`);
-  if (typeof block !== "string")
-    return `<compaction-context>
-</compaction-context>`;
-  if (block.length > maxChars) {
-    return block.substring(0, maxChars) + `
-... [compaction context truncated]
-</compaction-context>`;
-  }
-  return block;
-}
-function collectCompactionPayload(projectDir, config) {
-  const payload = {};
-  if (typeof projectDir !== "string" || !projectDir) {
-    return payload;
-  }
-  if (config?.include_beads_state !== false) {
-    payload.beads = readBeadsState(projectDir);
-  }
-  if (config?.include_memory_refs !== false) {
-    payload.memories = readMemoryRefs(projectDir);
-  }
-  return payload;
-}
-function formatCompactionLog(payload) {
-  const parts = [];
-  if (payload.beads)
-    parts.push("beads-state");
-  if (payload.memories?.length)
-    parts.push(`${payload.memories.length} memories`);
-  if (payload.todos?.length)
-    parts.push(`${payload.todos.length} todos`);
-  return `[CliKit:compaction] Injected: ${parts.join(", ") || "nothing"}`;
-}
 // src/hooks/swarm-enforcer.ts
-import * as path8 from "path";
+import * as path4 from "path";
 function isFileInScope(filePath, scope) {
   if (typeof filePath !== "string")
     return false;
-  const normalizedPath = path8.resolve(filePath);
+  const normalizedPath = path4.resolve(filePath);
   for (const reserved of scope.reservedFiles) {
-    const normalizedReserved = path8.resolve(reserved);
+    const normalizedReserved = path4.resolve(reserved);
     if (normalizedPath === normalizedReserved) {
       return true;
     }
   }
   if (scope.allowedPatterns) {
     for (const pattern of scope.allowedPatterns) {
-      if (normalizedPath.includes(pattern) || normalizedPath.startsWith(path8.resolve(pattern))) {
+      if (normalizedPath.includes(pattern) || normalizedPath.startsWith(path4.resolve(pattern))) {
         return true;
       }
     }
@@ -5002,113 +4208,9 @@ function formatEnforcementWarning(result) {
   return lines.join(`
 `);
 }
-// src/hooks/ritual-enforcer.ts
-import * as fs8 from "fs";
-import * as path9 from "path";
-var RITUAL_FILE = path9.join(process.cwd(), ".opencode", "memory", "ritual-state.json");
-var PHASE_ORDER = ["discover", "plan", "implement", "verify", "complete"];
-function buildInitialPhases() {
-  return PHASE_ORDER.map((name) => ({ name, status: "pending" }));
-}
-function normalizeRitualState(raw) {
-  if (!raw || typeof raw !== "object") {
-    return null;
-  }
-  const data = raw;
-  const rawPhases = Array.isArray(data.phases) ? data.phases : [];
-  const phases = buildInitialPhases();
-  for (const phase of rawPhases) {
-    if (!phase || typeof phase !== "object") {
-      continue;
-    }
-    const entry = phase;
-    const name = entry.name;
-    const status = entry.status;
-    if (!PHASE_ORDER.includes(name)) {
-      continue;
-    }
-    if (status !== "pending" && status !== "in_progress" && status !== "done") {
-      continue;
-    }
-    const index = PHASE_ORDER.indexOf(name);
-    phases[index] = {
-      name,
-      status,
-      startedAt: typeof entry.startedAt === "string" ? entry.startedAt : undefined,
-      completedAt: typeof entry.completedAt === "string" ? entry.completedAt : undefined
-    };
-  }
-  let currentPhase = typeof data.currentPhase === "number" ? data.currentPhase : 0;
-  if (!Number.isFinite(currentPhase)) {
-    currentPhase = 0;
-  }
-  currentPhase = Math.max(0, Math.min(PHASE_ORDER.length - 1, Math.floor(currentPhase)));
-  const createdAt = typeof data.createdAt === "string" ? data.createdAt : new Date().toISOString();
-  const updatedAt = typeof data.updatedAt === "string" ? data.updatedAt : createdAt;
-  const taskId = typeof data.taskId === "string" ? data.taskId : undefined;
-  return {
-    taskId,
-    phases,
-    currentPhase,
-    createdAt,
-    updatedAt
-  };
-}
-function loadRitualState() {
-  if (!fs8.existsSync(RITUAL_FILE)) {
-    return null;
-  }
-  try {
-    const parsed = JSON.parse(fs8.readFileSync(RITUAL_FILE, "utf-8"));
-    return normalizeRitualState(parsed);
-  } catch {
-    return null;
-  }
-}
-function checkRitualProgress() {
-  const state = loadRitualState();
-  if (!state) {
-    return {
-      currentPhase: "none",
-      progress: "No ritual in progress. Use /start to begin.",
-      canProceed: true
-    };
-  }
-  const current = state.phases[state.currentPhase];
-  const completed = state.phases.filter((p) => p.status === "done").length;
-  let canProceed = true;
-  let warning = "";
-  if (current.name === "implement" && state.phases[1].status !== "done") {
-    canProceed = false;
-    warning = "PLAN phase not complete. Complete /plan first.";
-  }
-  if (current.name === "verify" && state.phases[2].status !== "done") {
-    canProceed = false;
-    warning = "IMPLEMENT phase not complete.";
-  }
-  return {
-    currentPhase: current.name,
-    progress: `Phase ${completed + 1}/${state.phases.length}: ${current.name.toUpperCase()} (${current.status})`,
-    canProceed
-  };
-}
-function formatRitualStatus() {
-  const state = loadRitualState();
-  if (!state) {
-    return `[Ritual] No active ritual. Start with /create or /start`;
-  }
-  const lines = state.phases.map((phase, i) => {
-    const icon = phase.status === "done" ? "\u2713" : phase.status === "in_progress" ? "\u25BA" : "\u25CB";
-    const prefix = i === state.currentPhase ? ">" : " ";
-    return `${prefix} ${icon} ${phase.name.toUpperCase()}`;
-  });
-  return `[Ritual] Current: ${state.phases[state.currentPhase].name.toUpperCase()}
-${lines.join(`
-`)}`;
-}
 // src/hooks/memory-digest.ts
-import * as fs9 from "fs";
-import * as path10 from "path";
+import * as fs4 from "fs";
+import * as path5 from "path";
 import { Database } from "bun:sqlite";
 function parseJsonArray(value) {
   if (typeof value !== "string" || !value.trim())
@@ -5131,9 +4233,9 @@ function generateMemoryDigest(projectDir, config) {
   const result = { written: false, path: "", counts: {} };
   if (typeof projectDir !== "string" || !projectDir)
     return result;
-  const memoryDir = path10.join(projectDir, ".opencode", "memory");
-  const dbPath = path10.join(memoryDir, "memory.db");
-  if (!fs9.existsSync(dbPath)) {
+  const memoryDir = path5.join(projectDir, ".opencode", "memory");
+  const dbPath = path5.join(memoryDir, "memory.db");
+  if (!fs4.existsSync(dbPath)) {
     return result;
   }
   const maxPerType = config?.max_per_type ?? 10;
@@ -5221,14 +4323,14 @@ function generateMemoryDigest(projectDir, config) {
     sections.push("*No observations found in memory database.*");
     sections.push("");
   }
-  const digestPath = path10.join(memoryDir, "_digest.md");
+  const digestPath = path5.join(memoryDir, "_digest.md");
   const content = sections.join(`
 `);
   try {
-    if (!fs9.existsSync(memoryDir)) {
-      fs9.mkdirSync(memoryDir, { recursive: true });
+    if (!fs4.existsSync(memoryDir)) {
+      fs4.mkdirSync(memoryDir, { recursive: true });
     }
-    fs9.writeFileSync(digestPath, content, "utf-8");
+    fs4.writeFileSync(digestPath, content, "utf-8");
     result.written = true;
     result.path = digestPath;
   } catch {}
@@ -5242,8 +4344,8 @@ function formatDigestLog(result) {
   return `[CliKit:memory-digest] Generated digest: ${parts || "empty"}`;
 }
 // src/hooks/todo-beads-sync.ts
-import * as fs10 from "fs";
-import * as path11 from "path";
+import * as fs5 from "fs";
+import * as path6 from "path";
 import { Database as Database2 } from "bun:sqlite";
 function mapTodoStatusToIssueStatus(status) {
   const value = status.toLowerCase();
@@ -5273,8 +4375,8 @@ function buildIssueId(sessionID, todoID) {
   return `oc-${sessionPart}-${todoPart}`;
 }
 function syncTodosToBeads(projectDirectory, sessionID, todos, config) {
-  const beadsDbPath = path11.join(projectDirectory, ".beads", "beads.db");
-  if (!fs10.existsSync(beadsDbPath)) {
+  const beadsDbPath = path6.join(projectDirectory, ".beads", "beads.db");
+  if (!fs5.existsSync(beadsDbPath)) {
     return {
       synced: false,
       sessionID,
@@ -5353,23 +4455,24 @@ function formatTodoBeadsSyncLog(result) {
 }
 // src/index.ts
 var CliKitPlugin = async (ctx) => {
-  const envBlockBySession = new Map;
-  const compactionBlockBySession = new Map;
   const todosBySession = new Map;
   function getToolInput(args) {
     return args && typeof args === "object" ? args : {};
   }
-  function getEditTargetPath(input) {
-    const candidates = [input.filePath, input.file, input.path];
-    for (const candidate of candidates) {
-      if (typeof candidate === "string" && candidate.length > 0) {
-        return candidate;
-      }
-    }
-    return;
-  }
   function blockToolExecution(reason) {
     throw new Error(`[CliKit] Blocked tool execution: ${reason}`);
+  }
+  async function showToast(message, variant, title = "CliKit") {
+    try {
+      await ctx.client.tui.showToast({
+        body: {
+          title,
+          message,
+          variant,
+          duration: 3500
+        }
+      });
+    } catch {}
   }
   function normalizeTodos(rawTodos) {
     if (!Array.isArray(rawTodos)) {
@@ -5393,11 +4496,13 @@ var CliKitPlugin = async (ctx) => {
     return normalized;
   }
   const pluginConfig = loadCliKitConfig(ctx.directory) ?? {};
+  const debugLogsEnabled = pluginConfig.hooks?.session_logging === true && process.env.CLIKIT_DEBUG === "1";
+  const toolLogsEnabled = pluginConfig.hooks?.tool_logging === true && process.env.CLIKIT_DEBUG === "1";
   const builtinAgents = getBuiltinAgents();
   const builtinCommands = getBuiltinCommands();
   const filteredAgents = filterAgents(builtinAgents, pluginConfig);
   const filteredCommands = filterCommands(builtinCommands, pluginConfig);
-  if (pluginConfig.hooks?.session_logging) {
+  if (debugLogsEnabled) {
     console.log("[CliKit] Plugin initializing...");
     console.log("[CliKit] Context:", JSON.stringify({ directory: ctx?.directory, hasClient: !!ctx?.client }));
     console.log(`[CliKit] Loaded ${Object.keys(filteredAgents).length}/${Object.keys(builtinAgents).length} agents`);
@@ -5431,7 +4536,7 @@ var CliKitPlugin = async (ctx) => {
             ...enabledLsp,
             ...config.lsp || {}
           };
-          if (pluginConfig.hooks?.session_logging) {
+          if (debugLogsEnabled) {
             console.log(`[CliKit] Injected ${Object.keys(enabledLsp).length} LSP server(s)`);
           }
         }
@@ -5442,20 +4547,8 @@ var CliKitPlugin = async (ctx) => {
       const props = event.properties;
       if (event.type === "session.created") {
         const info = props?.info;
-        const sessionID = info?.id;
-        if (pluginConfig.hooks?.session_logging) {
+        if (debugLogsEnabled) {
           console.log(`[CliKit] Session created: ${info?.id || "unknown"}`);
-        }
-        if (pluginConfig.hooks?.env_context?.enabled !== false) {
-          const envConfig = pluginConfig.hooks?.env_context;
-          const envInfo = collectEnvInfo(ctx.directory, envConfig);
-          const envBlock = buildEnvBlock(envInfo);
-          if (pluginConfig.hooks?.session_logging) {
-            console.log(formatEnvSummary(envInfo));
-          }
-          if (sessionID) {
-            envBlockBySession.set(sessionID, envBlock);
-          }
         }
         if (pluginConfig.hooks?.memory_digest?.enabled !== false) {
           const digestResult = generateMemoryDigest(ctx.directory, pluginConfig.hooks?.memory_digest);
@@ -5463,29 +4556,11 @@ var CliKitPlugin = async (ctx) => {
             console.log(formatDigestLog(digestResult));
           }
         }
-        if (pluginConfig.hooks?.ritual_enforcer?.enabled !== false) {
-          const ritualProgress = checkRitualProgress();
-          if (pluginConfig.hooks?.ritual_enforcer?.log !== false) {
-            console.log(formatRitualStatus());
-          }
-          if (!ritualProgress.canProceed) {
-            console.warn(`[CliKit:ritual] ${ritualProgress.progress}`);
-          }
-        }
       }
       if (event.type === "session.error") {
         const error = props?.error;
-        if (pluginConfig.hooks?.session_logging) {
+        if (debugLogsEnabled) {
           console.error(`[CliKit] Session error:`, error);
-        }
-        if (pluginConfig.hooks?.session_notification?.enabled === true && pluginConfig.hooks?.session_notification?.on_error !== false) {
-          const notifConfig = pluginConfig.hooks?.session_notification;
-          const sessionId = props?.sessionID;
-          const payload = buildErrorNotification(error, sessionId, notifConfig?.title_prefix);
-          const sent = sendNotification(payload);
-          if (pluginConfig.hooks?.session_logging) {
-            console.log(formatNotificationLog(payload, sent));
-          }
         }
       }
       if (event.type === "todo.updated") {
@@ -5495,7 +4570,7 @@ var CliKitPlugin = async (ctx) => {
           todosBySession.set(sessionID, todos);
           if (pluginConfig.hooks?.todo_beads_sync?.enabled !== false) {
             const result = syncTodosToBeads(ctx.directory, sessionID, todos, pluginConfig.hooks?.todo_beads_sync);
-            if (pluginConfig.hooks?.todo_beads_sync?.log !== false) {
+            if (pluginConfig.hooks?.todo_beads_sync?.log === true) {
               console.log(formatTodoBeadsSyncLog(result));
             }
           }
@@ -5504,7 +4579,7 @@ var CliKitPlugin = async (ctx) => {
       if (event.type === "session.idle") {
         const sessionID = props?.sessionID;
         const sessionTodos = sessionID ? todosBySession.get(sessionID) || [] : [];
-        if (pluginConfig.hooks?.session_logging) {
+        if (debugLogsEnabled) {
           console.log(`[CliKit] Session idle: ${sessionID || "unknown"}`);
         }
         const todoConfig = pluginConfig.hooks?.todo_enforcer;
@@ -5518,63 +4593,22 @@ var CliKitPlugin = async (ctx) => {
             }
           }
         }
-        if (pluginConfig.hooks?.session_notification?.enabled === true && pluginConfig.hooks?.session_notification?.on_idle !== false) {
-          const notifConfig = pluginConfig.hooks?.session_notification;
-          const payload = buildIdleNotification(sessionID, notifConfig?.title_prefix);
-          const sent = sendNotification(payload);
-          if (pluginConfig.hooks?.session_logging) {
-            console.log(formatNotificationLog(payload, sent));
-          }
-        }
         if (pluginConfig.hooks?.memory_digest?.enabled !== false) {
           generateMemoryDigest(ctx.directory, pluginConfig.hooks?.memory_digest);
-        }
-        if (pluginConfig.hooks?.compaction?.enabled !== false) {
-          const compConfig = pluginConfig.hooks?.compaction;
-          const compPayload = collectCompactionPayload(ctx.directory, compConfig);
-          const todos = normalizeTodos(props?.todos);
-          const effectiveTodos = todos.length > 0 ? todos : sessionTodos;
-          if (compConfig?.include_todo_state !== false && effectiveTodos.length > 0) {
-            compPayload.todos = effectiveTodos;
-          }
-          const block = buildCompactionBlock(compPayload, compConfig?.max_state_chars);
-          if (compConfig?.log === true) {
-            console.log(formatCompactionLog(compPayload));
-          }
-          if (sessionID) {
-            compactionBlockBySession.set(sessionID, block);
-          }
         }
       }
       if (event.type === "session.deleted") {
         const info = props?.info;
         const sessionID = info?.id;
         if (sessionID) {
-          envBlockBySession.delete(sessionID);
-          compactionBlockBySession.delete(sessionID);
           todosBySession.delete(sessionID);
         }
-      }
-    },
-    "experimental.chat.system.transform": async (input, output) => {
-      if (!input.sessionID) {
-        return;
-      }
-      const envBlock = envBlockBySession.get(input.sessionID);
-      if (envBlock) {
-        output.system.push(envBlock);
-      }
-    },
-    "experimental.session.compacting": async (input, output) => {
-      const block = compactionBlockBySession.get(input.sessionID);
-      if (block) {
-        output.context.push(block);
       }
     },
     "tool.execute.before": async (input, output) => {
       const toolName = input.tool;
       const toolInput = getToolInput(output.args);
-      if (pluginConfig.hooks?.tool_logging) {
+      if (toolLogsEnabled) {
         console.log(`[CliKit] Tool executing: ${toolName}`);
       }
       if (pluginConfig.hooks?.git_guard?.enabled !== false) {
@@ -5585,6 +4619,7 @@ var CliKitPlugin = async (ctx) => {
             const result = checkDangerousCommand(command, allowForceWithLease);
             if (result.blocked) {
               console.warn(formatBlockedWarning(result));
+              await showToast(result.reason || "Blocked dangerous git command", "warning", "CliKit Guard");
               blockToolExecution(result.reason || "Dangerous git command");
             }
           }
@@ -5614,6 +4649,7 @@ var CliKitPlugin = async (ctx) => {
               }
             }
             if (shouldBlock && secConfig?.block_commits) {
+              await showToast("Blocked commit due to sensitive data", "error", "CliKit Security");
               blockToolExecution("Sensitive data detected in commit");
             }
           }
@@ -5629,18 +4665,13 @@ var CliKitPlugin = async (ctx) => {
             if (!enforcement.allowed) {
               console.warn(formatEnforcementWarning(enforcement));
               if (pluginConfig.hooks?.swarm_enforcer?.block_unreserved_edits) {
+                await showToast(enforcement.reason || "Edit blocked outside task scope", "warning", "CliKit Swarm");
                 blockToolExecution(enforcement.reason || "Edit outside reserved task scope");
               }
-            } else if (pluginConfig.hooks?.swarm_enforcer?.log) {
+            } else if (pluginConfig.hooks?.swarm_enforcer?.log === true) {
               console.log(`[CliKit:swarm-enforcer] Allowed edit: ${targetFile}`);
             }
           }
-        }
-      }
-      if (pluginConfig.hooks?.ritual_enforcer?.enabled !== false) {
-        const ritualProgress = checkRitualProgress();
-        if (!ritualProgress.canProceed && pluginConfig.hooks?.ritual_enforcer?.enforceOrder) {
-          console.warn(`[CliKit:ritual] Phase violation: ${ritualProgress.progress}`);
         }
       }
       if (pluginConfig.hooks?.subagent_question_blocker?.enabled !== false) {
@@ -5648,6 +4679,7 @@ var CliKitPlugin = async (ctx) => {
           const prompt = toolInput.prompt;
           if (prompt && containsQuestion(prompt)) {
             console.warn(formatBlockerWarning());
+            await showToast("Subagent prompt blocked: avoid direct questions", "warning", "CliKit Guard");
             blockToolExecution("Subagents should not ask questions");
           }
         }
@@ -5657,14 +4689,14 @@ var CliKitPlugin = async (ctx) => {
       const toolName = input.tool;
       const toolInput = getToolInput(input.args);
       let toolOutputContent = output.output;
-      if (pluginConfig.hooks?.tool_logging) {
+      if (toolLogsEnabled) {
         console.log(`[CliKit] Tool completed: ${toolName} -> ${output.title}`);
       }
       const sanitizerConfig = pluginConfig.hooks?.empty_message_sanitizer;
       if (sanitizerConfig?.enabled !== false) {
         if (isEmptyContent(toolOutputContent)) {
           const placeholder = sanitizerConfig?.placeholder || "(No output)";
-          if (sanitizerConfig?.log_empty !== false) {
+          if (sanitizerConfig?.log_empty === true) {
             console.log(`[CliKit] Empty output detected for tool: ${toolName}`);
           }
           const sanitized = sanitizeContent(toolOutputContent, placeholder);
@@ -5674,60 +4706,14 @@ var CliKitPlugin = async (ctx) => {
           }
         }
       }
-      if (pluginConfig.hooks?.comment_checker?.enabled !== false) {
-        if (toolName === "edit" || toolName === "Edit" || toolName === "write" || toolName === "Write") {
-          const content = toolOutputContent;
-          if (typeof content === "string" && content.length > 100) {
-            const threshold = pluginConfig.hooks?.comment_checker?.threshold ?? 0.3;
-            const densityResult = checkCommentDensity(content, threshold);
-            if (densityResult.excessive) {
-              console.warn(formatCommentWarning(densityResult));
-            }
-            if (hasExcessiveAIComments(content)) {
-              console.warn("[CliKit:comment-checker] Detected AI-style boilerplate comments. Remove unnecessary comments.");
-            }
-          }
-        }
-      }
       if (pluginConfig.hooks?.truncator?.enabled !== false) {
         if (shouldTruncate(toolOutputContent, pluginConfig.hooks?.truncator)) {
           const result = truncateOutput(toolOutputContent, pluginConfig.hooks?.truncator);
           if (result.truncated) {
             toolOutputContent = result.content;
             output.output = result.content;
-            if (pluginConfig.hooks?.truncator?.log !== false) {
+            if (pluginConfig.hooks?.truncator?.log === true) {
               console.log(formatTruncationLog(result));
-            }
-          }
-        }
-      }
-      if (pluginConfig.hooks?.auto_format?.enabled) {
-        if (toolName === "edit" || toolName === "Edit" || toolName === "write" || toolName === "Write") {
-          const filePath = getEditTargetPath(toolInput);
-          if (filePath) {
-            const fmtConfig = pluginConfig.hooks.auto_format;
-            if (shouldFormat(filePath, fmtConfig?.extensions)) {
-              const result = runFormatter(filePath, ctx.directory, fmtConfig?.formatter);
-              if (fmtConfig?.log !== false) {
-                console.log(formatAutoFormatLog(result));
-              }
-            }
-          }
-        }
-      }
-      if (pluginConfig.hooks?.typecheck_gate?.enabled) {
-        if (toolName === "edit" || toolName === "Edit" || toolName === "write" || toolName === "Write") {
-          const filePath = getEditTargetPath(toolInput);
-          if (filePath && isTypeScriptFile(filePath)) {
-            const tcConfig = pluginConfig.hooks.typecheck_gate;
-            const result = runTypeCheck(filePath, ctx.directory, tcConfig);
-            if (!result.clean) {
-              console.warn(formatTypeCheckWarning(result));
-              if (tcConfig?.block_on_error) {
-                blockToolExecution(`Type errors in ${filePath}`);
-              }
-            } else if (tcConfig?.log !== false) {
-              console.log(formatTypeCheckWarning(result));
             }
           }
         }

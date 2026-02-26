@@ -46,40 +46,6 @@ export interface SubagentQuestionBlockerHookConfig {
   enabled?: boolean;
 }
 
-export interface CommentCheckerHookConfig {
-  enabled?: boolean;
-  threshold?: number;
-}
-
-export interface EnvContextHookConfig {
-  enabled?: boolean;
-  include_git?: boolean;
-  include_package?: boolean;
-  include_structure?: boolean;
-  max_depth?: number;
-}
-
-export interface AutoFormatHookConfig {
-  enabled?: boolean;
-  formatter?: string;
-  extensions?: string[];
-  log?: boolean;
-}
-
-export interface TypeCheckGateHookConfig {
-  enabled?: boolean;
-  tsconfig?: string;
-  log?: boolean;
-  block_on_error?: boolean;
-}
-
-export interface SessionNotificationHookConfig {
-  enabled?: boolean;
-  on_idle?: boolean;
-  on_error?: boolean;
-  title_prefix?: string;
-}
-
 export interface TruncatorHookConfig {
   enabled?: boolean;
   max_output_chars?: number;
@@ -89,25 +55,10 @@ export interface TruncatorHookConfig {
   log?: boolean;
 }
 
-export interface CompactionHookConfig {
-  enabled?: boolean;
-  include_beads_state?: boolean;
-  include_memory_refs?: boolean;
-  include_todo_state?: boolean;
-  max_state_chars?: number;
-  log?: boolean;
-}
-
 export interface SwarmEnforcerHookConfig {
   enabled?: boolean;
   strict_file_locking?: boolean;
   block_unreserved_edits?: boolean;
-  log?: boolean;
-}
-
-export interface RitualEnforcerHookConfig {
-  enabled?: boolean;
-  enforceOrder?: boolean;
   log?: boolean;
 }
 
@@ -132,15 +83,8 @@ export interface HooksConfig {
   git_guard?: GitGuardHookConfig;
   security_check?: SecurityCheckHookConfig;
   subagent_question_blocker?: SubagentQuestionBlockerHookConfig;
-  comment_checker?: CommentCheckerHookConfig;
-  env_context?: EnvContextHookConfig;
-  auto_format?: AutoFormatHookConfig;
-  typecheck_gate?: TypeCheckGateHookConfig;
-  session_notification?: SessionNotificationHookConfig;
   truncator?: TruncatorHookConfig;
-  compaction?: CompactionHookConfig;
   swarm_enforcer?: SwarmEnforcerHookConfig;
-  ritual_enforcer?: RitualEnforcerHookConfig;
   memory_digest?: MemoryDigestHookConfig;
   todo_beads_sync?: TodoBeadsSyncHookConfig;
 }
@@ -183,32 +127,6 @@ const DEFAULT_CONFIG: CliKitConfig = {
     subagent_question_blocker: {
       enabled: true,
     },
-    comment_checker: {
-      enabled: true,
-      threshold: 0.3,
-    },
-    env_context: {
-      enabled: true,
-      include_git: true,
-      include_package: true,
-      include_structure: true,
-      max_depth: 2,
-    },
-    auto_format: {
-      enabled: false,
-      log: false,
-    },
-    typecheck_gate: {
-      enabled: false,
-      log: false,
-      block_on_error: false,
-    },
-    session_notification: {
-      enabled: false,
-      on_idle: true,
-      on_error: true,
-      title_prefix: "OpenCode",
-    },
     truncator: {
       enabled: true,
       max_output_chars: 30000,
@@ -217,23 +135,10 @@ const DEFAULT_CONFIG: CliKitConfig = {
       preserve_tail_lines: 50,
       log: false,
     },
-    compaction: {
-      enabled: true,
-      include_beads_state: true,
-      include_memory_refs: true,
-      include_todo_state: true,
-      max_state_chars: 5000,
-      log: false,
-    },
     swarm_enforcer: {
       enabled: true,
       strict_file_locking: true,
       block_unreserved_edits: false,
-      log: false,
-    },
-    ritual_enforcer: {
-      enabled: true,
-      enforceOrder: true,
       log: false,
     },
     memory_digest: {

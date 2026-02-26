@@ -35,35 +35,6 @@ export interface SecurityCheckHookConfig {
 export interface SubagentQuestionBlockerHookConfig {
     enabled?: boolean;
 }
-export interface CommentCheckerHookConfig {
-    enabled?: boolean;
-    threshold?: number;
-}
-export interface EnvContextHookConfig {
-    enabled?: boolean;
-    include_git?: boolean;
-    include_package?: boolean;
-    include_structure?: boolean;
-    max_depth?: number;
-}
-export interface AutoFormatHookConfig {
-    enabled?: boolean;
-    formatter?: string;
-    extensions?: string[];
-    log?: boolean;
-}
-export interface TypeCheckGateHookConfig {
-    enabled?: boolean;
-    tsconfig?: string;
-    log?: boolean;
-    block_on_error?: boolean;
-}
-export interface SessionNotificationHookConfig {
-    enabled?: boolean;
-    on_idle?: boolean;
-    on_error?: boolean;
-    title_prefix?: string;
-}
 export interface TruncatorHookConfig {
     enabled?: boolean;
     max_output_chars?: number;
@@ -72,23 +43,10 @@ export interface TruncatorHookConfig {
     preserve_tail_lines?: number;
     log?: boolean;
 }
-export interface CompactionHookConfig {
-    enabled?: boolean;
-    include_beads_state?: boolean;
-    include_memory_refs?: boolean;
-    include_todo_state?: boolean;
-    max_state_chars?: number;
-    log?: boolean;
-}
 export interface SwarmEnforcerHookConfig {
     enabled?: boolean;
     strict_file_locking?: boolean;
     block_unreserved_edits?: boolean;
-    log?: boolean;
-}
-export interface RitualEnforcerHookConfig {
-    enabled?: boolean;
-    enforceOrder?: boolean;
     log?: boolean;
 }
 export interface MemoryDigestHookConfig {
@@ -110,15 +68,8 @@ export interface HooksConfig {
     git_guard?: GitGuardHookConfig;
     security_check?: SecurityCheckHookConfig;
     subagent_question_blocker?: SubagentQuestionBlockerHookConfig;
-    comment_checker?: CommentCheckerHookConfig;
-    env_context?: EnvContextHookConfig;
-    auto_format?: AutoFormatHookConfig;
-    typecheck_gate?: TypeCheckGateHookConfig;
-    session_notification?: SessionNotificationHookConfig;
     truncator?: TruncatorHookConfig;
-    compaction?: CompactionHookConfig;
     swarm_enforcer?: SwarmEnforcerHookConfig;
-    ritual_enforcer?: RitualEnforcerHookConfig;
     memory_digest?: MemoryDigestHookConfig;
     todo_beads_sync?: TodoBeadsSyncHookConfig;
 }

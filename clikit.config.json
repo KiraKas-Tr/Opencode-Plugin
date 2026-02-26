@@ -2,34 +2,15 @@
   "$schema": "./src/clikit.schema.json",
   "disabled_agents": [],
   "disabled_commands": [],
-  "agents": {
-    "oracle": {
-      "model": "proxypal/gpt-5.2-max"
-    },
-    "build": {
-      "model": "Modal/zai-org/GLM-5-FP8"
-    }
-  },
   "commands": {},
   "hooks": {
     "session_logging": false,
     "tool_logging": false,
-    "session_notification": {
-      "enabled": false
-    },
     "memory_digest": {
       "enabled": true,
       "log": false
     },
     "truncator": {
-      "enabled": true,
-      "log": false
-    },
-    "compaction": {
-      "enabled": true,
-      "log": false
-    },
-    "ritual_enforcer": {
       "enabled": true,
       "log": false
     },
