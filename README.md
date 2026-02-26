@@ -65,7 +65,7 @@ Project config overrides user config.
     }
   },
   "hooks": {
-    "session_logging": true,
+    "session_logging": false,
     "tool_logging": false,
     "todo_enforcer": { "enabled": true },
     "empty_message_sanitizer": { "enabled": true },
@@ -92,7 +92,7 @@ Project config overrides user config.
 | `disabled_commands` | `string[]` | `[]` | Command names to disable |
 | `agents` | `object` | `{}` | Per-agent overrides (model, temperature, etc.) |
 | `commands` | `object` | `{}` | Per-command overrides |
-| `hooks.session_logging` | `boolean` | `true` | Session lifecycle logging |
+| `hooks.session_logging` | `boolean` | `false` | Session lifecycle logging |
 | `hooks.tool_logging` | `boolean` | `false` | Tool execution logging |
 
 ### Hooks

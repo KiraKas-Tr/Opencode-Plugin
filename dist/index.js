@@ -3603,7 +3603,7 @@ var DEFAULT_CONFIG = {
   commands: {},
   lsp: {},
   hooks: {
-    session_logging: true,
+    session_logging: false,
     tool_logging: false,
     todo_enforcer: {
       enabled: true,
@@ -5447,7 +5447,9 @@ var CliKitPlugin = async (ctx) => {
           const envConfig = pluginConfig.hooks?.env_context;
           const envInfo = collectEnvInfo(ctx.directory, envConfig);
           const envBlock = buildEnvBlock(envInfo);
-          console.log(formatEnvSummary(envInfo));
+          if (pluginConfig.hooks?.session_logging) {
+            console.log(formatEnvSummary(envInfo));
+          }
           if (sessionID) {
             envBlockBySession.set(sessionID, envBlock);
           }

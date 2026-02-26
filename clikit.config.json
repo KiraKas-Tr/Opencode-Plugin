@@ -12,7 +12,7 @@
   },
   "commands": {},
   "hooks": {
-    "session_logging": true,
+    "session_logging": false,
     "tool_logging": false,
     "session_notification": {
       "enabled": false

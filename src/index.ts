@@ -197,7 +197,9 @@ const CliKitPlugin: Plugin = async (ctx) => {
           const envConfig = pluginConfig.hooks?.env_context;
           const envInfo = collectEnvInfo(ctx.directory, envConfig);
           const envBlock = buildEnvBlock(envInfo);
-          console.log(formatEnvSummary(envInfo));
+          if (pluginConfig.hooks?.session_logging) {
+            console.log(formatEnvSummary(envInfo));
+          }
           if (sessionID) {
             envBlockBySession.set(sessionID, envBlock);
           }

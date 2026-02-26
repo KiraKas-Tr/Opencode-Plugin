@@ -160,7 +160,7 @@ const DEFAULT_CONFIG: CliKitConfig = {
   commands: {},
   lsp: {},
   hooks: {
-    session_logging: true,
+    session_logging: false,
     tool_logging: false,
     todo_enforcer: {
       enabled: true,
