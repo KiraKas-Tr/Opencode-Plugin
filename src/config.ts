@@ -95,6 +95,7 @@ export interface CompactionHookConfig {
   include_memory_refs?: boolean;
   include_todo_state?: boolean;
   max_state_chars?: number;
+  log?: boolean;
 }
 
 export interface SwarmEnforcerHookConfig {
@@ -168,7 +169,7 @@ const DEFAULT_CONFIG: CliKitConfig = {
     },
     empty_message_sanitizer: {
       enabled: true,
-      log_empty: true,
+      log_empty: false,
       placeholder: "(No output)",
     },
     git_guard: {
@@ -195,11 +196,11 @@ const DEFAULT_CONFIG: CliKitConfig = {
     },
     auto_format: {
       enabled: false,
-      log: true,
+      log: false,
     },
     typecheck_gate: {
       enabled: false,
-      log: true,
+      log: false,
       block_on_error: false,
     },
     session_notification: {
@@ -214,7 +215,7 @@ const DEFAULT_CONFIG: CliKitConfig = {
       max_output_lines: 500,
       preserve_head_lines: 50,
       preserve_tail_lines: 50,
-      log: true,
+      log: false,
     },
     compaction: {
       enabled: true,
@@ -222,28 +223,29 @@ const DEFAULT_CONFIG: CliKitConfig = {
       include_memory_refs: true,
       include_todo_state: true,
       max_state_chars: 5000,
+      log: false,
     },
     swarm_enforcer: {
       enabled: true,
       strict_file_locking: true,
       block_unreserved_edits: false,
-      log: true,
+      log: false,
     },
     ritual_enforcer: {
       enabled: true,
       enforceOrder: true,
-      log: true,
+      log: false,
     },
     memory_digest: {
       enabled: true,
       max_per_type: 10,
       include_types: ["decision", "learning", "blocker", "progress", "handoff"],
-      log: true,
+      log: false,
     },
     todo_beads_sync: {
       enabled: true,
       close_missing: true,
-      log: true,
+      log: false,
     },
   },
 };
@@ -324,14 +326,14 @@ export function loadCliKitConfig(projectDirectory: unknown): CliKitConfig {
   const userConfig = loadJsonFile<CliKitConfig>(userConfigPath);
   if (userConfig) {
     config = deepMerge(config, userConfig);
-    console.log(`[CliKit] Loaded user config from ${userConfigPath}`);
+    // Intentionally silent by default to avoid noisy terminal output.
   }
 
   // Load and merge project config
   const projectConfig = loadJsonFile<CliKitConfig>(projectConfigPath);
   if (projectConfig) {
     config = deepMerge(config, projectConfig);
-    console.log(`[CliKit] Loaded project config from ${projectConfigPath}`);
+    // Intentionally silent by default to avoid noisy terminal output.
   }
 
   return config;

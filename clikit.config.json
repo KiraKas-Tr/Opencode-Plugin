@@ -17,10 +17,26 @@
     "session_notification": {
       "enabled": false
     },
+    "memory_digest": {
+      "enabled": true,
+      "log": false
+    },
+    "truncator": {
+      "enabled": true,
+      "log": false
+    },
+    "compaction": {
+      "enabled": true,
+      "log": false
+    },
+    "ritual_enforcer": {
+      "enabled": true,
+      "log": false
+    },
     "todo_beads_sync": {
       "enabled": true,
       "close_missing": true,
-      "log": true
+      "log": false
     }
   }
 }

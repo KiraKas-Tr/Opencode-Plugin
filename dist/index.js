@@ -3611,7 +3611,7 @@ var DEFAULT_CONFIG = {
     },
     empty_message_sanitizer: {
       enabled: true,
-      log_empty: true,
+      log_empty: false,
       placeholder: "(No output)"
     },
     git_guard: {
@@ -3638,11 +3638,11 @@ var DEFAULT_CONFIG = {
     },
     auto_format: {
       enabled: false,
-      log: true
+      log: false
     },
     typecheck_gate: {
       enabled: false,
-      log: true,
+      log: false,
       block_on_error: false
     },
     session_notification: {
@@ -3657,36 +3657,37 @@ var DEFAULT_CONFIG = {
       max_output_lines: 500,
       preserve_head_lines: 50,
       preserve_tail_lines: 50,
-      log: true
+      log: false
     },
     compaction: {
       enabled: true,
       include_beads_state: true,
       include_memory_refs: true,
       include_todo_state: true,
-      max_state_chars: 5000
+      max_state_chars: 5000,
+      log: false
     },
     swarm_enforcer: {
       enabled: true,
       strict_file_locking: true,
       block_unreserved_edits: false,
-      log: true
+      log: false
     },
     ritual_enforcer: {
       enabled: true,
       enforceOrder: true,
-      log: true
+      log: false
     },
     memory_digest: {
       enabled: true,
       max_per_type: 10,
       include_types: ["decision", "learning", "blocker", "progress", "handoff"],
-      log: true
+      log: false
     },
     todo_beads_sync: {
       enabled: true,
       close_missing: true,
-      log: true
+      log: false
     }
   }
 };
@@ -3729,12 +3730,10 @@ function loadCliKitConfig(projectDirectory) {
   const userConfig = loadJsonFile(userConfigPath);
   if (userConfig) {
     config = deepMerge(config, userConfig);
-    console.log(`[CliKit] Loaded user config from ${userConfigPath}`);
   }
   const projectConfig = loadJsonFile(projectConfigPath);
   if (projectConfig) {
     config = deepMerge(config, projectConfig);
-    console.log(`[CliKit] Loaded project config from ${projectConfigPath}`);
   }
   return config;
 }
@@ -5393,20 +5392,22 @@ var CliKitPlugin = async (ctx) => {
     }
     return normalized;
   }
-  console.log("[CliKit] Plugin initializing...");
-  console.log("[CliKit] Context:", JSON.stringify({ directory: ctx?.directory, hasClient: !!ctx?.client }));
   const pluginConfig = loadCliKitConfig(ctx.directory) ?? {};
   const builtinAgents = getBuiltinAgents();
   const builtinCommands = getBuiltinCommands();
   const filteredAgents = filterAgents(builtinAgents, pluginConfig);
   const filteredCommands = filterCommands(builtinCommands, pluginConfig);
-  console.log(`[CliKit] Loaded ${Object.keys(filteredAgents).length}/${Object.keys(builtinAgents).length} agents`);
-  console.log(`[CliKit] Loaded ${Object.keys(filteredCommands).length}/${Object.keys(builtinCommands).length} commands`);
-  if (pluginConfig.disabled_agents?.length) {
-    console.log(`[CliKit] Disabled agents: ${pluginConfig.disabled_agents.join(", ")}`);
-  }
-  if (pluginConfig.disabled_commands?.length) {
-    console.log(`[CliKit] Disabled commands: ${pluginConfig.disabled_commands.join(", ")}`);
+  if (pluginConfig.hooks?.session_logging) {
+    console.log("[CliKit] Plugin initializing...");
+    console.log("[CliKit] Context:", JSON.stringify({ directory: ctx?.directory, hasClient: !!ctx?.client }));
+    console.log(`[CliKit] Loaded ${Object.keys(filteredAgents).length}/${Object.keys(builtinAgents).length} agents`);
+    console.log(`[CliKit] Loaded ${Object.keys(filteredCommands).length}/${Object.keys(builtinCommands).length} commands`);
+    if (pluginConfig.disabled_agents?.length) {
+      console.log(`[CliKit] Disabled agents: ${pluginConfig.disabled_agents.join(", ")}`);
+    }
+    if (pluginConfig.disabled_commands?.length) {
+      console.log(`[CliKit] Disabled commands: ${pluginConfig.disabled_commands.join(", ")}`);
+    }
   }
   return {
     config: async (config) => {
@@ -5430,7 +5431,9 @@ var CliKitPlugin = async (ctx) => {
             ...enabledLsp,
             ...config.lsp || {}
           };
-          console.log(`[CliKit] Injected ${Object.keys(enabledLsp).length} LSP server(s)`);
+          if (pluginConfig.hooks?.session_logging) {
+            console.log(`[CliKit] Injected ${Object.keys(enabledLsp).length} LSP server(s)`);
+          }
         }
       }
     },
@@ -5480,7 +5483,9 @@ var CliKitPlugin = async (ctx) => {
           const sessionId = props?.sessionID;
           const payload = buildErrorNotification(error, sessionId, notifConfig?.title_prefix);
           const sent = sendNotification(payload);
-          console.log(formatNotificationLog(payload, sent));
+          if (pluginConfig.hooks?.session_logging) {
+            console.log(formatNotificationLog(payload, sent));
+          }
         }
       }
       if (event.type === "todo.updated") {
@@ -5517,7 +5522,9 @@ var CliKitPlugin = async (ctx) => {
           const notifConfig = pluginConfig.hooks?.session_notification;
           const payload = buildIdleNotification(sessionID, notifConfig?.title_prefix);
           const sent = sendNotification(payload);
-          console.log(formatNotificationLog(payload, sent));
+          if (pluginConfig.hooks?.session_logging) {
+            console.log(formatNotificationLog(payload, sent));
+          }
         }
         if (pluginConfig.hooks?.memory_digest?.enabled !== false) {
           generateMemoryDigest(ctx.directory, pluginConfig.hooks?.memory_digest);
@@ -5531,7 +5538,9 @@ var CliKitPlugin = async (ctx) => {
             compPayload.todos = effectiveTodos;
           }
           const block = buildCompactionBlock(compPayload, compConfig?.max_state_chars);
-          console.log(formatCompactionLog(compPayload));
+          if (compConfig?.log === true) {
+            console.log(formatCompactionLog(compPayload));
+          }
           if (sessionID) {
             compactionBlockBySession.set(sessionID, block);
           }

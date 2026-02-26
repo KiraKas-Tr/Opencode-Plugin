@@ -78,6 +78,7 @@ export interface CompactionHookConfig {
     include_memory_refs?: boolean;
     include_todo_state?: boolean;
     max_state_chars?: number;
+    log?: boolean;
 }
 export interface SwarmEnforcerHookConfig {
     enabled?: boolean;

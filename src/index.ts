@@ -123,10 +123,6 @@ const CliKitPlugin: Plugin = async (ctx) => {
     return normalized;
   }
 
-  // Debug logging
-  console.log("[CliKit] Plugin initializing...");
-  console.log("[CliKit] Context:", JSON.stringify({ directory: ctx?.directory, hasClient: !!ctx?.client }));
-  
   const pluginConfig = loadCliKitConfig(ctx.directory) ?? {};
 
   const builtinAgents = getBuiltinAgents();
@@ -135,18 +131,22 @@ const CliKitPlugin: Plugin = async (ctx) => {
   const filteredAgents = filterAgents(builtinAgents, pluginConfig);
   const filteredCommands = filterCommands(builtinCommands, pluginConfig);
 
-  console.log(
-    `[CliKit] Loaded ${Object.keys(filteredAgents).length}/${Object.keys(builtinAgents).length} agents`
-  );
-  console.log(
-    `[CliKit] Loaded ${Object.keys(filteredCommands).length}/${Object.keys(builtinCommands).length} commands`
-  );
+  if (pluginConfig.hooks?.session_logging) {
+    console.log("[CliKit] Plugin initializing...");
+    console.log("[CliKit] Context:", JSON.stringify({ directory: ctx?.directory, hasClient: !!ctx?.client }));
+    console.log(
+      `[CliKit] Loaded ${Object.keys(filteredAgents).length}/${Object.keys(builtinAgents).length} agents`
+    );
+    console.log(
+      `[CliKit] Loaded ${Object.keys(filteredCommands).length}/${Object.keys(builtinCommands).length} commands`
+    );
 
-  if (pluginConfig.disabled_agents?.length) {
-    console.log(`[CliKit] Disabled agents: ${pluginConfig.disabled_agents.join(", ")}`);
-  }
-  if (pluginConfig.disabled_commands?.length) {
-    console.log(`[CliKit] Disabled commands: ${pluginConfig.disabled_commands.join(", ")}`);
+    if (pluginConfig.disabled_agents?.length) {
+      console.log(`[CliKit] Disabled agents: ${pluginConfig.disabled_agents.join(", ")}`);
+    }
+    if (pluginConfig.disabled_commands?.length) {
+      console.log(`[CliKit] Disabled commands: ${pluginConfig.disabled_commands.join(", ")}`);
+    }
   }
 
   return {
@@ -174,7 +174,9 @@ const CliKitPlugin: Plugin = async (ctx) => {
             ...enabledLsp,
             ...(config.lsp || {}),
           };
-          console.log(`[CliKit] Injected ${Object.keys(enabledLsp).length} LSP server(s)`);
+          if (pluginConfig.hooks?.session_logging) {
+            console.log(`[CliKit] Injected ${Object.keys(enabledLsp).length} LSP server(s)`);
+          }
         }
       }
     },
@@ -240,7 +242,9 @@ const CliKitPlugin: Plugin = async (ctx) => {
           const sessionId = props?.sessionID as string | undefined;
           const payload = buildErrorNotification(error, sessionId, notifConfig?.title_prefix);
           const sent = sendNotification(payload);
-          console.log(formatNotificationLog(payload, sent));
+          if (pluginConfig.hooks?.session_logging) {
+            console.log(formatNotificationLog(payload, sent));
+          }
         }
       }
 
@@ -294,7 +298,9 @@ const CliKitPlugin: Plugin = async (ctx) => {
           const notifConfig = pluginConfig.hooks?.session_notification;
           const payload = buildIdleNotification(sessionID, notifConfig?.title_prefix);
           const sent = sendNotification(payload);
-          console.log(formatNotificationLog(payload, sent));
+          if (pluginConfig.hooks?.session_logging) {
+            console.log(formatNotificationLog(payload, sent));
+          }
         }
 
         // Memory Digest: refresh on idle (keeps _digest.md current)
@@ -315,7 +321,9 @@ const CliKitPlugin: Plugin = async (ctx) => {
           }
 
           const block = buildCompactionBlock(compPayload, compConfig?.max_state_chars);
-          console.log(formatCompactionLog(compPayload));
+          if (compConfig?.log === true) {
+            console.log(formatCompactionLog(compPayload));
+          }
           if (sessionID) {
             compactionBlockBySession.set(sessionID, block);
           }
