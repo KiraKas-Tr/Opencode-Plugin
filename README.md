@@ -8,7 +8,7 @@ Curated agents, commands, skills, and memory system for OpenCode.
 - **19 Slash Commands**: /create, /start, /plan, /ship, /verify, /review, /debug, /pr, and more
 - **48 Workflow Skills**: TDD, debugging, design, UI/UX, integrations, ritual-workflow, and more
 - **6 Internal Utilities**: memory (read/search/get/timeline/update/admin), observation, swarm, beads-memory-sync, quick-research, context-summary (used by hooks, not directly registered as agent tools)
-- **10 Runtime Hooks**: todo enforcer, empty output sanitizer, git guard, security check, subagent blocker, truncator, swarm enforcer, memory digest, and todo→beads sync
+- **9 Runtime Hooks**: todo enforcer, empty output sanitizer, git guard, security check, subagent blocker, truncator, swarm enforcer, memory digest, and todo→beads sync
 - **Memory System**: Templates, specs, plans, research artifacts with FTS5 search
 - **Extended Permissions**: doom_loop, external_directory controls
 - **Configurable**: Enable/disable agents, override models, customize behavior
@@ -24,7 +24,7 @@ bun x clikit-plugin install
 
 That's it! The plugin will be registered in `~/.config/opencode/opencode.json`.
 
-Installer also adds default MCP servers if missing:
+CliKit injects default MCP server entries at runtime when missing:
 
 - `beads-village` (`npx beads-village`)
 - `context7` (`https://mcp.context7.com/mcp`)

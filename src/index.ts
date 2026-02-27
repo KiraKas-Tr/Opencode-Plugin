@@ -158,6 +158,22 @@ const CliKitPlugin: Plugin = async (ctx) => {
     }
   }
 
+  async function getStagedFileContent(file: string): Promise<string> {
+    try {
+      const { stdout } = await execFileAsync("git", ["show", `:${file}`], {
+        cwd: ctx.directory,
+        encoding: "utf-8",
+      });
+      return stdout;
+    } catch {
+      return "";
+    }
+  }
+
+  function isToolNamed(name: string, expected: string): boolean {
+    return name.toLowerCase() === expected.toLowerCase();
+  }
+
   const pluginConfig = loadCliKitConfig(ctx.directory) ?? {};
   const debugLogsEnabled = pluginConfig.hooks?.session_logging === true && process.env.CLIKIT_DEBUG === "1";
   const toolLogsEnabled = pluginConfig.hooks?.tool_logging === true && process.env.CLIKIT_DEBUG === "1";
@@ -293,7 +309,11 @@ const CliKitPlugin: Plugin = async (ctx) => {
           todosBySession.set(sessionID, todos);
 
           // Debounce: skip sync if todos haven't changed
-          const todoHash = JSON.stringify(todos.map((t) => `${t.id}:${t.status}`));
+          const todoHash = JSON.stringify(
+            [...todos]
+              .sort((a, b) => a.id.localeCompare(b.id))
+              .map((t) => `${t.id}:${t.status}`)
+          );
           if (todoHash !== lastTodoHash) {
             lastTodoHash = todoHash;
             if (pluginConfig.hooks?.todo_beads_sync?.enabled !== false) {
@@ -357,7 +377,9 @@ const CliKitPlugin: Plugin = async (ctx) => {
 
     "tool.execute.before": async (input, output) => {
       const toolName = input.tool;
-      const toolInput = getToolInput(output.args);
+      const beforeOutput = output as unknown as { args?: unknown };
+      const beforeInput = input as unknown as { args?: unknown };
+      const toolInput = getToolInput(beforeOutput.args ?? beforeInput.args);
 
       if (toolLogsEnabled) {
         console.log(`[CliKit] Tool executing: ${toolName}`);
@@ -365,8 +387,8 @@ const CliKitPlugin: Plugin = async (ctx) => {
 
       // Git Guard: block dangerous git commands
       if (pluginConfig.hooks?.git_guard?.enabled !== false) {
-        if (toolName === "bash" || toolName === "Bash") {
-          const command = toolInput.command as string | undefined;
+        if (isToolNamed(toolName, "bash")) {
+          const command = (toolInput.command as string | undefined) ?? (toolInput.cmd as string | undefined);
           if (command) {
             const allowForceWithLease = pluginConfig.hooks?.git_guard?.allow_force_with_lease !== false;
             const result = checkDangerousCommand(command, allowForceWithLease);
@@ -381,13 +403,12 @@ const CliKitPlugin: Plugin = async (ctx) => {
 
       // Security Check: scan for secrets before git commit
       if (pluginConfig.hooks?.security_check?.enabled !== false) {
-        if (toolName === "bash" || toolName === "Bash") {
-          const command = toolInput.command as string | undefined;
+        if (isToolNamed(toolName, "bash")) {
+          const command = (toolInput.command as string | undefined) ?? (toolInput.cmd as string | undefined);
           if (command && /git\s+(commit|add)/.test(command)) {
             const secConfig = pluginConfig.hooks?.security_check;
             let shouldBlock = false;
 
-            // Run both git calls concurrently
             const [stagedFiles, stagedDiff] = await Promise.all([
               getStagedFiles(),
               getStagedDiff(),
@@ -408,9 +429,29 @@ const CliKitPlugin: Plugin = async (ctx) => {
               }
             }
 
+            const contentScans = await Promise.all(
+              stagedFiles.map(async (file) => ({
+                file,
+                content: await getStagedFileContent(file),
+              }))
+            );
+
+            for (const { file, content } of contentScans) {
+              if (!content) {
+                continue;
+              }
+              const scanResult = scanContentForSecrets(content, file);
+              if (!scanResult.safe) {
+                console.warn(formatSecurityWarning(scanResult));
+                shouldBlock = true;
+              }
+            }
+
             if (shouldBlock && secConfig?.block_commits) {
               await showToast("Blocked commit due to sensitive data", "error", "CliKit Security");
               blockToolExecution("Sensitive data detected in commit");
+            } else if (shouldBlock) {
+              await showToast("Potential sensitive data detected in staged changes", "warning", "CliKit Security");
             }
           }
         }
@@ -418,8 +459,8 @@ const CliKitPlugin: Plugin = async (ctx) => {
 
       // Swarm Enforcer: block edits outside task scope
       if (pluginConfig.hooks?.swarm_enforcer?.enabled !== false) {
-        const editTools = ["edit", "Edit", "write", "Write", "bash", "Bash"];
-        if (editTools.includes(toolName)) {
+        const editTools = ["edit", "write", "bash"];
+        if (editTools.some((name) => isToolNamed(toolName, name))) {
           const targetFile = extractFileFromToolInput(toolName, toolInput);
           if (targetFile) {
             const taskScope = (toolInput.taskScope as

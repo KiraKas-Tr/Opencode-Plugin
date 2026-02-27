@@ -2,6 +2,7 @@ import * as fs from "fs";
 import * as path from "path";
 import * as os from "os";
 import type { AgentConfig, CommandConfig } from "./types";
+import type { SkillConfig } from "./skills";
 
 export interface AgentOverride {
   model?: string;
@@ -89,11 +90,37 @@ export interface HooksConfig {
   todo_beads_sync?: TodoBeadsSyncHookConfig;
 }
 
+export interface SkillOverride {
+  disable?: boolean;
+  description?: string;
+  template?: string;
+  from?: string;
+  model?: string;
+  agent?: string;
+  subtask?: boolean;
+  "argument-hint"?: string;
+  license?: string;
+  compatibility?: string;
+  metadata?: Record<string, unknown>;
+  "allowed-tools"?: string[];
+}
+
+export interface SkillsConfigObject {
+  sources?: Array<string | { path: string; recursive?: boolean; glob?: string }>;
+  enable?: string[];
+  disable?: string[];
+  [key: string]: unknown;
+}
+
+export type SkillsConfig = string[] | SkillsConfigObject | Record<string, boolean | SkillOverride>;
+
 export interface CliKitConfig {
   disabled_agents?: string[];
   disabled_commands?: string[];
+  disabled_skills?: string[];
   agents?: Record<string, AgentOverride>;
   commands?: Record<string, Partial<CommandConfig>>;
+  skills?: SkillsConfig;
   lsp?: Record<string, LspServerConfig>;
   hooks?: HooksConfig;
 }
@@ -101,8 +128,10 @@ export interface CliKitConfig {
 const DEFAULT_CONFIG: CliKitConfig = {
   disabled_agents: [],
   disabled_commands: [],
+  disabled_skills: [],
   agents: {},
   commands: {},
+  skills: {},
   lsp: {},
   hooks: {
     session_logging: false,
@@ -162,13 +191,91 @@ function getUserConfigDir(): string {
   return process.env.XDG_CONFIG_HOME || path.join(os.homedir(), ".config");
 }
 
+function getOpenCodeConfigDir(): string {
+  if (process.env.OPENCODE_CONFIG_DIR) {
+    return process.env.OPENCODE_CONFIG_DIR;
+  }
+
+  return path.join(getUserConfigDir(), "opencode");
+}
+
+function stripJsonComments(content: string): string {
+  let result = "";
+  let inString = false;
+  let inSingleLineComment = false;
+  let inMultiLineComment = false;
+  let escaped = false;
+
+  for (let i = 0; i < content.length; i += 1) {
+    const char = content[i];
+    const nextChar = content[i + 1];
+
+    if (inSingleLineComment) {
+      if (char === "\n") {
+        inSingleLineComment = false;
+        result += char;
+      }
+      continue;
+    }
+
+    if (inMultiLineComment) {
+      if (char === "*" && nextChar === "/") {
+        inMultiLineComment = false;
+        i += 1;
+      }
+      continue;
+    }
+
+    if (inString) {
+      result += char;
+      if (escaped) {
+        escaped = false;
+      } else if (char === "\\") {
+        escaped = true;
+      } else if (char === '"') {
+        inString = false;
+      }
+      continue;
+    }
+
+    if (char === '"') {
+      inString = true;
+      result += char;
+      continue;
+    }
+
+    if (char === "/" && nextChar === "/") {
+      inSingleLineComment = true;
+      i += 1;
+      continue;
+    }
+
+    if (char === "/" && nextChar === "*") {
+      inMultiLineComment = true;
+      i += 1;
+      continue;
+    }
+
+    result += char;
+  }
+
+  return result;
+}
+
 function loadJsonFile<T>(filePath: string): T | null {
   try {
     if (!fs.existsSync(filePath)) {
       return null;
     }
     const content = fs.readFileSync(filePath, "utf-8");
-    return JSON.parse(content) as T;
+
+    try {
+      return JSON.parse(content) as T;
+    } catch {
+      const withoutComments = stripJsonComments(content);
+      const withoutTrailingCommas = withoutComments.replace(/,\s*([}\]])/g, "$1");
+      return JSON.parse(withoutTrailingCommas) as T;
+    }
   } catch (error) {
     console.warn(`[CliKit] Failed to load config from ${filePath}:`, error);
     return null;
@@ -208,37 +315,35 @@ export function loadCliKitConfig(projectDirectory: unknown): CliKitConfig {
     ? projectDirectory 
     : process.cwd();
     
-  // Config file locations (priority order, later overrides earlier):
-  // 1. User global: ~/.config/opencode/clikit.config.json
-  // 2. Project: <project>/.opencode/clikit.config.json
-
-  const userConfigPath = path.join(
-    getUserConfigDir(),
-    "opencode",
-    "clikit.config.json"
-  );
-
-  const projectConfigPath = path.join(
-    safeDir,
-    ".opencode",
-    "clikit.config.json"
-  );
+  // Config file locations (priority order per scope):
+  // - Preferred: clikit.jsonc, clikit.json
+  // - Legacy fallback: clikit.config.json
+  // Global config loads first, then project config overrides it.
+  const userBaseDir = getOpenCodeConfigDir();
+  const projectBaseDir = path.join(safeDir, ".opencode");
+  const configCandidates = ["clikit.jsonc", "clikit.json", "clikit.config.json"];
 
   // Start with defaults
   let config: CliKitConfig = { ...DEFAULT_CONFIG };
 
   // Load and merge user config
-  const userConfig = loadJsonFile<CliKitConfig>(userConfigPath);
-  if (userConfig) {
-    config = deepMerge(config, userConfig);
-    // Intentionally silent by default to avoid noisy terminal output.
+  for (const candidate of configCandidates) {
+    const userConfigPath = path.join(userBaseDir, candidate);
+    const userConfig = loadJsonFile<CliKitConfig>(userConfigPath);
+    if (userConfig) {
+      config = deepMerge(config, userConfig);
+      break;
+    }
   }
 
   // Load and merge project config
-  const projectConfig = loadJsonFile<CliKitConfig>(projectConfigPath);
-  if (projectConfig) {
-    config = deepMerge(config, projectConfig);
-    // Intentionally silent by default to avoid noisy terminal output.
+  for (const candidate of configCandidates) {
+    const projectConfigPath = path.join(projectBaseDir, candidate);
+    const projectConfig = loadJsonFile<CliKitConfig>(projectConfigPath);
+    if (projectConfig) {
+      config = deepMerge(config, projectConfig);
+      break;
+    }
   }
 
   return config;
@@ -299,6 +404,88 @@ export function filterCommands(
     } else {
       filtered[name] = command;
     }
+  }
+
+  return filtered;
+}
+
+function isSkillsConfigObject(value: unknown): value is SkillsConfigObject {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+
+export function filterSkills(
+  skills: Record<string, SkillConfig>,
+  config: CliKitConfig | undefined | null
+): Record<string, SkillConfig> {
+  if (!config?.skills) {
+    return skills;
+  }
+
+  const skillsConfig = config.skills;
+
+  if (Array.isArray(skillsConfig)) {
+    return Object.fromEntries(
+      Object.entries(skills).filter(([name]) => skillsConfig.includes(name))
+    );
+  }
+
+  let enabledSet: Set<string> | null = null;
+  let disabledSet = new Set(config.disabled_skills || []);
+  let overrides: Record<string, boolean | SkillOverride> = {};
+
+  if (isSkillsConfigObject(skillsConfig)) {
+    if (Array.isArray(skillsConfig.enable) && skillsConfig.enable.length > 0) {
+      enabledSet = new Set(skillsConfig.enable);
+    }
+    if (Array.isArray(skillsConfig.disable) && skillsConfig.disable.length > 0) {
+      disabledSet = new Set(skillsConfig.disable);
+    }
+
+    const { sources: _sources, enable: _enable, disable: _disable, ...rest } = skillsConfig;
+    overrides = rest as Record<string, boolean | SkillOverride>;
+  }
+
+  const filtered: Record<string, SkillConfig> = {};
+
+  for (const [name, skill] of Object.entries(skills)) {
+    if (enabledSet && !enabledSet.has(name)) {
+      continue;
+    }
+    if (disabledSet.has(name)) {
+      continue;
+    }
+
+    const override = overrides[name];
+    if (override === false) {
+      continue;
+    }
+
+    if (override && typeof override === "object") {
+      if (override.disable === true) {
+        continue;
+      }
+
+      const mergedSkill: SkillConfig = {
+        ...skill,
+        ...(override.description ? { description: override.description } : {}),
+        ...(override.template ? { content: override.template } : {}),
+      };
+
+      if (override.from !== undefined) mergedSkill.from = override.from;
+      if (override.model !== undefined) mergedSkill.model = override.model;
+      if (override.agent !== undefined) mergedSkill.agent = override.agent;
+      if (override.subtask !== undefined) mergedSkill.subtask = override.subtask;
+      if (override["argument-hint"] !== undefined) mergedSkill["argument-hint"] = override["argument-hint"];
+      if (override.license !== undefined) mergedSkill.license = override.license;
+      if (override.compatibility !== undefined) mergedSkill.compatibility = override.compatibility;
+      if (override.metadata !== undefined) mergedSkill.metadata = override.metadata;
+      if (override["allowed-tools"] !== undefined) mergedSkill["allowed-tools"] = [...override["allowed-tools"]];
+
+      filtered[name] = mergedSkill;
+      continue;
+    }
+
+    filtered[name] = skill;
   }
 
   return filtered;

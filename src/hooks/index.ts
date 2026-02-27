@@ -7,7 +7,6 @@
  * - Git Guard — blocks dangerous git commands
  * - Security Check — scans for secrets before commits
  * - Subagent Question Blocker — prevents subagents from asking questions
- * - Context Injector — removed (use /resume, /start commands instead)
  * - Truncator — dynamic output truncation
  * - Swarm Enforcer — enforces task isolation in multi-agent swarms
  * - Memory Digest — generates _digest.md from SQLite observations for agent access

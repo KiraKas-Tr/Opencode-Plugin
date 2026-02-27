@@ -22,6 +22,15 @@ export interface SkillConfig {
   description: string;
   content: string;
   location: string;
+  from?: string;
+  model?: string;
+  agent?: string;
+  subtask?: boolean;
+  "argument-hint"?: string;
+  license?: string;
+  compatibility?: string;
+  metadata?: Record<string, unknown>;
+  "allowed-tools"?: string[];
 }
 
 export function getBuiltinSkills(): Record<string, SkillConfig> {
