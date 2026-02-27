@@ -67,6 +67,8 @@ export interface MemoryDigestHookConfig {
   enabled?: boolean;
   max_per_type?: number;
   include_types?: string[];
+  index_highlights_per_type?: number;
+  write_topic_files?: boolean;
   log?: boolean;
 }
 
@@ -174,6 +176,8 @@ const DEFAULT_CONFIG: CliKitConfig = {
       enabled: true,
       max_per_type: 10,
       include_types: ["decision", "learning", "blocker", "progress", "handoff"],
+      index_highlights_per_type: 2,
+      write_topic_files: true,
       log: false,
     },
     todo_beads_sync: {

@@ -122,7 +122,7 @@ Project config overrides user config.
 | `subagent_question_blocker` | on | Prevents subagents from asking clarifying questions |
 | `truncator` | on | Truncates large outputs to prevent context overflow |
 | `swarm_enforcer` | on | Enforces task isolation in multi-agent swarms |
-| `memory_digest` | on | Generates `memory/_digest.md` from SQLite observations |
+| `memory_digest` | on | Generates `memory/_digest.md` index + topic files (`decision.md`, `learning.md`, etc.) from SQLite observations |
 | `todo_beads_sync` | on | Mirrors OpenCode todos into Beads issues |
 
 ## Agents

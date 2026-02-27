@@ -18,6 +18,8 @@ export interface MemoryDigestConfig {
   enabled?: boolean;
   max_per_type?: number;
   include_types?: string[];
+  index_highlights_per_type?: number;
+  write_topic_files?: boolean;
   log?: boolean;
 }
 
@@ -54,6 +56,64 @@ function formatDate(iso: string): string {
   }
 }
 
+function writeTopicFile(
+  memoryDir: string,
+  type: string,
+  heading: string,
+  rows: ObservationRow[]
+): void {
+  const topicPath = path.join(memoryDir, `${type}.md`);
+  const lines: string[] = [];
+  lines.push(`# ${heading}`);
+  lines.push("");
+  lines.push(`> Auto-generated from SQLite observations (${rows.length} entries).`);
+  lines.push("");
+
+  for (const row of rows) {
+    const date = formatDate(row.created_at);
+    const facts = parseJsonArray(row.facts);
+    const concepts = parseJsonArray(row.concepts);
+    const filesModified = parseJsonArray(row.files_modified);
+
+    lines.push(`## ${date} — ${row.narrative.split("\n")[0]}`);
+    if (row.confidence < 1.0) {
+      lines.push(`> Confidence: ${(row.confidence * 100).toFixed(0)}%`);
+    }
+    lines.push("");
+
+    lines.push(row.narrative);
+    lines.push("");
+
+    if (facts.length > 0) {
+      lines.push("**Facts:**");
+      for (const fact of facts) {
+        lines.push(`- ${fact}`);
+      }
+      lines.push("");
+    }
+
+    if (filesModified.length > 0) {
+      lines.push(`**Files:** ${filesModified.map((f) => `\`${f}\``).join(", ")}`);
+      lines.push("");
+    }
+
+    if (concepts.length > 0) {
+      lines.push(`**Concepts:** ${concepts.join(", ")}`);
+      lines.push("");
+    }
+
+    if (row.bead_id) {
+      lines.push(`**Bead:** ${row.bead_id}`);
+      lines.push("");
+    }
+
+    lines.push("---");
+    lines.push("");
+  }
+
+  fs.writeFileSync(topicPath, lines.join("\n"), "utf-8");
+}
+
 export function generateMemoryDigest(
   projectDir: unknown,
   config?: MemoryDigestConfig
@@ -70,6 +130,8 @@ export function generateMemoryDigest(
   }
 
   const maxPerType = config?.max_per_type ?? 10;
+  const indexHighlightsPerType = config?.index_highlights_per_type ?? 2;
+  const writeTopicFiles = config?.write_topic_files !== false;
   const includeTypes = config?.include_types ?? [
     "decision",
     "learning",
@@ -117,50 +179,18 @@ export function generateMemoryDigest(
 
       const label = typeLabels[type] || { heading: type, emoji: "📌" };
       sections.push(`## ${label.emoji} ${label.heading}`);
+      sections.push(`- Entries: ${rows.length}`);
+      sections.push(`- Topic file: \`${writeTopicFiles ? `${type}.md` : "(disabled)"}\``);
+
+      for (const row of rows.slice(0, indexHighlightsPerType)) {
+        const date = formatDate(row.created_at);
+        const headline = row.narrative.split("\n")[0];
+        sections.push(`- ${date}: ${headline}`);
+      }
       sections.push("");
 
-      for (const row of rows) {
-        const date = formatDate(row.created_at);
-        const facts = parseJsonArray(row.facts);
-        const concepts = parseJsonArray(row.concepts);
-        const filesModified = parseJsonArray(row.files_modified);
-
-        sections.push(`### ${date} — ${row.narrative.split("\n")[0]}`);
-        if (row.confidence < 1.0) {
-          sections.push(`> Confidence: ${(row.confidence * 100).toFixed(0)}%`);
-        }
-        sections.push("");
-
-        if (row.narrative.includes("\n")) {
-          sections.push(row.narrative);
-          sections.push("");
-        }
-
-        if (facts.length > 0) {
-          sections.push("**Facts:**");
-          for (const fact of facts) {
-            sections.push(`- ${fact}`);
-          }
-          sections.push("");
-        }
-
-        if (filesModified.length > 0) {
-          sections.push(`**Files:** ${filesModified.map((f) => `\`${f}\``).join(", ")}`);
-          sections.push("");
-        }
-
-        if (concepts.length > 0) {
-          sections.push(`**Concepts:** ${concepts.join(", ")}`);
-          sections.push("");
-        }
-
-        if (row.bead_id) {
-          sections.push(`**Bead:** ${row.bead_id}`);
-          sections.push("");
-        }
-
-        sections.push("---");
-        sections.push("");
+      if (writeTopicFiles) {
+        writeTopicFile(memoryDir, type, label.heading, rows);
       }
     } catch {
       // Skip types that fail to query
