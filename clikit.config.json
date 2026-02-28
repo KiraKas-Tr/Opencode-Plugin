@@ -2,7 +2,12 @@
   "$schema": "./src/clikit.schema.json",
   "disabled_agents": [],
   "disabled_commands": [],
+  "disabled_skills": [],
   "commands": {},
+  "skills": {
+    "enable": [],
+    "disable": []
+  },
   "hooks": {
     "session_logging": false,
     "tool_logging": false,

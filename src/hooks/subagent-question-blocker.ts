@@ -7,17 +7,17 @@
  */
 
 const QUESTION_INDICATORS = [
-  "shall I",
-  "should I",
+  "shall i",
+  "should i",
   "would you like",
   "do you want",
   "could you clarify",
   "can you confirm",
   "what do you prefer",
   "which approach",
-  "before I proceed",
+  "before i proceed",
   "please let me know",
-  "I need more information",
+  "i need more information",
   "could you provide",
 ];
 

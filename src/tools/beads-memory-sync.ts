@@ -1,10 +1,9 @@
 import * as path from "path";
 import * as fs from "fs";
 import { Database } from "bun:sqlite";
+import { openMemoryDb } from "./memory-db";
 
-const MEMORY_DIR = path.join(process.cwd(), ".opencode", "memory");
 const BEADS_DIR = path.join(process.cwd(), ".beads");
-const MEMORY_DB = path.join(MEMORY_DIR, "memory.db");
 
 export interface BeadsMemorySyncParams {
   operation: "sync_to_memory" | "sync_from_memory" | "link" | "status";
@@ -23,35 +22,8 @@ export interface BeadsMemorySyncResult {
   };
 }
 
-function getMemoryDb(): Database {
-  if (!fs.existsSync(MEMORY_DIR)) {
-    fs.mkdirSync(MEMORY_DIR, { recursive: true });
-  }
-  const db = new Database(MEMORY_DB);
-  
-  // Ensure table exists with all columns
-  db.exec(`
-    CREATE TABLE IF NOT EXISTS observations (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
-      type TEXT NOT NULL,
-      narrative TEXT NOT NULL,
-      facts TEXT DEFAULT '[]',
-      confidence REAL DEFAULT 1.0,
-      files_read TEXT DEFAULT '[]',
-      files_modified TEXT DEFAULT '[]',
-      concepts TEXT DEFAULT '[]',
-      bead_id TEXT,
-      created_at TEXT DEFAULT CURRENT_TIMESTAMP,
-      expires_at TEXT
-    )
-  `);
-  
-  // Migration: add missing columns
-  try { db.exec(`ALTER TABLE observations ADD COLUMN concepts TEXT DEFAULT '[]'`); } catch {}
-  try { db.exec(`ALTER TABLE observations ADD COLUMN bead_id TEXT`); } catch {}
-  try { db.exec(`ALTER TABLE observations ADD COLUMN expires_at TEXT`); } catch {}
-  
-  return db;
+function getMemoryDb() {
+  return openMemoryDb();
 }
 
 function getBeadsDb(): Database | null {
@@ -95,33 +67,47 @@ function syncTasksToMemory(): BeadsMemorySyncResult {
   }
   
   const memoryDb = getMemoryDb();
+  try {
+    const tasks = beadsDb.query(`
+      SELECT id, title, description, t, desc
+      FROM issues
+      WHERE status IN ('done', 'closed')
+    `).all() as Array<{
+      id: string;
+      title?: string;
+      description?: string;
+      t?: string;
+      desc?: string;
+    }>;
   
-  const tasks = beadsDb.query("SELECT * FROM issues WHERE status = 'done'").all() as Array<{
-    id: string;
-    t: string;
-    desc?: string;
-  }>;
+    let synced = 0;
+    const existsStmt = memoryDb.prepare(`
+      SELECT id FROM observations WHERE type = 'progress' AND bead_id = ? AND narrative = ? LIMIT 1
+    `);
+    const insertStmt = memoryDb.prepare(`
+      INSERT INTO observations (type, narrative, facts, bead_id)
+      VALUES ('progress', ?, '[]', ?)
+    `);
   
-  let synced = 0;
-  const insertStmt = memoryDb.prepare(`
-    INSERT OR IGNORE INTO observations (type, narrative, facts, bead_id)
-    VALUES ('progress', ?, '[]', ?)
-  `);
-  
-  for (const task of tasks) {
-    try {
-      insertStmt.run(task.t, task.id);
-      synced++;
-    } catch {}
+    for (const task of tasks) {
+      const narrative = task.title || task.t || task.description || task.desc || task.id;
+      const existing = existsStmt.get(task.id, narrative);
+      if (existing) {
+        continue;
+}
+      insertStmt.run(narrative, task.id);
+      synced += 1;
+    }
+
+    return {
+      success: true,
+      operation: "sync_to_memory",
+      details: { tasksSynced: synced },
+    };
+  } finally {
+    memoryDb.close();
+    beadsDb.close();
   }
-  
-  beadsDb.close();
-  
-  return {
-    success: true,
-    operation: "sync_to_memory",
-    details: { tasksSynced: synced },
-  };
 }
 
 function syncMemoryToTasks(): BeadsMemorySyncResult {
@@ -131,39 +117,62 @@ function syncMemoryToTasks(): BeadsMemorySyncResult {
   }
   
   const memoryDb = getMemoryDb();
+  try {
+    beadsDb.exec(`
+      CREATE TABLE IF NOT EXISTS issue_observations (
+        issue_id TEXT NOT NULL,
+        observation_id INTEGER NOT NULL,
+        observation_type TEXT NOT NULL,
+        narrative TEXT NOT NULL,
+        synced_at TEXT DEFAULT CURRENT_TIMESTAMP,
+        PRIMARY KEY (issue_id, observation_id)
+      )
+    `);
   
-  const observations = memoryDb.query(`
-    SELECT * FROM observations 
-    WHERE bead_id IS NOT NULL 
-    AND type IN ('blocker', 'decision')
-  `).all() as Array<{
-    id: number;
-    type: string;
-    narrative: string;
-    bead_id: string;
-  }>;
-  
-  let linked = 0;
-  
-  for (const obs of observations) {
-    const existing = beadsDb.query("SELECT id FROM issues WHERE id = ?").get(obs.bead_id);
-    if (existing) {
-      linked++;
+    const observations = memoryDb.query(`
+      SELECT id, type, narrative, bead_id
+      FROM observations
+      WHERE bead_id IS NOT NULL
+      AND type IN ('blocker', 'decision')
+    `).all() as Array<{
+      id: number;
+      type: string;
+      narrative: string;
+      bead_id: string;
+    }>;
+
+    let linked = 0;
+    const issueExistsStmt = beadsDb.prepare("SELECT id FROM issues WHERE id = ? LIMIT 1");
+    const linkStmt = beadsDb.prepare(`
+      INSERT OR IGNORE INTO issue_observations (issue_id, observation_id, observation_type, narrative)
+      VALUES (?, ?, ?, ?)
+    `);
+
+    for (const obs of observations) {
+      const existingIssue = issueExistsStmt.get(obs.bead_id);
+      if (!existingIssue) {
+        continue;
+      }
+      const result = linkStmt.run(obs.bead_id, obs.id, obs.type, obs.narrative);
+      if (result.changes > 0) {
+        linked += 1;
+      }
     }
+
+    return {
+      success: true,
+      operation: "sync_from_memory",
+      details: { observationsLinked: linked },
+    };
+  } finally {
+    memoryDb.close();
+    beadsDb.close();
   }
-  
-  beadsDb.close();
-  
-  return {
-    success: true,
-    operation: "sync_from_memory",
-    details: { observationsLinked: linked },
-  };
 }
 
 function linkObservationToTask(observationId: number, beadId: string): BeadsMemorySyncResult {
   const memoryDb = getMemoryDb();
-  
+  try {
   memoryDb.run("UPDATE observations SET bead_id = ? WHERE id = ?", [beadId, observationId]);
   
   return {
@@ -171,28 +180,33 @@ function linkObservationToTask(observationId: number, beadId: string): BeadsMemo
     operation: "link",
     details: { observationsLinked: 1 },
   };
+  } finally {
+    memoryDb.close();
+  }
 }
 
 function getSyncStatus(): BeadsMemorySyncResult {
   const memoryDb = getMemoryDb();
-  
-  const memoryCount = memoryDb.query("SELECT COUNT(*) as count FROM observations").get() as { count: number };
-  
   const beadsDb = getBeadsDb();
+  try {
+    const memoryCount = memoryDb.query("SELECT COUNT(*) as count FROM observations").get() as { count: number };
+
   let activeTasks = 0;
-  
-  if (beadsDb) {
-    const taskCount = beadsDb.query("SELECT COUNT(*) as count FROM issues WHERE status != 'closed'").get() as { count: number };
-    activeTasks = taskCount.count;
-    beadsDb.close();
+    if (beadsDb) {
+      const taskCount = beadsDb.query("SELECT COUNT(*) as count FROM issues WHERE status != 'closed'").get() as { count: number };
+      activeTasks = taskCount.count;
+    }
+
+    return {
+      success: true,
+      operation: "status",
+      details: {
+        memoryCount: memoryCount.count,
+        activeTasks,
+      },
+    };
+  } finally {
+    memoryDb.close();
+    beadsDb?.close();
   }
-  
-  return {
-    success: true,
-    operation: "status",
-    details: {
-      memoryCount: memoryCount.count,
-      activeTasks,
-    },
-  };
 }

@@ -55,3 +55,15 @@ export {
   type ContextSummaryParams,
   type ContextSummaryResult,
 } from "./context-summary";
+
+export {
+  cassMemoryContext,
+  cassMemoryMark,
+  cassMemoryReflect,
+  cassMemoryDoctor,
+  type CassMemoryContextParams,
+  type CassMemoryMarkParams,
+  type CassMemoryReflectParams,
+  type CassMemoryExecOptions,
+  type CassMemoryResult,
+} from "./cass-memory";

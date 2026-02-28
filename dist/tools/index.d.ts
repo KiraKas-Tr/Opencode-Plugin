@@ -4,4 +4,5 @@ export { swarm, type SwarmParams, type SwarmTask, type SwarmResult, type SwarmPl
 export { beadsMemorySync, type BeadsMemorySyncParams, type BeadsMemorySyncResult, } from "./beads-memory-sync";
 export { quickResearch, type QuickResearchParams, type QuickResearchResult, } from "./quick-research";
 export { contextSummary, type ContextSummaryParams, type ContextSummaryResult, } from "./context-summary";
+export { cassMemoryContext, cassMemoryMark, cassMemoryReflect, cassMemoryDoctor, type CassMemoryContextParams, type CassMemoryMarkParams, type CassMemoryReflectParams, type CassMemoryExecOptions, type CassMemoryResult, } from "./cass-memory";
 //# sourceMappingURL=index.d.ts.map

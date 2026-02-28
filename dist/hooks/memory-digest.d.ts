@@ -13,6 +13,8 @@ export interface MemoryDigestConfig {
     enabled?: boolean;
     max_per_type?: number;
     include_types?: string[];
+    index_highlights_per_type?: number;
+    write_topic_files?: boolean;
     log?: boolean;
 }
 export declare function generateMemoryDigest(projectDir: unknown, config?: MemoryDigestConfig): {

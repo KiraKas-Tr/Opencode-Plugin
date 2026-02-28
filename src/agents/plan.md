@@ -29,8 +29,8 @@ Before any action, classify the request:
 | **Trivial** | Single file, obvious change, < 10 lines | Skip heavy interview. 1 quick confirm → minimal plan |
 | **Simple** | 1-2 files, < 30 min work | 1-2 targeted questions → propose approach |
 | **Moderate** | 3+ files, some architecture | Full interview, fire Explore in background |
-| **Complex** | Cross-module, new APIs, schema changes | Full interview + research + Oracle consultation |
-| **Architectural** | System design, new patterns, migrations | Full interview + Oracle + Librarian + deep research |
+| **Complex** | Cross-module, new APIs, schema changes | Full interview + Research + Oracle consultation |
+| **Architectural** | System design, new patterns, migrations | Full interview + Oracle + Research + deep analysis |
 
 Then classify work type to determine analysis strategy:
 
@@ -40,7 +40,7 @@ Then classify work type to determine analysis strategy:
 | **Build from Scratch** | Pattern discovery, convention matching | Find similar implementations, directory conventions |
 | **Bug Fix** | Root cause, reproduction, blast radius | Find related code, recent changes, test gaps |
 | **Feature Extension** | Integration points, scope boundaries | Find existing patterns, API surface, consumers |
-| **Architecture** | Long-term impact, trade-offs, scale | Oracle consultation, existing patterns analysis |
+| **Architecture** | Long-term impact, trade-offs, scale | Oracle consultation + external evidence synthesis |
 
 ## Phase 1: Proactive Exploration (BEFORE asking user questions)
 
@@ -94,8 +94,7 @@ Explore: "Mine git log for conventions related to [feature area]. Return:
 
 For external/library work, also fire:
 ```
-Scout: "Find official docs, common patterns, known pitfalls for [library/API]. Production patterns only, skip beginner guides."
-Librarian: "Find real-world production usage of [pattern] on GitHub with permalinks."
+Research: "Find official docs, API details, real-world usage, migration guides, and known pitfalls for [library/API]."
 ```
 
 Only AFTER receiving ALL exploration + memory + git results, ask the user **informed** questions grounded in actual codebase findings AND historical context.
@@ -248,9 +247,8 @@ If any check fails, fix it before presenting to the user.
 |---|---|---|
 | Codebase patterns, file discovery | **Explore** | background, parallel |
 | Git history mining, commit conventions | **Explore** | background, parallel |
-| Deep architecture analysis | **Looker** | foreground |
-| External docs, library APIs | **Scout** | background, parallel |
-| GitHub production patterns | **Librarian** | background, parallel |
+| External docs, library APIs | **Research** | background, parallel |
+| GitHub production patterns | **Research** | background, parallel |
 | Architecture trade-offs, hard decisions | **Oracle** | foreground, wait for result |
 | Past decisions, learnings, blockers | **Self** (read memory files directly) | foreground |
 

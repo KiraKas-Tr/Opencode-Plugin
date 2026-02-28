@@ -3557,14 +3557,24 @@ function loadAgents() {
   return agents;
 }
 var _cachedAgents = null;
-var _cachedAgentsMtime = 0;
+var _cachedAgentsFingerprint = "";
+function getAgentsFingerprint(agentsDir) {
+  const files = fs.readdirSync(agentsDir).filter((f) => f.endsWith(".md") && f !== "AGENTS.md").sort();
+  const parts = files.map((file) => {
+    const fullPath = path.join(agentsDir, file);
+    const stat = fs.statSync(fullPath);
+    return `${file}:${stat.mtimeMs}`;
+  });
+  return parts.join("|");
+}
 function getBuiltinAgents() {
   try {
-    const mtime = fs.statSync(resolveAgentsDir()).mtimeMs;
-    if (_cachedAgents && _cachedAgentsMtime === mtime)
+    const agentsDir = resolveAgentsDir();
+    const fingerprint = getAgentsFingerprint(agentsDir);
+    if (_cachedAgents && _cachedAgentsFingerprint === fingerprint)
       return _cachedAgents;
     _cachedAgents = loadAgents();
-    _cachedAgentsMtime = mtime;
+    _cachedAgentsFingerprint = fingerprint;
     return _cachedAgents;
   } catch {
     return _cachedAgents ?? loadAgents();
@@ -3629,14 +3639,24 @@ function loadCommands() {
   return commands;
 }
 var _cachedCommands = null;
-var _cachedCommandsMtime = 0;
+var _cachedCommandsFingerprint = "";
+function getCommandsFingerprint(commandsDir) {
+  const files = fs2.readdirSync(commandsDir).filter((f) => f.endsWith(".md")).sort();
+  const parts = files.map((file) => {
+    const fullPath = path2.join(commandsDir, file);
+    const stat = fs2.statSync(fullPath);
+    return `${file}:${stat.mtimeMs}`;
+  });
+  return parts.join("|");
+}
 function getBuiltinCommands() {
   try {
-    const mtime = fs2.statSync(resolveCommandsDir()).mtimeMs;
-    if (_cachedCommands && _cachedCommandsMtime === mtime)
+    const commandsDir = resolveCommandsDir();
+    const fingerprint = getCommandsFingerprint(commandsDir);
+    if (_cachedCommands && _cachedCommandsFingerprint === fingerprint)
       return _cachedCommands;
     _cachedCommands = loadCommands();
-    _cachedCommandsMtime = mtime;
+    _cachedCommandsFingerprint = fingerprint;
     return _cachedCommands;
   } catch {
     return _cachedCommands ?? loadCommands();
@@ -3747,11 +3767,21 @@ var DEFAULT_CONFIG = {
       enabled: true,
       max_per_type: 10,
       include_types: ["decision", "learning", "blocker", "progress", "handoff"],
+      index_highlights_per_type: 2,
+      write_topic_files: true,
       log: false
     },
     todo_beads_sync: {
       enabled: true,
       close_missing: true,
+      log: false
+    },
+    cass_memory: {
+      enabled: true,
+      context_on_session_created: true,
+      reflect_on_session_idle: true,
+      context_limit: 5,
+      reflect_days: 7,
       log: false
     }
   }
@@ -3856,7 +3886,10 @@ function deepMerge(base, override) {
 function loadCliKitConfig(projectDirectory) {
   const safeDir = typeof projectDirectory === "string" && projectDirectory ? projectDirectory : process.cwd();
   const userBaseDir = getOpenCodeConfigDir();
-  const projectBaseDir = path4.join(safeDir, ".opencode");
+  const projectBaseDirs = [
+    safeDir,
+    path4.join(safeDir, ".opencode")
+  ];
   const configCandidates = ["clikit.jsonc", "clikit.json", "clikit.config.json"];
   let config = { ...DEFAULT_CONFIG };
   for (const candidate of configCandidates) {
@@ -3867,12 +3900,14 @@ function loadCliKitConfig(projectDirectory) {
       break;
     }
   }
-  for (const candidate of configCandidates) {
-    const projectConfigPath = path4.join(projectBaseDir, candidate);
-    const projectConfig = loadJsonFile(projectConfigPath);
-    if (projectConfig) {
-      config = deepMerge(config, projectConfig);
-      break;
+  for (const baseDir of projectBaseDirs) {
+    for (const candidate of configCandidates) {
+      const projectConfigPath = path4.join(baseDir, candidate);
+      const projectConfig = loadJsonFile(projectConfigPath);
+      if (projectConfig) {
+        config = deepMerge(config, projectConfig);
+        return config;
+      }
     }
   }
   return config;
@@ -3937,7 +3972,7 @@ function filterSkills(skills, config) {
       enabledSet = new Set(skillsConfig.enable);
     }
     if (Array.isArray(skillsConfig.disable) && skillsConfig.disable.length > 0) {
-      disabledSet = new Set(skillsConfig.disable);
+      disabledSet = new Set([...disabledSet, ...skillsConfig.disable]);
     }
     const { sources: _sources, enable: _enable, disable: _disable, ...rest } = skillsConfig;
     overrides = rest;
@@ -3955,10 +3990,33 @@ function filterSkills(skills, config) {
       continue;
     }
     if (override && typeof override === "object") {
-      filtered[name] = {
+      if (override.disable === true) {
+        continue;
+      }
+      const mergedSkill = {
         ...skill,
-        ...override.description ? { description: override.description } : {}
+        ...override.description ? { description: override.description } : {},
+        ...override.template ? { content: override.template } : {}
       };
+      if (override.from !== undefined)
+        mergedSkill.from = override.from;
+      if (override.model !== undefined)
+        mergedSkill.model = override.model;
+      if (override.agent !== undefined)
+        mergedSkill.agent = override.agent;
+      if (override.subtask !== undefined)
+        mergedSkill.subtask = override.subtask;
+      if (override["argument-hint"] !== undefined)
+        mergedSkill["argument-hint"] = override["argument-hint"];
+      if (override.license !== undefined)
+        mergedSkill.license = override.license;
+      if (override.compatibility !== undefined)
+        mergedSkill.compatibility = override.compatibility;
+      if (override.metadata !== undefined)
+        mergedSkill.metadata = override.metadata;
+      if (override["allowed-tools"] !== undefined)
+        mergedSkill["allowed-tools"] = [...override["allowed-tools"]];
+      filtered[name] = mergedSkill;
       continue;
     }
     filtered[name] = skill;
@@ -4119,9 +4177,9 @@ var DANGEROUS_PATTERNS = [
   { pattern: /git\s+push\s+.*-f\b/, reason: "Force push can destroy remote history" },
   { pattern: /git\s+reset\s+--hard/, reason: "Hard reset discards all uncommitted changes" },
   { pattern: /git\s+clean\s+-fd/, reason: "git clean -fd permanently deletes untracked files" },
-  { pattern: /rm\s+-rf\s+\//, reason: "rm -rf / is catastrophically dangerous" },
-  { pattern: /rm\s+-rf\s+~/, reason: "rm -rf ~ would delete home directory" },
-  { pattern: /rm\s+-rf\s+\.\s/, reason: "rm -rf . would delete current directory" },
+  { pattern: /\brm\s+-rf\s+\/(?:\s|$|[;|&])/, reason: "rm -rf / is catastrophically dangerous" },
+  { pattern: /\brm\s+-rf\s+~(?:\s|$|[;|&])/, reason: "rm -rf ~ would delete home directory" },
+  { pattern: /\brm\s+-rf\s+\.\/?(?:\s|$|[;|&])/, reason: "rm -rf . would delete current directory" },
   { pattern: /git\s+branch\s+-D/, reason: "Force-deleting branch may lose unmerged work" }
 ];
 function checkDangerousCommand(command, allowForceWithLease = true) {
@@ -4220,17 +4278,17 @@ function formatSecurityWarning(result) {
 }
 // src/hooks/subagent-question-blocker.ts
 var QUESTION_INDICATORS = [
-  "shall I",
-  "should I",
+  "shall i",
+  "should i",
   "would you like",
   "do you want",
   "could you clarify",
   "can you confirm",
   "what do you prefer",
   "which approach",
-  "before I proceed",
+  "before i proceed",
   "please let me know",
-  "I need more information",
+  "i need more information",
   "could you provide"
 ];
 function containsQuestion(text) {
@@ -4455,6 +4513,51 @@ function formatDate(iso) {
     return iso;
   }
 }
+function writeTopicFile(memoryDir, type, heading, rows) {
+  const topicPath = path6.join(memoryDir, `${type}.md`);
+  const lines = [];
+  lines.push(`# ${heading}`);
+  lines.push("");
+  lines.push(`> Auto-generated from SQLite observations (${rows.length} entries).`);
+  lines.push("");
+  for (const row of rows) {
+    const date = formatDate(row.created_at);
+    const facts = parseJsonArray(row.facts);
+    const concepts = parseJsonArray(row.concepts);
+    const filesModified = parseJsonArray(row.files_modified);
+    lines.push(`## ${date} \u2014 ${row.narrative.split(`
+`)[0]}`);
+    if (row.confidence < 1) {
+      lines.push(`> Confidence: ${(row.confidence * 100).toFixed(0)}%`);
+    }
+    lines.push("");
+    lines.push(row.narrative);
+    lines.push("");
+    if (facts.length > 0) {
+      lines.push("**Facts:**");
+      for (const fact of facts) {
+        lines.push(`- ${fact}`);
+      }
+      lines.push("");
+    }
+    if (filesModified.length > 0) {
+      lines.push(`**Files:** ${filesModified.map((f) => `\`${f}\``).join(", ")}`);
+      lines.push("");
+    }
+    if (concepts.length > 0) {
+      lines.push(`**Concepts:** ${concepts.join(", ")}`);
+      lines.push("");
+    }
+    if (row.bead_id) {
+      lines.push(`**Bead:** ${row.bead_id}`);
+      lines.push("");
+    }
+    lines.push("---");
+    lines.push("");
+  }
+  fs5.writeFileSync(topicPath, lines.join(`
+`), "utf-8");
+}
 function generateMemoryDigest(projectDir, config) {
   const result = { written: false, path: "", counts: {} };
   if (typeof projectDir !== "string" || !projectDir)
@@ -4465,6 +4568,8 @@ function generateMemoryDigest(projectDir, config) {
     return result;
   }
   const maxPerType = config?.max_per_type ?? 10;
+  const indexHighlightsPerType = config?.index_highlights_per_type ?? 2;
+  const writeTopicFiles = config?.write_topic_files !== false;
   const includeTypes = config?.include_types ?? [
     "decision",
     "learning",
@@ -4501,44 +4606,17 @@ function generateMemoryDigest(projectDir, config) {
       totalCount += rows.length;
       const label = typeLabels[type] || { heading: type, emoji: "\uD83D\uDCCC" };
       sections.push(`## ${label.emoji} ${label.heading}`);
-      sections.push("");
-      for (const row of rows) {
+      sections.push(`- Entries: ${rows.length}`);
+      sections.push(`- Topic file: \`${writeTopicFiles ? `${type}.md` : "(disabled)"}\``);
+      for (const row of rows.slice(0, indexHighlightsPerType)) {
         const date = formatDate(row.created_at);
-        const facts = parseJsonArray(row.facts);
-        const concepts = parseJsonArray(row.concepts);
-        const filesModified = parseJsonArray(row.files_modified);
-        sections.push(`### ${date} \u2014 ${row.narrative.split(`
-`)[0]}`);
-        if (row.confidence < 1) {
-          sections.push(`> Confidence: ${(row.confidence * 100).toFixed(0)}%`);
-        }
-        sections.push("");
-        if (row.narrative.includes(`
-`)) {
-          sections.push(row.narrative);
-          sections.push("");
-        }
-        if (facts.length > 0) {
-          sections.push("**Facts:**");
-          for (const fact of facts) {
-            sections.push(`- ${fact}`);
-          }
-          sections.push("");
-        }
-        if (filesModified.length > 0) {
-          sections.push(`**Files:** ${filesModified.map((f) => `\`${f}\``).join(", ")}`);
-          sections.push("");
-        }
-        if (concepts.length > 0) {
-          sections.push(`**Concepts:** ${concepts.join(", ")}`);
-          sections.push("");
-        }
-        if (row.bead_id) {
-          sections.push(`**Bead:** ${row.bead_id}`);
-          sections.push("");
-        }
-        sections.push("---");
-        sections.push("");
+        const headline = row.narrative.split(`
+`)[0];
+        sections.push(`- ${date}: ${headline}`);
+      }
+      sections.push("");
+      if (writeTopicFiles) {
+        writeTopicFile(memoryDir, type, label.heading, rows);
       }
     } catch {}
   }
@@ -4679,6 +4757,259 @@ function formatTodoBeadsSyncLog(result) {
   }
   return `[CliKit:todo-beads-sync] session=${result.sessionID} todos=${result.totalTodos} created=${result.created} updated=${result.updated} closed=${result.closed}`;
 }
+// src/hooks/error-logger.ts
+var BLOCKED_TOOL_ERROR_PREFIX = "[CliKit] Blocked tool execution:";
+function getErrorMessage(error) {
+  if (error instanceof Error) {
+    return error.message;
+  }
+  if (typeof error === "string") {
+    return error;
+  }
+  try {
+    return JSON.stringify(error);
+  } catch {
+    return String(error);
+  }
+}
+function getErrorStack(error) {
+  if (error instanceof Error && typeof error.stack === "string") {
+    return error.stack;
+  }
+  return;
+}
+function isBlockedToolExecutionError(error) {
+  return error instanceof Error && error.message.startsWith(BLOCKED_TOOL_ERROR_PREFIX);
+}
+function formatHookErrorLog(hookName, error, context) {
+  const message = getErrorMessage(error);
+  const contextPart = context && Object.keys(context).length > 0 ? ` context=${JSON.stringify(context)}` : "";
+  const stack = getErrorStack(error);
+  return [
+    `[CliKit:${hookName}] Hook error: ${message}${contextPart}`,
+    ...stack ? [stack] : []
+  ].join(`
+`);
+}
+function logHookError(hookName, error, context) {
+  console.error(formatHookErrorLog(hookName, error, context));
+}
+// src/tools/memory-db.ts
+import * as fs7 from "fs";
+import * as path8 from "path";
+import { Database as Database3 } from "bun:sqlite";
+function getMemoryPaths(projectDir = process.cwd()) {
+  const memoryDir = path8.join(projectDir, ".opencode", "memory");
+  const memoryDbPath = path8.join(memoryDir, "memory.db");
+  return { memoryDir, memoryDbPath };
+}
+function ensureObservationSchema(db) {
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS observations (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      type TEXT NOT NULL,
+      narrative TEXT NOT NULL,
+      facts TEXT DEFAULT '[]',
+      confidence REAL DEFAULT 1.0,
+      files_read TEXT DEFAULT '[]',
+      files_modified TEXT DEFAULT '[]',
+      concepts TEXT DEFAULT '[]',
+      bead_id TEXT,
+      created_at TEXT DEFAULT CURRENT_TIMESTAMP,
+      expires_at TEXT
+    );
+
+    CREATE INDEX IF NOT EXISTS idx_observations_type ON observations(type);
+    CREATE INDEX IF NOT EXISTS idx_observations_bead_id ON observations(bead_id);
+    CREATE INDEX IF NOT EXISTS idx_observations_created_at ON observations(created_at);
+
+    CREATE VIRTUAL TABLE IF NOT EXISTS observations_fts USING fts5(
+      id UNINDEXED,
+      type,
+      narrative,
+      facts,
+      content='observations',
+      content_rowid='id'
+    );
+
+    CREATE TRIGGER IF NOT EXISTS observations_ai AFTER INSERT ON observations BEGIN
+      INSERT INTO observations_fts (id, type, narrative, facts)
+      VALUES (new.id, new.type, new.narrative, new.facts);
+    END;
+
+    CREATE TRIGGER IF NOT EXISTS observations_ad AFTER DELETE ON observations BEGIN
+      INSERT INTO observations_fts (observations_fts, id, type, narrative, facts)
+      VALUES ('delete', old.id, old.type, old.narrative, old.facts);
+    END;
+
+    CREATE TRIGGER IF NOT EXISTS observations_au AFTER UPDATE ON observations BEGIN
+      INSERT INTO observations_fts (observations_fts, id, type, narrative, facts)
+      VALUES ('delete', old.id, old.type, old.narrative, old.facts);
+      INSERT INTO observations_fts (id, type, narrative, facts)
+      VALUES (new.id, new.type, new.narrative, new.facts);
+    END;
+  `);
+  try {
+    db.exec(`ALTER TABLE observations ADD COLUMN concepts TEXT DEFAULT '[]'`);
+  } catch {}
+  try {
+    db.exec(`ALTER TABLE observations ADD COLUMN bead_id TEXT`);
+  } catch {}
+  try {
+    db.exec(`ALTER TABLE observations ADD COLUMN expires_at TEXT`);
+  } catch {}
+}
+function openMemoryDb(options2 = {}) {
+  const { projectDir, readonly = false } = options2;
+  const { memoryDir, memoryDbPath } = getMemoryPaths(projectDir);
+  if (!readonly && !fs7.existsSync(memoryDir)) {
+    fs7.mkdirSync(memoryDir, { recursive: true });
+  }
+  const db = new Database3(memoryDbPath, readonly ? { readonly: true } : undefined);
+  if (!readonly) {
+    ensureObservationSchema(db);
+  }
+  return db;
+}
+
+// src/tools/memory.ts
+function normalizeLimit(value, fallback = 10) {
+  if (typeof value !== "number" || !Number.isFinite(value)) {
+    return fallback;
+  }
+  return Math.max(1, Math.floor(value));
+}
+function getDb() {
+  return openMemoryDb();
+}
+function memorySearch(params) {
+  if (!params || typeof params !== "object") {
+    return [];
+  }
+  const p = params;
+  if (!p.query || typeof p.query !== "string") {
+    return [];
+  }
+  const db = getDb();
+  try {
+    const limit = normalizeLimit(p.limit, 10);
+    let sql;
+    let args;
+    if (p.type) {
+      sql = `
+      SELECT o.id, o.type, o.narrative, o.confidence, o.created_at
+      FROM observations o
+      JOIN observations_fts fts ON o.id = fts.id
+      WHERE observations_fts MATCH ? AND o.type = ?
+      ORDER BY o.confidence DESC, o.created_at DESC
+      LIMIT ?
+    `;
+      args = [p.query, p.type, limit];
+    } else {
+      sql = `
+      SELECT o.id, o.type, o.narrative, o.confidence, o.created_at
+      FROM observations o
+      JOIN observations_fts fts ON o.id = fts.id
+      WHERE observations_fts MATCH ?
+      ORDER BY o.confidence DESC, o.created_at DESC
+      LIMIT ?
+    `;
+      args = [p.query, limit];
+    }
+    const rows = db.prepare(sql).all(...args);
+    return rows;
+  } finally {
+    db.close();
+  }
+}
+
+// src/tools/cass-memory.ts
+var ANTI_PATTERN_TYPES = new Set(["cass_feedback_harmful", "cass_anti_pattern"]);
+function scoreType(type) {
+  switch (type) {
+    case "decision":
+      return 0.16;
+    case "learning":
+      return 0.14;
+    case "cass_feedback_helpful":
+      return 0.1;
+    case "cass_anti_pattern":
+      return 0.12;
+    case "cass_feedback_harmful":
+      return 0.08;
+    case "progress":
+      return 0.04;
+    default:
+      return 0.02;
+  }
+}
+function scoreRecency(createdAt) {
+  const time = Date.parse(createdAt);
+  if (Number.isNaN(time)) {
+    return 0.35;
+  }
+  const ageDays = Math.max(0, (Date.now() - time) / 86400000);
+  return Math.exp(-ageDays / 30);
+}
+function rankRows(rows) {
+  return rows.map((row) => {
+    const confidence = Math.max(0, Math.min(1, row.confidence));
+    const recency = scoreRecency(row.created_at);
+    const typeWeight = scoreType(row.type);
+    const relevanceScore = confidence * 0.55 + recency * 0.35 + typeWeight;
+    return {
+      ...row,
+      relevanceScore: Number(relevanceScore.toFixed(4))
+    };
+  }).sort((a, b) => b.relevanceScore - a.relevanceScore || b.id - a.id);
+}
+function cassMemoryContext(params) {
+  if (!params || typeof params !== "object") {
+    return { ok: false, command: ["internal", "context"], error: "Invalid params" };
+  }
+  const p = params;
+  if (!p.task || typeof p.task !== "string") {
+    return { ok: false, command: ["internal", "context"], error: "Missing task" };
+  }
+  const limit = typeof p.limit === "number" && Number.isFinite(p.limit) ? Math.max(1, Math.floor(p.limit)) : 10;
+  const searchLimit = Math.max(limit * 4, 20);
+  const rows = memorySearch({ query: p.task, limit: searchLimit });
+  const rankedRows = rankRows(rows);
+  const relevantBullets = rankedRows.filter((r) => !ANTI_PATTERN_TYPES.has(r.type)).slice(0, limit).map((r) => ({ ...r, bulletId: `obs-${r.id}` }));
+  const antiPatterns = rankedRows.filter((r) => ANTI_PATTERN_TYPES.has(r.type)).slice(0, limit).map((r) => ({ ...r, bulletId: `obs-${r.id}` }));
+  return {
+    ok: true,
+    command: ["internal", "context"],
+    data: {
+      task: p.task,
+      relevantBullets,
+      antiPatterns,
+      historySnippets: rankedRows.slice(0, Math.max(limit * 2, 10)).map(({ relevanceScore: _score, ...row }) => row),
+      degraded: {
+        cass: {
+          available: false,
+          reason: "Running in embedded CliKit mode (no external cm/cass binary).",
+          suggestedFix: ["None required for plugin-local usage."]
+        }
+      }
+    }
+  };
+}
+function cassMemoryReflect(params = {}) {
+  const p = params && typeof params === "object" ? params : {};
+  return {
+    ok: true,
+    command: ["internal", "reflect"],
+    data: {
+      reflected: true,
+      mode: "embedded",
+      days: p.days ?? 7,
+      maxSessions: p.maxSessions ?? 10,
+      dryRun: !!p.dryRun
+    }
+  };
+}
+
 // src/index.ts
 var execFileAsync = promisify(execFile);
 var CliKitPlugin = async (ctx) => {
@@ -4774,12 +5105,35 @@ var CliKitPlugin = async (ctx) => {
       return "";
     }
   }
+  async function getStagedFileContent(file) {
+    try {
+      const { stdout } = await execFileAsync("git", ["show", `:${file}`], {
+        cwd: ctx.directory,
+        encoding: "utf-8"
+      });
+      return stdout;
+    } catch {
+      return "";
+    }
+  }
+  function isToolNamed(name, expected) {
+    return name.toLowerCase() === expected.toLowerCase();
+  }
+  function toSingleLinePreview(text, maxLength = 72) {
+    const normalized = text.replace(/\s+/g, " ").trim();
+    if (normalized.length <= maxLength) {
+      return normalized;
+    }
+    return `${normalized.slice(0, maxLength - 1)}\u2026`;
+  }
   const pluginConfig = loadCliKitConfig(ctx.directory) ?? {};
   const debugLogsEnabled = pluginConfig.hooks?.session_logging === true && process.env.CLIKIT_DEBUG === "1";
   const toolLogsEnabled = pluginConfig.hooks?.tool_logging === true && process.env.CLIKIT_DEBUG === "1";
   const DIGEST_THROTTLE_MS = 60000;
   let lastDigestTime = 0;
   let lastTodoHash = "";
+  let lastCassReflectTime = 0;
+  const CASS_REFLECT_THROTTLE_MS = 5 * 60000;
   const builtinAgents = getBuiltinAgents();
   const builtinCommands = getBuiltinCommands();
   const builtinSkills = getBuiltinSkills();
@@ -4809,6 +5163,9 @@ var CliKitPlugin = async (ctx) => {
         ...filteredCommands,
         ...config.command
       };
+      if (filteredCommands["status-beads"]) {
+        delete config.command.status;
+      }
       const runtimeConfig = config;
       runtimeConfig.skill = {
         ...filteredSkills,
@@ -4851,10 +5208,37 @@ var CliKitPlugin = async (ctx) => {
           console.log(`[CliKit] Session created: ${info?.id || "unknown"}`);
         }
         if (pluginConfig.hooks?.memory_digest?.enabled !== false) {
-          const digestResult = generateMemoryDigest(ctx.directory, pluginConfig.hooks?.memory_digest);
-          lastDigestTime = Date.now();
-          if (pluginConfig.hooks?.memory_digest?.log !== false) {
-            console.log(formatDigestLog(digestResult));
+          try {
+            const digestResult = generateMemoryDigest(ctx.directory, pluginConfig.hooks?.memory_digest);
+            lastDigestTime = Date.now();
+            if (pluginConfig.hooks?.memory_digest?.log !== false) {
+              console.log(formatDigestLog(digestResult));
+            }
+          } catch (error) {
+            logHookError("memory-digest", error, { event: event.type, phase: "session.created" });
+          }
+        }
+        const cassHookConfig = pluginConfig.hooks?.cass_memory;
+        if (cassHookConfig?.enabled !== false && cassHookConfig?.context_on_session_created !== false) {
+          try {
+            const sessionTitle = info?.title?.trim() || "session-start";
+            const cassResult = cassMemoryContext({
+              task: sessionTitle,
+              limit: cassHookConfig?.context_limit
+            });
+            if (cassHookConfig?.log === true || debugLogsEnabled) {
+              const bulletCount = cassResult.data?.relevantBullets?.length ?? 0;
+              console.log(`[CliKit:cass-memory] Context loaded for session start (${bulletCount} bullets)`);
+              if (bulletCount > 0) {
+                const topBullets = (cassResult.data?.relevantBullets || []).slice(0, 3).map((bullet, index) => `${index + 1}. ${toSingleLinePreview(bullet.narrative)}`);
+                console.log(`[CliKit:cass-memory] Top bullets: ${topBullets.join(" | ")}`);
+                if (cassHookConfig?.log === true) {
+                  await showToast(topBullets.join(" \u2022 "), "info", "Cass Memory");
+                }
+              }
+            }
+          } catch (error) {
+            logHookError("cass-memory", error, { event: event.type, phase: "session.created" });
           }
         }
       }
@@ -4869,13 +5253,17 @@ var CliKitPlugin = async (ctx) => {
         if (typeof sessionID === "string") {
           const todos = normalizeTodos(props?.todos);
           todosBySession.set(sessionID, todos);
-          const todoHash = JSON.stringify(todos.map((t) => `${t.id}:${t.status}`));
+          const todoHash = JSON.stringify([...todos].sort((a, b) => a.id.localeCompare(b.id)).map((t) => `${t.id}:${t.status}`));
           if (todoHash !== lastTodoHash) {
             lastTodoHash = todoHash;
             if (pluginConfig.hooks?.todo_beads_sync?.enabled !== false) {
-              const result = syncTodosToBeads(ctx.directory, sessionID, todos, pluginConfig.hooks?.todo_beads_sync);
-              if (pluginConfig.hooks?.todo_beads_sync?.log === true) {
-                console.log(formatTodoBeadsSyncLog(result));
+              try {
+                const result = syncTodosToBeads(ctx.directory, sessionID, todos, pluginConfig.hooks?.todo_beads_sync);
+                if (pluginConfig.hooks?.todo_beads_sync?.log === true) {
+                  console.log(formatTodoBeadsSyncLog(result));
+                }
+              } catch (error) {
+                logHookError("todo-beads-sync", error, { event: event.type, sessionID });
               }
             }
           }
@@ -4889,20 +5277,45 @@ var CliKitPlugin = async (ctx) => {
         }
         const todoConfig = pluginConfig.hooks?.todo_enforcer;
         if (todoConfig?.enabled !== false) {
-          const todos = normalizeTodos(props?.todos);
-          const effectiveTodos = todos.length > 0 ? todos : sessionTodos;
-          if (effectiveTodos.length > 0) {
-            const result = checkTodoCompletion(effectiveTodos);
-            if (!result.complete && todoConfig?.warn_on_incomplete !== false) {
-              console.warn(formatIncompleteWarning(result, sessionID));
+          try {
+            const todos = normalizeTodos(props?.todos);
+            const effectiveTodos = todos.length > 0 ? todos : sessionTodos;
+            if (effectiveTodos.length > 0) {
+              const result = checkTodoCompletion(effectiveTodos);
+              if (!result.complete && todoConfig?.warn_on_incomplete !== false) {
+                console.warn(formatIncompleteWarning(result, sessionID));
+              }
             }
+          } catch (error) {
+            logHookError("todo-enforcer", error, { event: event.type, sessionID });
           }
         }
         if (pluginConfig.hooks?.memory_digest?.enabled !== false) {
-          const now = Date.now();
-          if (now - lastDigestTime >= DIGEST_THROTTLE_MS) {
-            generateMemoryDigest(ctx.directory, pluginConfig.hooks?.memory_digest);
-            lastDigestTime = now;
+          try {
+            const now = Date.now();
+            if (now - lastDigestTime >= DIGEST_THROTTLE_MS) {
+              generateMemoryDigest(ctx.directory, pluginConfig.hooks?.memory_digest);
+              lastDigestTime = now;
+            }
+          } catch (error) {
+            logHookError("memory-digest", error, { event: event.type, phase: "session.idle" });
+          }
+        }
+        const cassHookConfig = pluginConfig.hooks?.cass_memory;
+        if (cassHookConfig?.enabled !== false && cassHookConfig?.reflect_on_session_idle !== false) {
+          try {
+            const now = Date.now();
+            if (now - lastCassReflectTime >= CASS_REFLECT_THROTTLE_MS) {
+              cassMemoryReflect({
+                days: cassHookConfig?.reflect_days
+              });
+              lastCassReflectTime = now;
+              if (cassHookConfig?.log === true || debugLogsEnabled) {
+                console.log("[CliKit:cass-memory] Reflection completed on session idle");
+              }
+            }
+          } catch (error) {
+            logHookError("cass-memory", error, { event: event.type, phase: "session.idle" });
           }
         }
       }
@@ -4916,80 +5329,126 @@ var CliKitPlugin = async (ctx) => {
     },
     "tool.execute.before": async (input, output) => {
       const toolName = input.tool;
-      const toolInput = getToolInput(output.args);
+      const beforeOutput = output;
+      const beforeInput = input;
+      const toolInput = getToolInput(beforeOutput.args ?? beforeInput.args);
       if (toolLogsEnabled) {
         console.log(`[CliKit] Tool executing: ${toolName}`);
       }
       if (pluginConfig.hooks?.git_guard?.enabled !== false) {
-        if (toolName === "bash" || toolName === "Bash") {
-          const command = toolInput.command;
-          if (command) {
-            const allowForceWithLease = pluginConfig.hooks?.git_guard?.allow_force_with_lease !== false;
-            const result = checkDangerousCommand(command, allowForceWithLease);
-            if (result.blocked) {
-              console.warn(formatBlockedWarning(result));
-              await showToast(result.reason || "Blocked dangerous git command", "warning", "CliKit Guard");
-              blockToolExecution(result.reason || "Dangerous git command");
+        if (isToolNamed(toolName, "bash")) {
+          const command = toolInput.command ?? toolInput.cmd;
+          try {
+            if (command) {
+              const allowForceWithLease = pluginConfig.hooks?.git_guard?.allow_force_with_lease !== false;
+              const result = checkDangerousCommand(command, allowForceWithLease);
+              if (result.blocked) {
+                console.warn(formatBlockedWarning(result));
+                await showToast(result.reason || "Blocked dangerous git command", "warning", "CliKit Guard");
+                blockToolExecution(result.reason || "Dangerous git command");
+              }
             }
+          } catch (error) {
+            if (isBlockedToolExecutionError(error)) {
+              throw error;
+            }
+            logHookError("git-guard", error, { tool: toolName, command });
           }
         }
       }
       if (pluginConfig.hooks?.security_check?.enabled !== false) {
-        if (toolName === "bash" || toolName === "Bash") {
-          const command = toolInput.command;
-          if (command && /git\s+(commit|add)/.test(command)) {
-            const secConfig = pluginConfig.hooks?.security_check;
-            let shouldBlock = false;
-            const [stagedFiles, stagedDiff] = await Promise.all([
-              getStagedFiles(),
-              getStagedDiff()
-            ]);
-            for (const file of stagedFiles) {
-              if (isSensitiveFile(file)) {
-                console.warn(`[CliKit:security] Sensitive file staged: ${file}`);
-                shouldBlock = true;
+        if (isToolNamed(toolName, "bash")) {
+          const command = toolInput.command ?? toolInput.cmd;
+          try {
+            if (command && /git\s+(commit|add)/.test(command)) {
+              const secConfig = pluginConfig.hooks?.security_check;
+              let shouldBlock = false;
+              const [stagedFiles, stagedDiff] = await Promise.all([
+                getStagedFiles(),
+                getStagedDiff()
+              ]);
+              for (const file of stagedFiles) {
+                if (isSensitiveFile(file)) {
+                  console.warn(`[CliKit:security] Sensitive file staged: ${file}`);
+                  shouldBlock = true;
+                }
+              }
+              if (stagedDiff) {
+                const scanResult = scanContentForSecrets(stagedDiff);
+                if (!scanResult.safe) {
+                  console.warn(formatSecurityWarning(scanResult));
+                  shouldBlock = true;
+                }
+              }
+              const contentScans = await Promise.all(stagedFiles.map(async (file) => ({
+                file,
+                content: await getStagedFileContent(file)
+              })));
+              for (const { file, content } of contentScans) {
+                if (!content) {
+                  continue;
+                }
+                const scanResult = scanContentForSecrets(content, file);
+                if (!scanResult.safe) {
+                  console.warn(formatSecurityWarning(scanResult));
+                  shouldBlock = true;
+                }
+              }
+              if (shouldBlock && secConfig?.block_commits) {
+                await showToast("Blocked commit due to sensitive data", "error", "CliKit Security");
+                blockToolExecution("Sensitive data detected in commit");
+              } else if (shouldBlock) {
+                await showToast("Potential sensitive data detected in staged changes", "warning", "CliKit Security");
               }
             }
-            if (stagedDiff) {
-              const scanResult = scanContentForSecrets(stagedDiff);
-              if (!scanResult.safe) {
-                console.warn(formatSecurityWarning(scanResult));
-                shouldBlock = true;
-              }
+          } catch (error) {
+            if (isBlockedToolExecutionError(error)) {
+              throw error;
             }
-            if (shouldBlock && secConfig?.block_commits) {
-              await showToast("Blocked commit due to sensitive data", "error", "CliKit Security");
-              blockToolExecution("Sensitive data detected in commit");
-            }
+            logHookError("security-check", error, { tool: toolName, command });
           }
         }
       }
       if (pluginConfig.hooks?.swarm_enforcer?.enabled !== false) {
-        const editTools = ["edit", "Edit", "write", "Write", "bash", "Bash"];
-        if (editTools.includes(toolName)) {
+        const editTools = ["edit", "write", "bash"];
+        if (editTools.some((name) => isToolNamed(toolName, name))) {
           const targetFile = extractFileFromToolInput(toolName, toolInput);
-          if (targetFile) {
-            const taskScope = toolInput.taskScope || input.__taskScope;
-            const enforcement = checkEditPermission(targetFile, taskScope, pluginConfig.hooks?.swarm_enforcer);
-            if (!enforcement.allowed) {
-              console.warn(formatEnforcementWarning(enforcement));
-              if (pluginConfig.hooks?.swarm_enforcer?.block_unreserved_edits) {
-                await showToast(enforcement.reason || "Edit blocked outside task scope", "warning", "CliKit Swarm");
-                blockToolExecution(enforcement.reason || "Edit outside reserved task scope");
+          try {
+            if (targetFile) {
+              const taskScope = toolInput.taskScope || input.__taskScope;
+              const enforcement = checkEditPermission(targetFile, taskScope, pluginConfig.hooks?.swarm_enforcer);
+              if (!enforcement.allowed) {
+                console.warn(formatEnforcementWarning(enforcement));
+                if (pluginConfig.hooks?.swarm_enforcer?.block_unreserved_edits) {
+                  await showToast(enforcement.reason || "Edit blocked outside task scope", "warning", "CliKit Swarm");
+                  blockToolExecution(enforcement.reason || "Edit outside reserved task scope");
+                }
+              } else if (pluginConfig.hooks?.swarm_enforcer?.log === true) {
+                console.log(`[CliKit:swarm-enforcer] Allowed edit: ${targetFile}`);
               }
-            } else if (pluginConfig.hooks?.swarm_enforcer?.log === true) {
-              console.log(`[CliKit:swarm-enforcer] Allowed edit: ${targetFile}`);
             }
+          } catch (error) {
+            if (isBlockedToolExecutionError(error)) {
+              throw error;
+            }
+            logHookError("swarm-enforcer", error, { tool: toolName, targetFile });
           }
         }
       }
       if (pluginConfig.hooks?.subagent_question_blocker?.enabled !== false) {
         if (isSubagentTool(toolName)) {
           const prompt = toolInput.prompt;
-          if (prompt && containsQuestion(prompt)) {
-            console.warn(formatBlockerWarning());
-            await showToast("Subagent prompt blocked: avoid direct questions", "warning", "CliKit Guard");
-            blockToolExecution("Subagents should not ask questions");
+          try {
+            if (prompt && containsQuestion(prompt)) {
+              console.warn(formatBlockerWarning());
+              await showToast("Subagent prompt blocked: avoid direct questions", "warning", "CliKit Guard");
+              blockToolExecution("Subagents should not ask questions");
+            }
+          } catch (error) {
+            if (isBlockedToolExecutionError(error)) {
+              throw error;
+            }
+            logHookError("subagent-question-blocker", error, { tool: toolName });
           }
         }
       }
@@ -5003,28 +5462,36 @@ var CliKitPlugin = async (ctx) => {
       }
       const sanitizerConfig = pluginConfig.hooks?.empty_message_sanitizer;
       if (sanitizerConfig?.enabled !== false) {
-        if (isEmptyContent(toolOutputContent)) {
-          const placeholder = sanitizerConfig?.placeholder || "(No output)";
-          if (sanitizerConfig?.log_empty === true) {
-            console.log(`[CliKit] Empty output detected for tool: ${toolName}`);
+        try {
+          if (isEmptyContent(toolOutputContent)) {
+            const placeholder = sanitizerConfig?.placeholder || "(No output)";
+            if (sanitizerConfig?.log_empty === true) {
+              console.log(`[CliKit] Empty output detected for tool: ${toolName}`);
+            }
+            const sanitized = sanitizeContent(toolOutputContent, placeholder);
+            if (typeof sanitized === "string") {
+              toolOutputContent = sanitized;
+              output.output = sanitized;
+            }
           }
-          const sanitized = sanitizeContent(toolOutputContent, placeholder);
-          if (typeof sanitized === "string") {
-            toolOutputContent = sanitized;
-            output.output = sanitized;
-          }
+        } catch (error) {
+          logHookError("empty-message-sanitizer", error, { tool: toolName });
         }
       }
       if (pluginConfig.hooks?.truncator?.enabled !== false) {
-        if (shouldTruncate(toolOutputContent, pluginConfig.hooks?.truncator)) {
-          const result = truncateOutput(toolOutputContent, pluginConfig.hooks?.truncator);
-          if (result.truncated) {
-            toolOutputContent = result.content;
-            output.output = result.content;
-            if (pluginConfig.hooks?.truncator?.log === true) {
-              console.log(formatTruncationLog(result));
+        try {
+          if (shouldTruncate(toolOutputContent, pluginConfig.hooks?.truncator)) {
+            const result = truncateOutput(toolOutputContent, pluginConfig.hooks?.truncator);
+            if (result.truncated) {
+              toolOutputContent = result.content;
+              output.output = result.content;
+              if (pluginConfig.hooks?.truncator?.log === true) {
+                console.log(formatTruncationLog(result));
+              }
             }
           }
+        } catch (error) {
+          logHookError("truncator", error, { tool: toolName });
         }
       }
     }
