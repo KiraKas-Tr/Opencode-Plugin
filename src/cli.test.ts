@@ -12,11 +12,10 @@ describe("upsertPluginEntry", () => {
   it("replaces existing plugin variants with versioned entry", () => {
     const next = upsertPluginEntry(
       ["foo", "clikit-plugin", "clikit-plugin@0.1.0", "bar"],
-      "clikit-plugin",
-      "0.2.20"
+      "clikit-plugin@latest"
     );
 
-    expect(next).toEqual(["foo", "bar", "clikit-plugin@0.2.20"]);
+    expect(next).toEqual(["foo", "bar", "clikit-plugin@latest"]);
   });
 });
 
