@@ -126,8 +126,6 @@ export default CliKitPlugin;
 function removeLegacyGlobalPluginAssets(configDir) {
   const legacyPluginPath = path.join(configDir, "plugins", "clikit.js");
   const legacyAgentsDir = path.join(configDir, "plugins", "agents");
-  const legacyCommandDir = path.join(configDir, "command");
-  const legacyStatusPath = path.join(legacyCommandDir, "status.md");
   if (fs.existsSync(legacyPluginPath)) {
     fs.rmSync(legacyPluginPath, { force: true });
     console.log(`\u2713 Removed legacy local plugin file: ${legacyPluginPath}`);
@@ -135,10 +133,6 @@ function removeLegacyGlobalPluginAssets(configDir) {
   if (fs.existsSync(legacyAgentsDir)) {
     fs.rmSync(legacyAgentsDir, { recursive: true, force: true });
     console.log(`\u2713 Removed legacy local agents directory: ${legacyAgentsDir}`);
-  }
-  if (fs.existsSync(legacyStatusPath)) {
-    fs.rmSync(legacyStatusPath, { force: true });
-    console.log(`\u2713 Removed legacy command file: ${legacyStatusPath}`);
   }
 }
 function getRealHome() {

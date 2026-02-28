@@ -4,11 +4,11 @@ Curated agents, commands, skills, and memory system for OpenCode.
 
 ## Features
 
-- **7 Specialized Agents**: build, plan, explore, review, vision, oracle, research
+- **10 Specialized Agents**: build, general, oracle, librarian, explore, looker, plan, review, scout, vision
 - **19 Slash Commands**: /create, /start, /plan, /ship, /verify, /review, /debug, /pr, and more
 - **48 Workflow Skills**: TDD, debugging, design, UI/UX, integrations, ritual-workflow, and more
-- **7 Internal Utilities**: memory (read/search/get/timeline/update/admin), observation, swarm, beads-memory-sync, quick-research, context-summary, cass-memory (used by hooks, not directly registered as agent tools)
-- **10 Runtime Hooks**: todo enforcer, empty output sanitizer, git guard, security check, subagent blocker, truncator, swarm enforcer, memory digest, todo→beads sync, and cass-memory
+- **6 Internal Utilities**: memory (read/search/get/timeline/update/admin), observation, swarm, beads-memory-sync, quick-research, context-summary (used by hooks, not directly registered as agent tools)
+- **9 Runtime Hooks**: todo enforcer, empty output sanitizer, git guard, security check, subagent blocker, truncator, swarm enforcer, memory digest, and todo→beads sync
 - **Memory System**: Templates, specs, plans, research artifacts with FTS5 search
 - **Extended Permissions**: doom_loop, external_directory controls
 - **Configurable**: Enable/disable agents, override models, customize behavior
@@ -62,7 +62,7 @@ Project config overrides user config.
 ```json
 {
   "$schema": "https://unpkg.com/clikit-plugin@latest/schema.json",
-  "disabled_agents": ["review"],
+  "disabled_agents": ["scout"],
   "disabled_commands": ["security"],
   "disabled_skills": ["playwright"],
   "skills": {
@@ -70,7 +70,7 @@ Project config overrides user config.
     "disable": ["sharing-skills"]
   },
   "agents": {
-    "vision": {
+    "oracle": {
       "model": "openai/gpt-4o"
     },
     "build": {
@@ -93,8 +93,7 @@ Project config overrides user config.
     "truncator": { "enabled": true },
     "swarm_enforcer": { "enabled": true },
     "memory_digest": { "enabled": true },
-    "todo_beads_sync": { "enabled": true },
-    "cass_memory": { "enabled": true }
+    "todo_beads_sync": { "enabled": true }
   }
 }
 ```
@@ -125,17 +124,19 @@ Project config overrides user config.
 | `swarm_enforcer` | on | Enforces task isolation in multi-agent swarms |
 | `memory_digest` | on | Generates `memory/_digest.md` index + topic files (`decision.md`, `learning.md`, etc.) from SQLite observations |
 | `todo_beads_sync` | on | Mirrors OpenCode todos into Beads issues |
-| `cass_memory` | on | Loads embedded memory context on session start and runs idle reflection (`cassMemoryContext`, `cassMemoryReflect`) |
 
 ## Agents
 
 | Agent | Mode | Description |
 |-------|------|-------------|
 | `build` | primary | Primary code executor, implements plans |
+| `general` | subagent | General-purpose, multi-step tasks & complex questions |
 | `plan` | primary | Creates implementation plans from specs |
-| `oracle` | subagent | Deep code inspection + architecture trade-off analysis |
-| `research` | subagent | External docs + GitHub evidence research |
+| `oracle` | subagent | Expert advisor for architecture & debugging |
+| `librarian` | subagent | Multi-repo analysis, doc lookup |
 | `explore` | subagent | Fast codebase exploration |
+| `looker` | subagent | Deep code inspection & architecture analysis |
+| `scout` | subagent | External research & web search |
 | `review` | subagent | Code review & quality gate |
 | `vision` | subagent | Design direction + visual implementation |
 

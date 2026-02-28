@@ -78,15 +78,6 @@ export interface TodoBeadsSyncHookConfig {
   log?: boolean;
 }
 
-export interface CassMemoryHookConfig {
-  enabled?: boolean;
-  context_on_session_created?: boolean;
-  reflect_on_session_idle?: boolean;
-  context_limit?: number;
-  reflect_days?: number;
-  log?: boolean;
-}
-
 export interface HooksConfig {
   session_logging?: boolean;
   tool_logging?: boolean;
@@ -99,7 +90,6 @@ export interface HooksConfig {
   swarm_enforcer?: SwarmEnforcerHookConfig;
   memory_digest?: MemoryDigestHookConfig;
   todo_beads_sync?: TodoBeadsSyncHookConfig;
-  cass_memory?: CassMemoryHookConfig;
 }
 
 export interface SkillOverride {
@@ -193,14 +183,6 @@ const DEFAULT_CONFIG: CliKitConfig = {
     todo_beads_sync: {
       enabled: true,
       close_missing: true,
-      log: false,
-    },
-    cass_memory: {
-      enabled: true,
-      context_on_session_created: true,
-      reflect_on_session_idle: true,
-      context_limit: 5,
-      reflect_days: 7,
       log: false,
     },
   },
@@ -342,10 +324,7 @@ export function loadCliKitConfig(projectDirectory: unknown): CliKitConfig {
   // - Legacy fallback: clikit.config.json
   // Global config loads first, then project config overrides it.
   const userBaseDir = getOpenCodeConfigDir();
-  const projectBaseDirs = [
-    safeDir,
-    path.join(safeDir, ".opencode"),
-  ];
+  const projectBaseDir = path.join(safeDir, ".opencode");
   const configCandidates = ["clikit.jsonc", "clikit.json", "clikit.config.json"];
 
   // Start with defaults
@@ -362,14 +341,12 @@ export function loadCliKitConfig(projectDirectory: unknown): CliKitConfig {
   }
 
   // Load and merge project config
-  for (const baseDir of projectBaseDirs) {
-    for (const candidate of configCandidates) {
-      const projectConfigPath = path.join(baseDir, candidate);
-      const projectConfig = loadJsonFile<CliKitConfig>(projectConfigPath);
-      if (projectConfig) {
-        config = deepMerge(config, projectConfig);
-        return config;
-      }
+  for (const candidate of configCandidates) {
+    const projectConfigPath = path.join(projectBaseDir, candidate);
+    const projectConfig = loadJsonFile<CliKitConfig>(projectConfigPath);
+    if (projectConfig) {
+      config = deepMerge(config, projectConfig);
+      break;
     }
   }
 
@@ -465,7 +442,7 @@ export function filterSkills(
       enabledSet = new Set(skillsConfig.enable);
     }
     if (Array.isArray(skillsConfig.disable) && skillsConfig.disable.length > 0) {
-      disabledSet = new Set([...disabledSet, ...skillsConfig.disable]);
+      disabledSet = new Set(skillsConfig.disable);
     }
 
     const { sources: _sources, enable: _enable, disable: _disable, ...rest } = skillsConfig;

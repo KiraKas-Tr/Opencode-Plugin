@@ -58,8 +58,10 @@ async function install() {
     for (const file of fs.readdirSync(srcAgentDir)) {
       const src = path.join(srcAgentDir, file);
       const dest = path.join(destAgentDir, file);
-      fs.copyFileSync(src, dest);
-      console.log(`  Synced agent: ${file}`);
+      if (!fs.existsSync(dest)) {
+        fs.copyFileSync(src, dest);
+        console.log(`  Copied agent: ${file}`);
+      }
     }
   }
 
@@ -69,16 +71,10 @@ async function install() {
     for (const file of fs.readdirSync(srcCommandDir)) {
       const src = path.join(srcCommandDir, file);
       const dest = path.join(destCommandDir, file);
-      fs.copyFileSync(src, dest);
-      console.log(`  Synced command: ${file}`);
-    }
-
-    // Cleanup renamed legacy command file
-    const legacyStatusPath = path.join(destCommandDir, "status.md");
-    const statusBeadsPath = path.join(destCommandDir, "status-beads.md");
-    if (fs.existsSync(legacyStatusPath) && fs.existsSync(statusBeadsPath)) {
-      fs.rmSync(legacyStatusPath);
-      console.log("  Removed legacy command: status.md");
+      if (!fs.existsSync(dest)) {
+        fs.copyFileSync(src, dest);
+        console.log(`  Copied command: ${file}`);
+      }
     }
   }
 

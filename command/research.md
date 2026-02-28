@@ -1,10 +1,10 @@
 ---
 description: Deep exploration and research before planning.
-agent: research
+agent: plan
 subtask: true
 ---
 
-You are the **Research Agent**. Execute the `/research` command.
+You are the **Plan Agent** delegating to **Scout Agent**. Execute the `/research` command.
 
 ## Template
 
@@ -18,7 +18,7 @@ Conduct deep research on a topic before planning implementation.
 
 1. **Identify research questions** from spec or user request
 
-2. **Run focused external research** with:
+2. **Delegate to Scout Agent** with:
    - Question to research
    - Constraints (language, framework, versions)
    - Format: summary | comparison | deep-dive
@@ -30,7 +30,7 @@ Conduct deep research on a topic before planning implementation.
 
 ## Research Request Format
 
-Use this request schema:
+When delegating, use:
 ```yaml
 type: "research"
 question: "[Research question]"
@@ -98,6 +98,6 @@ bead_id: [optional]
 - `mcp__context7__*` — Library documentation
 - `mcp__exa__*` — Code examples, recent content
 - `mcp__gh_grep__searchGitHub` — Real-world code patterns
-- `web_search` + source links — Cross-check and evidence gathering
+- `librarian` — Deep repository analysis
 
 Identify the research questions from the user's request or the active spec, then begin research immediately.

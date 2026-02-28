@@ -45,11 +45,8 @@ import {
   // Todo -> Beads Sync
   syncTodosToBeads,
   formatTodoBeadsSyncLog,
-  isBlockedToolExecutionError,
-  logHookError,
   type OpenCodeTodo,
 } from "./hooks";
-import { cassMemoryContext, cassMemoryReflect } from "./tools/cass-memory";
 
 const CliKitPlugin: Plugin = async (ctx) => {
   const todosBySession = new Map<string, OpenCodeTodo[]>();
@@ -177,14 +174,6 @@ const CliKitPlugin: Plugin = async (ctx) => {
     return name.toLowerCase() === expected.toLowerCase();
   }
 
-  function toSingleLinePreview(text: string, maxLength = 72): string {
-    const normalized = text.replace(/\s+/g, " ").trim();
-    if (normalized.length <= maxLength) {
-      return normalized;
-    }
-    return `${normalized.slice(0, maxLength - 1)}…`;
-  }
-
   const pluginConfig = loadCliKitConfig(ctx.directory) ?? {};
   const debugLogsEnabled = pluginConfig.hooks?.session_logging === true && process.env.CLIKIT_DEBUG === "1";
   const toolLogsEnabled = pluginConfig.hooks?.tool_logging === true && process.env.CLIKIT_DEBUG === "1";
@@ -195,10 +184,6 @@ const CliKitPlugin: Plugin = async (ctx) => {
 
   // Debounce: track last todo hash to skip redundant syncs
   let lastTodoHash = "";
-
-  // Debounce: skip repeated cass reflection on frequent idle events
-  let lastCassReflectTime = 0;
-  const CASS_REFLECT_THROTTLE_MS = 5 * 60_000;
 
   const builtinAgents = getBuiltinAgents();
   const builtinCommands = getBuiltinCommands();
@@ -240,10 +225,6 @@ const CliKitPlugin: Plugin = async (ctx) => {
         ...filteredCommands,
         ...config.command,
       };
-
-      if (filteredCommands["status-beads"]) {
-        delete config.command.status;
-      }
 
       const runtimeConfig = config as unknown as {
         skill?: Record<string, unknown>;
@@ -301,41 +282,10 @@ const CliKitPlugin: Plugin = async (ctx) => {
 
         // Memory Digest: generate _digest.md from SQLite observations
         if (pluginConfig.hooks?.memory_digest?.enabled !== false) {
-          try {
-            const digestResult = generateMemoryDigest(ctx.directory, pluginConfig.hooks?.memory_digest);
-            lastDigestTime = Date.now();
-            if (pluginConfig.hooks?.memory_digest?.log !== false) {
-              console.log(formatDigestLog(digestResult));
-            }
-          } catch (error) {
-            logHookError("memory-digest", error, { event: event.type, phase: "session.created" });
-          }
-        }
-
-        // Cass Memory (embedded): pre-task context snapshot on session start
-        const cassHookConfig = pluginConfig.hooks?.cass_memory;
-        if (cassHookConfig?.enabled !== false && cassHookConfig?.context_on_session_created !== false) {
-          try {
-            const sessionTitle = info?.title?.trim() || "session-start";
-            const cassResult = cassMemoryContext({
-              task: sessionTitle,
-              limit: cassHookConfig?.context_limit,
-            });
-            if (cassHookConfig?.log === true || debugLogsEnabled) {
-              const bulletCount = cassResult.data?.relevantBullets?.length ?? 0;
-              console.log(`[CliKit:cass-memory] Context loaded for session start (${bulletCount} bullets)`);
-              if (bulletCount > 0) {
-                const topBullets = (cassResult.data?.relevantBullets || [])
-                  .slice(0, 3)
-                  .map((bullet, index) => `${index + 1}. ${toSingleLinePreview(bullet.narrative)}`);
-                console.log(`[CliKit:cass-memory] Top bullets: ${topBullets.join(" | ")}`);
-                if (cassHookConfig?.log === true) {
-                  await showToast(topBullets.join(" • "), "info", "Cass Memory");
-                }
-              }
-            }
-          } catch (error) {
-            logHookError("cass-memory", error, { event: event.type, phase: "session.created" });
+          const digestResult = generateMemoryDigest(ctx.directory, pluginConfig.hooks?.memory_digest);
+          lastDigestTime = Date.now();
+          if (pluginConfig.hooks?.memory_digest?.log !== false) {
+            console.log(formatDigestLog(digestResult));
           }
         }
 
@@ -367,13 +317,9 @@ const CliKitPlugin: Plugin = async (ctx) => {
           if (todoHash !== lastTodoHash) {
             lastTodoHash = todoHash;
             if (pluginConfig.hooks?.todo_beads_sync?.enabled !== false) {
-              try {
-                const result = syncTodosToBeads(ctx.directory, sessionID, todos, pluginConfig.hooks?.todo_beads_sync);
-                if (pluginConfig.hooks?.todo_beads_sync?.log === true) {
-                  console.log(formatTodoBeadsSyncLog(result));
-                }
-              } catch (error) {
-                logHookError("todo-beads-sync", error, { event: event.type, sessionID });
+              const result = syncTodosToBeads(ctx.directory, sessionID, todos, pluginConfig.hooks?.todo_beads_sync);
+              if (pluginConfig.hooks?.todo_beads_sync?.log === true) {
+                console.log(formatTodoBeadsSyncLog(result));
               }
             }
           }
@@ -392,55 +338,28 @@ const CliKitPlugin: Plugin = async (ctx) => {
         // Todo Enforcer: check on session idle
         const todoConfig = pluginConfig.hooks?.todo_enforcer;
         if (todoConfig?.enabled !== false) {
-          try {
-            const todos = normalizeTodos(props?.todos);
-            const effectiveTodos = todos.length > 0 ? todos : sessionTodos;
+          const todos = normalizeTodos(props?.todos);
+          const effectiveTodos = todos.length > 0 ? todos : sessionTodos;
 
-            if (effectiveTodos.length > 0) {
-              const result = checkTodoCompletion(effectiveTodos as Array<{
-                id: string;
-                content: string;
-                status: "todo" | "in-progress" | "completed";
-              }>);
+          if (effectiveTodos.length > 0) {
+            const result = checkTodoCompletion(effectiveTodos as Array<{
+              id: string;
+              content: string;
+              status: "todo" | "in-progress" | "completed";
+            }>);
 
-              if (!result.complete && todoConfig?.warn_on_incomplete !== false) {
-                console.warn(formatIncompleteWarning(result, sessionID));
-              }
+            if (!result.complete && todoConfig?.warn_on_incomplete !== false) {
+              console.warn(formatIncompleteWarning(result, sessionID));
             }
-          } catch (error) {
-            logHookError("todo-enforcer", error, { event: event.type, sessionID });
           }
         }
 
         // Memory Digest: refresh on idle (throttled to avoid repeated I/O)
         if (pluginConfig.hooks?.memory_digest?.enabled !== false) {
-          try {
-            const now = Date.now();
-            if (now - lastDigestTime >= DIGEST_THROTTLE_MS) {
-              generateMemoryDigest(ctx.directory, pluginConfig.hooks?.memory_digest);
-              lastDigestTime = now;
-            }
-          } catch (error) {
-            logHookError("memory-digest", error, { event: event.type, phase: "session.idle" });
-          }
-        }
-
-        // Cass Memory (embedded): reflect on idle (throttled)
-        const cassHookConfig = pluginConfig.hooks?.cass_memory;
-        if (cassHookConfig?.enabled !== false && cassHookConfig?.reflect_on_session_idle !== false) {
-          try {
-            const now = Date.now();
-            if (now - lastCassReflectTime >= CASS_REFLECT_THROTTLE_MS) {
-              cassMemoryReflect({
-                days: cassHookConfig?.reflect_days,
-              });
-              lastCassReflectTime = now;
-              if (cassHookConfig?.log === true || debugLogsEnabled) {
-                console.log("[CliKit:cass-memory] Reflection completed on session idle");
-              }
-            }
-          } catch (error) {
-            logHookError("cass-memory", error, { event: event.type, phase: "session.idle" });
+          const now = Date.now();
+          if (now - lastDigestTime >= DIGEST_THROTTLE_MS) {
+            generateMemoryDigest(ctx.directory, pluginConfig.hooks?.memory_digest);
+            lastDigestTime = now;
           }
         }
 
@@ -470,21 +389,14 @@ const CliKitPlugin: Plugin = async (ctx) => {
       if (pluginConfig.hooks?.git_guard?.enabled !== false) {
         if (isToolNamed(toolName, "bash")) {
           const command = (toolInput.command as string | undefined) ?? (toolInput.cmd as string | undefined);
-          try {
-            if (command) {
-              const allowForceWithLease = pluginConfig.hooks?.git_guard?.allow_force_with_lease !== false;
-              const result = checkDangerousCommand(command, allowForceWithLease);
-              if (result.blocked) {
-                console.warn(formatBlockedWarning(result));
-                await showToast(result.reason || "Blocked dangerous git command", "warning", "CliKit Guard");
-                blockToolExecution(result.reason || "Dangerous git command");
-              }
+          if (command) {
+            const allowForceWithLease = pluginConfig.hooks?.git_guard?.allow_force_with_lease !== false;
+            const result = checkDangerousCommand(command, allowForceWithLease);
+            if (result.blocked) {
+              console.warn(formatBlockedWarning(result));
+              await showToast(result.reason || "Blocked dangerous git command", "warning", "CliKit Guard");
+              blockToolExecution(result.reason || "Dangerous git command");
             }
-          } catch (error) {
-            if (isBlockedToolExecutionError(error)) {
-              throw error;
-            }
-            logHookError("git-guard", error, { tool: toolName, command });
           }
         }
       }
@@ -493,61 +405,54 @@ const CliKitPlugin: Plugin = async (ctx) => {
       if (pluginConfig.hooks?.security_check?.enabled !== false) {
         if (isToolNamed(toolName, "bash")) {
           const command = (toolInput.command as string | undefined) ?? (toolInput.cmd as string | undefined);
-          try {
-            if (command && /git\s+(commit|add)/.test(command)) {
-              const secConfig = pluginConfig.hooks?.security_check;
-              let shouldBlock = false;
+          if (command && /git\s+(commit|add)/.test(command)) {
+            const secConfig = pluginConfig.hooks?.security_check;
+            let shouldBlock = false;
 
-              const [stagedFiles, stagedDiff] = await Promise.all([
-                getStagedFiles(),
-                getStagedDiff(),
-              ]);
+            const [stagedFiles, stagedDiff] = await Promise.all([
+              getStagedFiles(),
+              getStagedDiff(),
+            ]);
 
-              for (const file of stagedFiles) {
-                if (isSensitiveFile(file)) {
-                  console.warn(`[CliKit:security] Sensitive file staged: ${file}`);
-                  shouldBlock = true;
-                }
-              }
-
-              if (stagedDiff) {
-                const scanResult = scanContentForSecrets(stagedDiff);
-                if (!scanResult.safe) {
-                  console.warn(formatSecurityWarning(scanResult));
-                  shouldBlock = true;
-                }
-              }
-
-              const contentScans = await Promise.all(
-                stagedFiles.map(async (file) => ({
-                  file,
-                  content: await getStagedFileContent(file),
-                }))
-              );
-
-              for (const { file, content } of contentScans) {
-                if (!content) {
-                  continue;
-                }
-                const scanResult = scanContentForSecrets(content, file);
-                if (!scanResult.safe) {
-                  console.warn(formatSecurityWarning(scanResult));
-                  shouldBlock = true;
-                }
-              }
-
-              if (shouldBlock && secConfig?.block_commits) {
-                await showToast("Blocked commit due to sensitive data", "error", "CliKit Security");
-                blockToolExecution("Sensitive data detected in commit");
-              } else if (shouldBlock) {
-                await showToast("Potential sensitive data detected in staged changes", "warning", "CliKit Security");
+            for (const file of stagedFiles) {
+              if (isSensitiveFile(file)) {
+                console.warn(`[CliKit:security] Sensitive file staged: ${file}`);
+                shouldBlock = true;
               }
             }
-          } catch (error) {
-            if (isBlockedToolExecutionError(error)) {
-              throw error;
+
+            if (stagedDiff) {
+              const scanResult = scanContentForSecrets(stagedDiff);
+              if (!scanResult.safe) {
+                console.warn(formatSecurityWarning(scanResult));
+                shouldBlock = true;
+              }
             }
-            logHookError("security-check", error, { tool: toolName, command });
+
+            const contentScans = await Promise.all(
+              stagedFiles.map(async (file) => ({
+                file,
+                content: await getStagedFileContent(file),
+              }))
+            );
+
+            for (const { file, content } of contentScans) {
+              if (!content) {
+                continue;
+              }
+              const scanResult = scanContentForSecrets(content, file);
+              if (!scanResult.safe) {
+                console.warn(formatSecurityWarning(scanResult));
+                shouldBlock = true;
+              }
+            }
+
+            if (shouldBlock && secConfig?.block_commits) {
+              await showToast("Blocked commit due to sensitive data", "error", "CliKit Security");
+              blockToolExecution("Sensitive data detected in commit");
+            } else if (shouldBlock) {
+              await showToast("Potential sensitive data detected in staged changes", "warning", "CliKit Security");
+            }
           }
         }
       }
@@ -557,30 +462,23 @@ const CliKitPlugin: Plugin = async (ctx) => {
         const editTools = ["edit", "write", "bash"];
         if (editTools.some((name) => isToolNamed(toolName, name))) {
           const targetFile = extractFileFromToolInput(toolName, toolInput);
-          try {
-            if (targetFile) {
-              const taskScope = (toolInput.taskScope as
+          if (targetFile) {
+            const taskScope = (toolInput.taskScope as
+              | { taskId: string; agentId: string; reservedFiles: string[]; allowedPatterns?: string[] }
+              | undefined)
+              || ((input as Record<string, unknown>).__taskScope as
                 | { taskId: string; agentId: string; reservedFiles: string[]; allowedPatterns?: string[] }
-                | undefined)
-                || ((input as Record<string, unknown>).__taskScope as
-                  | { taskId: string; agentId: string; reservedFiles: string[]; allowedPatterns?: string[] }
-                  | undefined);
-              const enforcement = checkEditPermission(targetFile, taskScope, pluginConfig.hooks?.swarm_enforcer);
-              if (!enforcement.allowed) {
-                console.warn(formatEnforcementWarning(enforcement));
-                if (pluginConfig.hooks?.swarm_enforcer?.block_unreserved_edits) {
-                  await showToast(enforcement.reason || "Edit blocked outside task scope", "warning", "CliKit Swarm");
-                  blockToolExecution(enforcement.reason || "Edit outside reserved task scope");
-                }
-              } else if (pluginConfig.hooks?.swarm_enforcer?.log === true) {
-                console.log(`[CliKit:swarm-enforcer] Allowed edit: ${targetFile}`);
+                | undefined);
+            const enforcement = checkEditPermission(targetFile, taskScope, pluginConfig.hooks?.swarm_enforcer);
+            if (!enforcement.allowed) {
+              console.warn(formatEnforcementWarning(enforcement));
+              if (pluginConfig.hooks?.swarm_enforcer?.block_unreserved_edits) {
+                await showToast(enforcement.reason || "Edit blocked outside task scope", "warning", "CliKit Swarm");
+                blockToolExecution(enforcement.reason || "Edit outside reserved task scope");
               }
+            } else if (pluginConfig.hooks?.swarm_enforcer?.log === true) {
+              console.log(`[CliKit:swarm-enforcer] Allowed edit: ${targetFile}`);
             }
-          } catch (error) {
-            if (isBlockedToolExecutionError(error)) {
-              throw error;
-            }
-            logHookError("swarm-enforcer", error, { tool: toolName, targetFile });
           }
         }
       }
@@ -589,17 +487,10 @@ const CliKitPlugin: Plugin = async (ctx) => {
       if (pluginConfig.hooks?.subagent_question_blocker?.enabled !== false) {
         if (isSubagentTool(toolName)) {
           const prompt = toolInput.prompt as string | undefined;
-          try {
-            if (prompt && containsQuestion(prompt)) {
-              console.warn(formatBlockerWarning());
-              await showToast("Subagent prompt blocked: avoid direct questions", "warning", "CliKit Guard");
-              blockToolExecution("Subagents should not ask questions");
-            }
-          } catch (error) {
-            if (isBlockedToolExecutionError(error)) {
-              throw error;
-            }
-            logHookError("subagent-question-blocker", error, { tool: toolName });
+          if (prompt && containsQuestion(prompt)) {
+            console.warn(formatBlockerWarning());
+            await showToast("Subagent prompt blocked: avoid direct questions", "warning", "CliKit Guard");
+            blockToolExecution("Subagents should not ask questions");
           }
         }
       }
@@ -617,40 +508,32 @@ const CliKitPlugin: Plugin = async (ctx) => {
       // Empty Message Sanitizer
       const sanitizerConfig = pluginConfig.hooks?.empty_message_sanitizer;
       if (sanitizerConfig?.enabled !== false) {
-        try {
-          if (isEmptyContent(toolOutputContent)) {
-            const placeholder = sanitizerConfig?.placeholder || "(No output)";
+        if (isEmptyContent(toolOutputContent)) {
+          const placeholder = sanitizerConfig?.placeholder || "(No output)";
 
-            if (sanitizerConfig?.log_empty === true) {
-              console.log(`[CliKit] Empty output detected for tool: ${toolName}`);
-            }
-
-            const sanitized = sanitizeContent(toolOutputContent, placeholder);
-            if (typeof sanitized === "string") {
-              toolOutputContent = sanitized;
-              output.output = sanitized;
-            }
+          if (sanitizerConfig?.log_empty === true) {
+            console.log(`[CliKit] Empty output detected for tool: ${toolName}`);
           }
-        } catch (error) {
-          logHookError("empty-message-sanitizer", error, { tool: toolName });
+
+          const sanitized = sanitizeContent(toolOutputContent, placeholder);
+          if (typeof sanitized === "string") {
+            toolOutputContent = sanitized;
+            output.output = sanitized;
+          }
         }
       }
 
       // Truncator: trim large outputs
       if (pluginConfig.hooks?.truncator?.enabled !== false) {
-        try {
-          if (shouldTruncate(toolOutputContent, pluginConfig.hooks?.truncator)) {
-            const result = truncateOutput(toolOutputContent, pluginConfig.hooks?.truncator);
-            if (result.truncated) {
-              toolOutputContent = result.content;
-              output.output = result.content;
-              if (pluginConfig.hooks?.truncator?.log === true) {
-                console.log(formatTruncationLog(result));
-              }
+        if (shouldTruncate(toolOutputContent, pluginConfig.hooks?.truncator)) {
+          const result = truncateOutput(toolOutputContent, pluginConfig.hooks?.truncator);
+          if (result.truncated) {
+            toolOutputContent = result.content;
+            output.output = result.content;
+            if (pluginConfig.hooks?.truncator?.log === true) {
+              console.log(formatTruncationLog(result));
             }
           }
-        } catch (error) {
-          logHookError("truncator", error, { tool: toolName });
         }
       }
 

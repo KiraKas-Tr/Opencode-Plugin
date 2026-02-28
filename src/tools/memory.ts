@@ -1,6 +1,9 @@
 import * as path from "path";
 import * as fs from "fs";
-import { getMemoryPaths, openMemoryDb } from "./memory-db";
+import { Database } from "bun:sqlite";
+
+const MEMORY_DIR = path.join(process.cwd(), ".opencode", "memory");
+const MEMORY_DB = path.join(MEMORY_DIR, "memory.db");
 
 export interface MemoryObservation {
   id: number;
@@ -33,8 +36,61 @@ function normalizeLimit(value: unknown, fallback = 10): number {
   return Math.max(1, Math.floor(value));
 }
 
-function getDb() {
-  return openMemoryDb();
+function getDb(): Database {
+  if (!fs.existsSync(MEMORY_DIR)) {
+    fs.mkdirSync(MEMORY_DIR, { recursive: true });
+  }
+  
+  const db = new Database(MEMORY_DB);
+  
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS observations (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      type TEXT NOT NULL,
+      narrative TEXT NOT NULL,
+      facts TEXT DEFAULT '[]',
+      confidence REAL DEFAULT 1.0,
+      files_read TEXT DEFAULT '[]',
+      files_modified TEXT DEFAULT '[]',
+      concepts TEXT DEFAULT '[]',
+      bead_id TEXT,
+      created_at TEXT DEFAULT CURRENT_TIMESTAMP,
+      expires_at TEXT
+    );
+    
+    CREATE VIRTUAL TABLE IF NOT EXISTS observations_fts USING fts5(
+      id UNINDEXED,
+      type,
+      narrative,
+      facts,
+      content='observations',
+      content_rowid='id'
+    );
+    
+    CREATE TRIGGER IF NOT EXISTS observations_ai AFTER INSERT ON observations BEGIN
+      INSERT INTO observations_fts (id, type, narrative, facts)
+      VALUES (new.id, new.type, new.narrative, new.facts);
+    END;
+    
+    CREATE TRIGGER IF NOT EXISTS observations_ad AFTER DELETE ON observations BEGIN
+      INSERT INTO observations_fts (observations_fts, id, type, narrative, facts)
+      VALUES ('delete', old.id, old.type, old.narrative, old.facts);
+    END;
+    
+    CREATE TRIGGER IF NOT EXISTS observations_au AFTER UPDATE ON observations BEGIN
+      INSERT INTO observations_fts (observations_fts, id, type, narrative, facts)
+      VALUES ('delete', old.id, old.type, old.narrative, old.facts);
+      INSERT INTO observations_fts (id, type, narrative, facts)
+      VALUES (new.id, new.type, new.narrative, new.facts);
+    END;
+  `);
+  
+  // Migration: add missing columns if they don't exist
+  try { db.exec(`ALTER TABLE observations ADD COLUMN concepts TEXT DEFAULT '[]'`); } catch {}
+  try { db.exec(`ALTER TABLE observations ADD COLUMN bead_id TEXT`); } catch {}
+  try { db.exec(`ALTER TABLE observations ADD COLUMN expires_at TEXT`); } catch {}
+  
+  return db;
 }
 
 export function memoryRead(relativePath: string): string | null {
@@ -42,8 +98,7 @@ export function memoryRead(relativePath: string): string | null {
     return null;
   }
 
-  const { memoryDir } = getMemoryPaths();
-  const fullPath = path.join(memoryDir, relativePath);
+  const fullPath = path.join(MEMORY_DIR, relativePath);
   
   if (!fs.existsSync(fullPath)) {
     return null;
@@ -76,11 +131,10 @@ export function memorySearch(params: unknown): MemorySearchResult[] {
   }
   
   const db = getDb();
-  try {
-    const limit = normalizeLimit(p.limit, 10);
+  const limit = normalizeLimit(p.limit, 10);
   
-    let sql: string;
-    let args: (string | number)[];
+  let sql: string;
+  let args: (string | number)[];
   
   if (p.type) {
     sql = `
@@ -106,9 +160,6 @@ export function memorySearch(params: unknown): MemorySearchResult[] {
   
   const rows = db.prepare(sql).all(...args) as MemorySearchResult[];
   return rows;
-  } finally {
-    db.close();
-  }
 }
 
 export function memoryGet(ids: unknown): MemoryObservation[] {
@@ -116,14 +167,13 @@ export function memoryGet(ids: unknown): MemoryObservation[] {
     return [];
   }
   const db = getDb();
-  try {
-    const idList = ids
+  const idList = ids
     .split(",")
     .map((id) => parseInt(id.trim(), 10))
     .filter((id) => Number.isFinite(id));
-    if (idList.length === 0) {
-      return [];
-    }
+  if (idList.length === 0) {
+    return [];
+  }
   
   const placeholders = idList.map(() => "?").join(",");
   const sql = `SELECT * FROM observations WHERE id IN (${placeholders})`;
@@ -136,9 +186,6 @@ export function memoryGet(ids: unknown): MemoryObservation[] {
     files_read: parseStringArray(row.files_read),
     files_modified: parseStringArray(row.files_modified),
   }));
-  } finally {
-    db.close();
-  }
 }
 
 export interface MemoryTimelineParams {
@@ -157,11 +204,10 @@ export function memoryTimeline(params: unknown): MemoryObservation[] {
   }
   
   const db = getDb();
-  try {
-    const before = normalizeLimit(p.before, 3);
-    const after = normalizeLimit(p.after, 3);
+  const before = normalizeLimit(p.before, 3);
+  const after = normalizeLimit(p.after, 3);
   
-    const sql = `
+  const sql = `
     SELECT * FROM (
       SELECT * FROM observations WHERE id < ? ORDER BY id DESC LIMIT ?
       UNION
@@ -183,9 +229,6 @@ export function memoryTimeline(params: unknown): MemoryObservation[] {
     files_read: parseStringArray(row.files_read),
     files_modified: parseStringArray(row.files_modified),
   }));
-  } finally {
-    db.close();
-  }
 }
 
 export interface MemoryUpdateParams {
@@ -208,7 +251,7 @@ export function memoryUpdate(params: unknown): { id: number } | null {
   }
   
   const db = getDb();
-  try {
+  
   const sql = `
     INSERT INTO observations (type, narrative, facts, confidence, files_read, files_modified, expires_at)
     VALUES (?, ?, ?, ?, ?, ?, ?)
@@ -225,9 +268,6 @@ export function memoryUpdate(params: unknown): { id: number } | null {
   );
   
   return { id: result.lastInsertRowid as number };
-  } finally {
-    db.close();
-  }
 }
 
 export interface MemoryAdminParams {
@@ -252,76 +292,72 @@ export function memoryAdmin(params: unknown): MemoryAdminResult {
   }
   
   const db = getDb();
-  const { memoryDir, memoryDbPath } = getMemoryPaths();
-  try {
-    switch (p.operation) {
-      case "status": {
-        const count = db.prepare("SELECT COUNT(*) as count FROM observations").get() as { count: number };
-        const types = db.prepare("SELECT type, COUNT(*) as count FROM observations GROUP BY type").all() as { type: string; count: number }[];
-        return {
-          operation: "status",
-          success: true,
-          details: { total_observations: count.count, by_type: types },
-        };
-      }
-
-      case "archive": {
-        const days = p.older_than_days || 90;
-        const cutoff = new Date(Date.now() - days * 24 * 60 * 60 * 1000).toISOString();
-
-        if (p.dry_run) {
-          const count = db.prepare("SELECT COUNT(*) as count FROM observations WHERE created_at < ?").get(cutoff) as { count: number };
-          return {
-            operation: "archive",
-            success: true,
-            details: { would_archive: count.count, cutoff_date: cutoff },
-          };
-        }
-
-        const result = db.prepare("DELETE FROM observations WHERE created_at < ?").run(cutoff);
+  
+  switch (p.operation) {
+    case "status": {
+      const count = db.prepare("SELECT COUNT(*) as count FROM observations").get() as { count: number };
+      const types = db.prepare("SELECT type, COUNT(*) as count FROM observations GROUP BY type").all() as { type: string; count: number }[];
+      return {
+        operation: "status",
+        success: true,
+        details: { total_observations: count.count, by_type: types },
+      };
+    }
+    
+    case "archive": {
+      const days = p.older_than_days || 90;
+      const cutoff = new Date(Date.now() - days * 24 * 60 * 60 * 1000).toISOString();
+      
+      if (p.dry_run) {
+        const count = db.prepare("SELECT COUNT(*) as count FROM observations WHERE created_at < ?").get(cutoff) as { count: number };
         return {
           operation: "archive",
           success: true,
-          details: { archived: result.changes, cutoff_date: cutoff },
+          details: { would_archive: count.count, cutoff_date: cutoff },
         };
       }
-
-      case "checkpoint": {
-        const checkpointPath = path.join(memoryDir, `checkpoint-${Date.now()}.db`);
-        fs.copyFileSync(memoryDbPath, checkpointPath);
-        return {
-          operation: "checkpoint",
-          success: true,
-          details: { checkpoint_path: checkpointPath },
-        };
-      }
-
-      case "vacuum": {
-        db.exec("VACUUM");
-        const stats = fs.statSync(memoryDbPath);
-        return {
-          operation: "vacuum",
-          success: true,
-          details: { db_size_bytes: stats.size },
-        };
-      }
-
-      case "migrate": {
-        return {
-          operation: "migrate",
-          success: true,
-          details: { message: "Migration not implemented - SQLite is already the storage backend" },
-        };
-      }
-
-      default:
-        return {
-          operation: p.operation || "unknown",
-          success: false,
-          details: { error: "Unknown operation" },
-        };
+      
+      const result = db.prepare("DELETE FROM observations WHERE created_at < ?").run(cutoff);
+      return {
+        operation: "archive",
+        success: true,
+        details: { archived: result.changes, cutoff_date: cutoff },
+      };
     }
-  } finally {
-    db.close();
+    
+    case "checkpoint": {
+      const checkpointPath = path.join(MEMORY_DIR, `checkpoint-${Date.now()}.db`);
+      fs.copyFileSync(MEMORY_DB, checkpointPath);
+      return {
+        operation: "checkpoint",
+        success: true,
+        details: { checkpoint_path: checkpointPath },
+      };
+    }
+    
+    case "vacuum": {
+      db.exec("VACUUM");
+      const stats = fs.statSync(MEMORY_DB);
+      return {
+        operation: "vacuum",
+        success: true,
+        details: { db_size_bytes: stats.size },
+      };
+    }
+    
+    case "migrate": {
+      return {
+        operation: "migrate",
+        success: true,
+        details: { message: "Migration not implemented - SQLite is already the storage backend" },
+      };
+    }
+    
+    default:
+      return {
+        operation: p.operation || "unknown",
+        success: false,
+        details: { error: "Unknown operation" },
+      };
   }
 }

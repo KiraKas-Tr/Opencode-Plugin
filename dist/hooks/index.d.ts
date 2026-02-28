@@ -7,6 +7,7 @@
  * - Git Guard — blocks dangerous git commands
  * - Security Check — scans for secrets before commits
  * - Subagent Question Blocker — prevents subagents from asking questions
+ * - Context Injector — removed (use /resume, /start commands instead)
  * - Truncator — dynamic output truncation
  * - Swarm Enforcer — enforces task isolation in multi-agent swarms
  * - Memory Digest — generates _digest.md from SQLite observations for agent access
@@ -20,5 +21,4 @@ export { shouldTruncate, truncateOutput, formatTruncationLog, type TruncatorConf
 export { isFileInScope, checkEditPermission, extractFileFromToolInput, formatEnforcementWarning, type SwarmEnforcerConfig, type TaskScope, type EnforcementResult, } from "./swarm-enforcer";
 export { generateMemoryDigest, formatDigestLog, type MemoryDigestConfig, } from "./memory-digest";
 export { syncTodosToBeads, formatTodoBeadsSyncLog, type OpenCodeTodo, type TodoBeadsSyncConfig, type TodoBeadsSyncResult, } from "./todo-beads-sync";
-export { isBlockedToolExecutionError, formatHookErrorLog, logHookError, } from "./error-logger";
 //# sourceMappingURL=index.d.ts.map

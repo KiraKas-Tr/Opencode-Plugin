@@ -3,19 +3,7 @@ import * as fs from "fs";
 import * as path from "path";
 import matter from "gray-matter";
 
-const AGENTS_DIR_CANDIDATES = [
-  import.meta.dir,
-  path.join(import.meta.dir, "../../src/agents"),
-];
-
-function resolveAgentsDir(): string {
-  for (const dir of AGENTS_DIR_CANDIDATES) {
-    if (fs.existsSync(dir)) {
-      return dir;
-    }
-  }
-  return AGENTS_DIR_CANDIDATES[0];
-}
+const AGENTS_DIR = import.meta.dir;
 
 function parseAgentMarkdown(filePath: string): AgentConfig | null {
   try {
@@ -51,19 +39,16 @@ function parseAgentMarkdown(filePath: string): AgentConfig | null {
 
 export function loadAgents(): Record<string, AgentConfig> {
   const agents: Record<string, AgentConfig> = {};
-  const agentsDir = resolveAgentsDir();
 
-  if (!fs.existsSync(agentsDir)) {
+  if (!fs.existsSync(AGENTS_DIR)) {
     return agents;
   }
 
-  const files = fs.readdirSync(agentsDir)
-    .filter((f) => f.endsWith(".md") && f !== "AGENTS.md")
-    .sort();
+  const files = fs.readdirSync(AGENTS_DIR).filter((f) => f.endsWith(".md"));
 
   for (const file of files) {
     const agentName = path.basename(file, ".md");
-    const agentPath = path.join(agentsDir, file);
+    const agentPath = path.join(AGENTS_DIR, file);
     const agent = parseAgentMarkdown(agentPath);
 
     if (agent) {
@@ -74,32 +59,6 @@ export function loadAgents(): Record<string, AgentConfig> {
   return agents;
 }
 
-let _cachedAgents: Record<string, AgentConfig> | null = null;
-let _cachedAgentsFingerprint = "";
-
-function getAgentsFingerprint(agentsDir: string): string {
-  const files = fs.readdirSync(agentsDir)
-    .filter((f) => f.endsWith(".md") && f !== "AGENTS.md")
-    .sort();
-
-  const parts = files.map((file) => {
-    const fullPath = path.join(agentsDir, file);
-    const stat = fs.statSync(fullPath);
-    return `${file}:${stat.mtimeMs}`;
-  });
-
-  return parts.join("|");
-}
-
 export function getBuiltinAgents(): Record<string, AgentConfig> {
-  try {
-    const agentsDir = resolveAgentsDir();
-    const fingerprint = getAgentsFingerprint(agentsDir);
-    if (_cachedAgents && _cachedAgentsFingerprint === fingerprint) return _cachedAgents;
-    _cachedAgents = loadAgents();
-    _cachedAgentsFingerprint = fingerprint;
-    return _cachedAgents;
-  } catch {
-    return _cachedAgents ?? loadAgents();
-  }
+  return loadAgents();
 }

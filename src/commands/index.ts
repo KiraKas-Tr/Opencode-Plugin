@@ -71,29 +71,14 @@ export function loadCommands(): Record<string, CommandConfig> {
 }
 
 let _cachedCommands: Record<string, CommandConfig> | null = null;
-let _cachedCommandsFingerprint = "";
-
-function getCommandsFingerprint(commandsDir: string): string {
-  const files = fs.readdirSync(commandsDir)
-    .filter((f) => f.endsWith(".md"))
-    .sort();
-
-  const parts = files.map((file) => {
-    const fullPath = path.join(commandsDir, file);
-    const stat = fs.statSync(fullPath);
-    return `${file}:${stat.mtimeMs}`;
-  });
-
-  return parts.join("|");
-}
+let _cachedCommandsMtime = 0;
 
 export function getBuiltinCommands(): Record<string, CommandConfig> {
   try {
-    const commandsDir = resolveCommandsDir();
-    const fingerprint = getCommandsFingerprint(commandsDir);
-    if (_cachedCommands && _cachedCommandsFingerprint === fingerprint) return _cachedCommands;
+    const mtime = fs.statSync(resolveCommandsDir()).mtimeMs;
+    if (_cachedCommands && _cachedCommandsMtime === mtime) return _cachedCommands;
     _cachedCommands = loadCommands();
-    _cachedCommandsFingerprint = fingerprint;
+    _cachedCommandsMtime = mtime;
     return _cachedCommands;
   } catch {
     return _cachedCommands ?? loadCommands();

@@ -10,9 +10,9 @@ const DANGEROUS_PATTERNS: Array<{ pattern: RegExp; reason: string }> = [
   { pattern: /git\s+push\s+.*-f\b/, reason: "Force push can destroy remote history" },
   { pattern: /git\s+reset\s+--hard/, reason: "Hard reset discards all uncommitted changes" },
   { pattern: /git\s+clean\s+-fd/, reason: "git clean -fd permanently deletes untracked files" },
-  { pattern: /\brm\s+-rf\s+\/(?:\s|$|[;|&])/, reason: "rm -rf / is catastrophically dangerous" },
-  { pattern: /\brm\s+-rf\s+~(?:\s|$|[;|&])/, reason: "rm -rf ~ would delete home directory" },
-  { pattern: /\brm\s+-rf\s+\.\/?(?:\s|$|[;|&])/, reason: "rm -rf . would delete current directory" },
+  { pattern: /rm\s+-rf\s+\//, reason: "rm -rf / is catastrophically dangerous" },
+  { pattern: /rm\s+-rf\s+~/, reason: "rm -rf ~ would delete home directory" },
+  { pattern: /rm\s+-rf\s+\.\s/, reason: "rm -rf . would delete current directory" },
   { pattern: /git\s+branch\s+-D/, reason: "Force-deleting branch may lose unmerged work" },
 ];
 

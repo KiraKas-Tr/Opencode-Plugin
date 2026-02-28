@@ -175,8 +175,6 @@ export function scaffoldProjectOpencode(projectDir: string, packageRoot = getPac
 function removeLegacyGlobalPluginAssets(configDir: string): void {
   const legacyPluginPath = path.join(configDir, "plugins", "clikit.js");
   const legacyAgentsDir = path.join(configDir, "plugins", "agents");
-  const legacyCommandDir = path.join(configDir, "command");
-  const legacyStatusPath = path.join(legacyCommandDir, "status.md");
 
   if (fs.existsSync(legacyPluginPath)) {
     fs.rmSync(legacyPluginPath, { force: true });
@@ -186,11 +184,6 @@ function removeLegacyGlobalPluginAssets(configDir: string): void {
   if (fs.existsSync(legacyAgentsDir)) {
     fs.rmSync(legacyAgentsDir, { recursive: true, force: true });
     console.log(`✓ Removed legacy local agents directory: ${legacyAgentsDir}`);
-  }
-
-  if (fs.existsSync(legacyStatusPath)) {
-    fs.rmSync(legacyStatusPath, { force: true });
-    console.log(`✓ Removed legacy command file: ${legacyStatusPath}`);
   }
 }
 

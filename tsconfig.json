@@ -11,9 +11,7 @@
     "declarationMap": true,
     "outDir": "./dist",
     "rootDir": "./src",
-    "types": ["bun-types"],
-    "incremental": true,
-    "tsBuildInfoFile": "./dist/.tsbuildinfo"
+    "types": ["bun-types"]
   },
   "include": ["src/**/*"],
   "exclude": ["node_modules", "dist"]
