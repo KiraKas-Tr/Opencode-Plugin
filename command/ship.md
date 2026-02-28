@@ -1,5 +1,5 @@
 ---
-description: Ship completed work. Final verification, PR creation, and cleanup.
+description: Ship completed work. Enforce verify gate, create PR, and cleanup.
 agent: build
 ---
 
@@ -7,103 +7,95 @@ You are the **Build Agent**. Execute the `/ship` command.
 
 ## Your Task
 
-Finalize and ship the current work — run all verification gates, create a PR, and clean up.
+Finalize and ship the current work only after `/verify` passes with a ship-ready verdict.
 
 ## Process
 
-### 1. Pre-Ship Verification
+### 1. Enforce Verify Gate (Mandatory)
 
-Run ALL hard gates before shipping:
+Run `/verify` first and require:
+- Overall Verdict: `PASS`
+- Ship Recommendation: `SHIP_READY`
+- No `Critical` or `High` findings
 
-```bash
-# Type checking
-pnpm typecheck || npm run typecheck || yarn typecheck
+If `/verify` returns `FAIL`, `CHANGES_REQUIRED`, or `BLOCKED`:
+- Stop shipping
+- Present required fixes
+- Ask user whether to fix now
 
-# Tests
-pnpm test || npm test || yarn test
-
-# Linting
-pnpm lint || npm run lint || yarn lint
-
-# Build
-pnpm build || npm run build || yarn build
-```
-
-If ANY gate fails, stop and fix before continuing.
-
-### 2. Self-Review
+### 2. Final Self-Review
 
 Before creating PR:
-- Review all changed files (`git diff main`)
-- Check for debug code, console.logs, TODOs
-- Verify acceptance criteria from spec.md
-- Ensure no files outside plan's file impact were changed
+- Review changed files (`git diff --name-only` and `git diff`)
+- Confirm acceptance criteria from spec/plan are satisfied
+- Confirm no debug artifacts (`console.log`, `TODO`, temporary hacks)
+- Confirm changes stay within planned file impact
 
-### 3. Request Review (Optional)
+### 3. Optional Formal Review
 
-Delegate to Review Agent for formal review:
-- Pass changed files list
-- Pass spec.md and plan.md references
-- Wait for verdict
-
-If verdict is `changes_required`, fix issues before continuing.
-If verdict is `blocked`, escalate to user.
+If requested, run `/review` and apply verdict:
+- `approved` → continue
+- `changes_required` → stop and fix first
+- `blocked` → escalate to user
 
 ### 4. Git Preparation
 
 ```bash
-# Ensure clean state
+# Ensure clean understanding of local state
 git status
 
-# Stage changes
-git add -A
+# Stage only files related to this work (never blanket add)
+git add <explicit-file-list>
 
-# Create commit with conventional format
+# Commit using conventional format
 git commit -m "type(scope): description"
 ```
 
 ### 5. Create PR
 
-Delegate to `/pr` command flow:
-- Generate comprehensive PR description
-- Link spec, plan, review artifacts
+Use `/pr` flow:
+- Generate complete PR description
+- Link spec, plan, verify, and review artifacts
 - Create PR via `gh pr create`
 
 ### 6. Post-Ship Cleanup
 
-- Update bead status to `done` or `validating`
-- Create handoff document for tracking
-- Report PR URL to user
+- Update bead/task status
+- Create handoff note if needed
+- Report PR URL + final ship summary to user
 
 ## Ship Checklist
 
 ```
-Pre-Ship:
-- [ ] Typecheck passes
-- [ ] All tests pass
-- [ ] Lint passes
-- [ ] Build succeeds
+Verify Gate:
+- [ ] /verify executed
+- [ ] Overall Verdict = PASS
+- [ ] Ship Recommendation = SHIP_READY
+- [ ] No Critical/High findings
+
+Pre-PR:
 - [ ] Self-review completed
+- [ ] Acceptance criteria verified
 - [ ] No debug/temporary code
 
 Ship:
-- [ ] Changes committed
-- [ ] PR created with full description
-- [ ] Artifacts linked
+- [ ] Relevant files staged explicitly
+- [ ] Commit created
+- [ ] PR created with linked artifacts
 
 Post-Ship:
-- [ ] Bead status updated
+- [ ] Status updated
 - [ ] PR URL reported
 ```
 
 ## Rules
 
-- ✅ ALWAYS run full verification before shipping
-- ✅ ALWAYS self-review changes
-- ✅ ALWAYS create proper commit messages
-- ✅ ALWAYS link artifacts in PR
-- ❌ NEVER ship with failing tests
-- ❌ NEVER ship without verification
-- ❌ NEVER skip self-review
+- ✅ ALWAYS run `/verify` before shipping
+- ✅ ALWAYS block ship when verify is not ship-ready
+- ✅ ALWAYS stage explicit files only
+- ✅ ALWAYS include verification artifacts in PR
+- ❌ NEVER ship with failing gates
+- ❌ NEVER bypass verify verdict
+- ❌ NEVER use `git add -A` or `git add .`
 
-Now, let me verify and ship your work...
+Now, enforcing verify gate before ship...
