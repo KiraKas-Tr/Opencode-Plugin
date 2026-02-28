@@ -70,9 +70,9 @@ Explore: "Find existing patterns for similar features — structure, naming, tes
 Explore: "Find test infrastructure and conventions — framework, helpers, fixtures."
 ```
 
-For complex features, also fire:
+For complex features, also delegate in parallel:
 ```
-Scout: "Find docs and production patterns for [relevant libraries/APIs]."
+Research: "Find docs and production patterns for [relevant libraries/APIs]."
 Oracle: "Analyze architecture trade-offs for [key decisions]."
 ```
 

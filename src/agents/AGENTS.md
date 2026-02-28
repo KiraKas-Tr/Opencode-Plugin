@@ -9,7 +9,8 @@ Each `.md` file in this directory defines an agent. The frontmatter sets model, 
 - @vision — prompt-to-UI, image-to-code, variant exploration. Loads skills like `frontend-aesthetics` and `mockup-to-code`.
 - @explore — fast read-only codebase navigation. Has restricted bash (grep, find, git read-only).
 - @review — code review and security audit. Use before merging.
-- @oracle, @scout, @librarian, @looker, @general — see individual agent files for details.
+- @oracle — merged deep analysis + architecture advisor (from previous oracle + looker).
+- @research — merged external research + GitHub evidence specialist (from previous scout + librarian).
 
 ## Rules
 

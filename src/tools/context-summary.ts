@@ -1,9 +1,4 @@
-import * as path from "path";
-import * as fs from "fs";
-import { Database } from "bun:sqlite";
-
-const MEMORY_DIR = path.join(process.cwd(), ".opencode", "memory");
-const MEMORY_DB = path.join(MEMORY_DIR, "memory.db");
+import { openMemoryDb } from "./memory-db";
 
 export interface ContextSummaryParams {
   scope?: "session" | "bead" | "all";
@@ -38,51 +33,26 @@ function parseStringArray(value: unknown): string[] {
   }
 }
 
-function getMemoryDb(): Database {
-  if (!fs.existsSync(MEMORY_DIR)) {
-    fs.mkdirSync(MEMORY_DIR, { recursive: true });
-  }
-  const db = new Database(MEMORY_DB);
-  
-  db.run(`
-    CREATE TABLE IF NOT EXISTS observations (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
-      type TEXT NOT NULL,
-      narrative TEXT NOT NULL,
-      facts TEXT DEFAULT '[]',
-      confidence REAL DEFAULT 1.0,
-      files_read TEXT DEFAULT '[]',
-      files_modified TEXT DEFAULT '[]',
-      concepts TEXT DEFAULT '[]',
-      bead_id TEXT,
-      created_at TEXT DEFAULT CURRENT_TIMESTAMP,
-      expires_at TEXT
-    )
-  `);
-  
-  // Migration: add missing columns
-  try { db.exec(`ALTER TABLE observations ADD COLUMN concepts TEXT DEFAULT '[]'`); } catch {}
-  try { db.exec(`ALTER TABLE observations ADD COLUMN bead_id TEXT`); } catch {}
-  try { db.exec(`ALTER TABLE observations ADD COLUMN expires_at TEXT`); } catch {}
-  
-  return db;
+function getMemoryDb() {
+  return openMemoryDb();
 }
 
 export function contextSummary(params: unknown = {}): ContextSummaryResult {
   const p = (params && typeof params === "object" ? params : {}) as Partial<ContextSummaryParams>;
   const db = getMemoryDb();
+  try {
+
+    let whereClause = "1=1";
+    const args: (string | number)[] = [];
   
-  let whereClause = "1=1";
-  const args: (string | number)[] = [];
+    if (p.scope === "bead" && p.beadId) {
+      whereClause = "bead_id = ?";
+      args.push(p.beadId);
+    }
   
-  if (p.scope === "bead" && p.beadId) {
-    whereClause = "bead_id = ?";
-    args.push(p.beadId);
-  }
-  
-  if (p.scope === "session") {
-    whereClause = "created_at > datetime('now', '-1 day')";
-  }
+    if (p.scope === "session") {
+      whereClause = "created_at > datetime('now', '-1 day')";
+    }
   
   const observations = db.query(`
     SELECT * FROM observations 
@@ -99,34 +69,34 @@ export function contextSummary(params: unknown = {}): ContextSummaryResult {
     created_at: string;
   }>;
   
-  const sections = {
-    decisions: observations
-      .filter(o => o.type === "decision")
-      .map(o => o.narrative)
-      .slice(0, 5),
-    learnings: observations
-      .filter(o => o.type === "learning")
-      .map(o => o.narrative)
-      .slice(0, 5),
-    blockers: observations
-      .filter(o => o.type === "blocker")
-      .map(o => o.narrative)
-      .slice(0, 3),
-    progress: observations
-      .filter(o => o.type === "progress")
-      .map(o => o.narrative)
-      .slice(0, 5),
-  };
+    const sections = {
+      decisions: observations
+        .filter(o => o.type === "decision")
+        .map(o => o.narrative)
+        .slice(0, 5),
+      learnings: observations
+        .filter(o => o.type === "learning")
+        .map(o => o.narrative)
+        .slice(0, 5),
+      blockers: observations
+        .filter(o => o.type === "blocker")
+        .map(o => o.narrative)
+        .slice(0, 3),
+      progress: observations
+        .filter(o => o.type === "progress")
+        .map(o => o.narrative)
+        .slice(0, 5),
+    };
   
-  const allFilesRead = new Set<string>();
-  const allFilesModified = new Set<string>();
+    const allFilesRead = new Set<string>();
+    const allFilesModified = new Set<string>();
   
-  for (const obs of observations) {
-    const read = parseStringArray(obs.files_read);
-    const modified = parseStringArray(obs.files_modified);
-    read.forEach(f => allFilesRead.add(f));
-    modified.forEach(f => allFilesModified.add(f));
-  }
+    for (const obs of observations) {
+      const read = parseStringArray(obs.files_read);
+      const modified = parseStringArray(obs.files_modified);
+      read.forEach(f => allFilesRead.add(f));
+      modified.forEach(f => allFilesModified.add(f));
+    }
   
   const summary = buildSummary(sections, p.maxTokens || 2000);
   const tokenEstimate = Math.ceil(summary.length / 4);
@@ -140,6 +110,9 @@ export function contextSummary(params: unknown = {}): ContextSummaryResult {
     },
     tokenEstimate,
   };
+  } finally {
+    db.close();
+  }
 }
 
 function buildSummary(

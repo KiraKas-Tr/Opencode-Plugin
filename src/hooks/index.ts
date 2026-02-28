@@ -84,3 +84,10 @@ export {
   type TodoBeadsSyncConfig,
   type TodoBeadsSyncResult,
 } from "./todo-beads-sync";
+
+// Hook Error Logger
+export {
+  isBlockedToolExecutionError,
+  formatHookErrorLog,
+  logHookError,
+} from "./error-logger";
