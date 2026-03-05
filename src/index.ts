@@ -11,6 +11,7 @@ import {
   filterAgents,
   filterCommands,
   filterSkills,
+  deepMerge,
   type LspServerConfig,
 } from "./config";
 import {
@@ -231,10 +232,21 @@ const CliKitPlugin: Plugin = async (ctx) => {
 
   return {
     config: async (config) => {
-      config.agent = {
-        ...filteredAgents,
-        ...config.agent,
-      };
+      // Deep merge plugin agents with existing config agents
+      // so per-agent fields (like model) from the plugin aren't
+      // silently dropped when OpenCode's built-in agent entries
+      // override them via shallow spread.
+      const mergedAgents = { ...filteredAgents };
+      if (config.agent) {
+        for (const [name, existingAgent] of Object.entries(config.agent)) {
+          if (existingAgent && mergedAgents[name]) {
+            mergedAgents[name] = deepMerge(mergedAgents[name], existingAgent);
+          } else if (existingAgent) {
+            mergedAgents[name] = existingAgent;
+          }
+        }
+      }
+      config.agent = mergedAgents;
 
       config.command = {
         ...filteredCommands,
@@ -312,22 +324,26 @@ const CliKitPlugin: Plugin = async (ctx) => {
           }
         }
 
-        // Cass Memory (embedded): pre-task context snapshot on session start
+        // Cass Memory: pre-task context snapshot on session start (real cm or embedded fallback)
         const cassHookConfig = pluginConfig.hooks?.cass_memory;
         if (cassHookConfig?.enabled !== false && cassHookConfig?.context_on_session_created !== false) {
           try {
             const sessionTitle = info?.title?.trim() || "session-start";
-            const cassResult = cassMemoryContext({
+            const cassResult = await cassMemoryContext({
               task: sessionTitle,
               limit: cassHookConfig?.context_limit,
+              cmPath: cassHookConfig?.cm_path,
             });
             if (cassHookConfig?.log === true || debugLogsEnabled) {
-              const bulletCount = cassResult.data?.relevantBullets?.length ?? 0;
-              console.log(`[CliKit:cass-memory] Context loaded for session start (${bulletCount} bullets)`);
+              const source = cassResult.source ?? "unknown";
+              const data = cassResult.data as Record<string, unknown> | undefined;
+              const bullets = (data?.relevantBullets ?? []) as Array<{ narrative?: string }>;
+              const bulletCount = bullets.length;
+              console.log(`[CliKit:cass-memory] Context loaded via ${source} (${bulletCount} bullets)`);
               if (bulletCount > 0) {
-                const topBullets = (cassResult.data?.relevantBullets || [])
+                const topBullets = bullets
                   .slice(0, 3)
-                  .map((bullet, index) => `${index + 1}. ${toSingleLinePreview(bullet.narrative)}`);
+                  .map((bullet: { narrative?: string }, index: number) => `${index + 1}. ${toSingleLinePreview(bullet.narrative ?? "")}`);
                 console.log(`[CliKit:cass-memory] Top bullets: ${topBullets.join(" | ")}`);
                 if (cassHookConfig?.log === true) {
                   await showToast(topBullets.join(" • "), "info", "Cass Memory");
@@ -425,18 +441,20 @@ const CliKitPlugin: Plugin = async (ctx) => {
           }
         }
 
-        // Cass Memory (embedded): reflect on idle (throttled)
+        // Cass Memory: reflect on idle (real cm or embedded fallback, throttled)
         const cassHookConfig = pluginConfig.hooks?.cass_memory;
         if (cassHookConfig?.enabled !== false && cassHookConfig?.reflect_on_session_idle !== false) {
           try {
             const now = Date.now();
             if (now - lastCassReflectTime >= CASS_REFLECT_THROTTLE_MS) {
-              cassMemoryReflect({
+              const reflectResult = await cassMemoryReflect({
                 days: cassHookConfig?.reflect_days,
+                cmPath: cassHookConfig?.cm_path,
               });
               lastCassReflectTime = now;
               if (cassHookConfig?.log === true || debugLogsEnabled) {
-                console.log("[CliKit:cass-memory] Reflection completed on session idle");
+                const source = reflectResult.source ?? "unknown";
+                console.log(`[CliKit:cass-memory] Reflection completed via ${source} on session idle`);
               }
             }
           } catch (error) {

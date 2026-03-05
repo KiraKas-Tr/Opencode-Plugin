@@ -1,7 +1,7 @@
 ---
 description: External research specialist. Merged docs/API lookup + GitHub evidence analysis.
 mode: subagent
-model: proxypal/gpt-5.2-codex
+model: proxypal/gpt-5.3-codex
 temperature: 0.3
 tools:
   write: true

@@ -1,7 +1,7 @@
 ---
 description: Expert technical advisor. Merged deep code inspection + architecture trade-off analysis.
 mode: subagent
-model: proxypal/gpt-5.2-max
+model: proxypal/gpt-5.1-codex-max
 temperature: 0.3
 tools:
   write: false

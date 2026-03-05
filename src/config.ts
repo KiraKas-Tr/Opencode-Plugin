@@ -84,6 +84,7 @@ export interface CassMemoryHookConfig {
   reflect_on_session_idle?: boolean;
   context_limit?: number;
   reflect_days?: number;
+  cm_path?: string;
   log?: boolean;
 }
 
@@ -304,7 +305,7 @@ function loadJsonFile<T>(filePath: string): T | null {
   }
 }
 
-function deepMerge<T extends object>(base: T, override: Partial<T>): T {
+export function deepMerge<T extends object>(base: T, override: Partial<T>): T {
   const result = { ...base } as T;
 
   for (const key of Object.keys(override) as Array<keyof T>) {

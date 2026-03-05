@@ -1,5 +1,13 @@
+import { execFile } from "node:child_process";
+import { promisify } from "node:util";
 import { openMemoryDb } from "./memory-db";
 import { memoryAdmin, memoryGet, memorySearch, memoryUpdate, type MemorySearchResult } from "./memory";
+
+const execFileAsync = promisify(execFile);
+
+// ---------------------------------------------------------------------------
+// Types
+// ---------------------------------------------------------------------------
 
 export interface CassMemoryExecOptions {
   cmPath?: string;
@@ -13,6 +21,7 @@ export interface CassMemoryResult<T = unknown> {
   data?: T;
   raw?: string;
   error?: string;
+  source?: "cm" | "embedded";
 }
 
 export interface CassMemoryContextParams extends CassMemoryExecOptions {
@@ -34,8 +43,22 @@ export interface CassMemoryReflectParams extends CassMemoryExecOptions {
   days?: number;
   maxSessions?: number;
   dryRun?: boolean;
+  workspace?: string;
 }
 
+export interface CassMemoryOutcomeParams extends CassMemoryExecOptions {
+  status: "success" | "failure" | "mixed" | "partial";
+  rules: string;
+  summary?: string;
+  duration?: number;
+  errors?: number;
+}
+
+export interface CassMemoryDoctorParams extends CassMemoryExecOptions {
+  fix?: boolean;
+}
+
+// Internal types for embedded fallback
 interface InternalContextResult {
   task: string;
   relevantBullets: Array<MemorySearchResult & { bulletId: string; relevanceScore: number }>;
@@ -49,6 +72,98 @@ interface InternalContextResult {
     };
   };
 }
+
+// ---------------------------------------------------------------------------
+// cm CLI detection & execution
+// ---------------------------------------------------------------------------
+
+let _cmPathCache: string | false | undefined;
+
+async function findCmBinary(hint?: string): Promise<string | false> {
+  if (hint) {
+    try {
+      const { stdout } = await execFileAsync(hint, ["--version"], { timeout: 5_000 });
+      if (stdout.trim()) return hint;
+    } catch { /* not valid */ }
+  }
+
+  if (_cmPathCache !== undefined) return _cmPathCache;
+
+  for (const candidate of ["cm"]) {
+    try {
+      const { stdout } = await execFileAsync(candidate, ["--version"], { timeout: 5_000 });
+      if (stdout.trim()) {
+        _cmPathCache = candidate;
+        return candidate;
+      }
+    } catch { /* not found */ }
+  }
+
+  _cmPathCache = false;
+  return false;
+}
+
+async function runCm<T = unknown>(
+  args: string[],
+  opts: CassMemoryExecOptions = {},
+): Promise<CassMemoryResult<T>> {
+  const cmPath = await findCmBinary(opts.cmPath);
+  if (!cmPath) {
+    return { ok: false, command: ["cm", ...args], error: "cm binary not found", source: "cm" };
+  }
+
+  try {
+    const { stdout, stderr } = await execFileAsync(cmPath, args, {
+      timeout: opts.timeoutMs ?? 30_000,
+      cwd: opts.cwd,
+      maxBuffer: 1024 * 1024, // 1MB
+      env: { ...process.env, NO_COLOR: "1", CASS_MEMORY_NO_EMOJI: "1" },
+    });
+
+    // cm outputs JSON when --json flag is used
+    const trimmed = stdout.trim();
+    if (!trimmed) {
+      return {
+        ok: true,
+        command: ["cm", ...args],
+        raw: stderr.trim() || "",
+        source: "cm",
+      };
+    }
+
+    try {
+      const parsed = JSON.parse(trimmed);
+      return {
+        ok: parsed.success !== false,
+        command: ["cm", ...args],
+        data: parsed.data ?? parsed,
+        raw: trimmed,
+        source: "cm",
+      };
+    } catch {
+      // Non-JSON output (human-readable)
+      return {
+        ok: true,
+        command: ["cm", ...args],
+        data: trimmed as unknown as T,
+        raw: trimmed,
+        source: "cm",
+      };
+    }
+  } catch (err: unknown) {
+    const message = err instanceof Error ? err.message : String(err);
+    return {
+      ok: false,
+      command: ["cm", ...args],
+      error: `cm execution failed: ${message}`,
+      source: "cm",
+    };
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Embedded fallback (SQLite-based, same as before)
+// ---------------------------------------------------------------------------
 
 const ANTI_PATTERN_TYPES = new Set(["cass_feedback_harmful", "cass_anti_pattern"]);
 const ANTI_PATTERN_FEEDBACK_THRESHOLD = 3;
@@ -81,7 +196,6 @@ function scoreRecency(createdAt: string): number {
   if (Number.isNaN(time)) {
     return 0.35;
   }
-
   const ageDays = Math.max(0, (Date.now() - time) / 86_400_000);
   return Math.exp(-ageDays / 30);
 }
@@ -103,9 +217,7 @@ function rankRows(rows: MemorySearchResult[]): RankedMemoryResult[] {
 
 function parseObservationId(bulletId: string): number | null {
   const match = /^obs-(\d+)$/.exec(bulletId.trim());
-  if (!match) {
-    return null;
-  }
+  if (!match) return null;
   const id = Number(match[1]);
   return Number.isFinite(id) ? id : null;
 }
@@ -116,15 +228,9 @@ function toLikePattern(text: string): string {
 
 function invertToAntiPattern(content: string): string {
   const text = content.trim();
-  if (!text) {
-    return "PITFALL: Avoid repeating this pattern without validation";
-  }
-  if (/^always\s+/i.test(text)) {
-    return `PITFALL: Don't ${text.replace(/^always\s+/i, "").toLowerCase()}`;
-  }
-  if (/^use\s+/i.test(text)) {
-    return `PITFALL: Avoid ${text.charAt(0).toLowerCase()}${text.slice(1)} without careful validation`;
-  }
+  if (!text) return "PITFALL: Avoid repeating this pattern without validation";
+  if (/^always\s+/i.test(text)) return `PITFALL: Don't ${text.replace(/^always\s+/i, "").toLowerCase()}`;
+  if (/^use\s+/i.test(text)) return `PITFALL: Avoid ${text.charAt(0).toLowerCase()}${text.slice(1)} without careful validation`;
   return `PITFALL: ${text}`;
 }
 
@@ -143,11 +249,8 @@ function getFeedbackCounts(bulletId: string): { harmful: number; helpful: number
       let harmful = 0;
       let helpful = 0;
       for (const row of rows) {
-        if (row.type === "cass_feedback_harmful") {
-          harmful = row.count;
-        } else if (row.type === "cass_feedback_helpful") {
-          helpful = row.count;
-        }
+        if (row.type === "cass_feedback_harmful") harmful = row.count;
+        else if (row.type === "cass_feedback_helpful") helpful = row.count;
       }
       return { harmful, helpful };
     } finally {
@@ -163,8 +266,7 @@ function antiPatternAlreadyExists(bulletId: string): boolean {
     const db = openMemoryDb({ readonly: true });
     try {
       const row = db.prepare(`
-        SELECT id
-        FROM observations
+        SELECT id FROM observations
         WHERE type = 'cass_anti_pattern'
           AND facts LIKE ? ESCAPE '\\'
         LIMIT 1
@@ -180,22 +282,14 @@ function antiPatternAlreadyExists(bulletId: string): boolean {
 
 function maybePromoteToAntiPattern(bulletId: string, reason?: string): void {
   const { harmful, helpful } = getFeedbackCounts(bulletId);
-  if (harmful < ANTI_PATTERN_FEEDBACK_THRESHOLD || harmful <= helpful) {
-    return;
-  }
-  if (antiPatternAlreadyExists(bulletId)) {
-    return;
-  }
+  if (harmful < ANTI_PATTERN_FEEDBACK_THRESHOLD || harmful <= helpful) return;
+  if (antiPatternAlreadyExists(bulletId)) return;
 
   const sourceId = parseObservationId(bulletId);
-  if (!sourceId) {
-    return;
-  }
+  if (!sourceId) return;
 
   const source = memoryGet(String(sourceId))[0];
-  if (!source) {
-    return;
-  }
+  if (!source) return;
 
   const reasonSuffix = reason?.trim() ? ` Reason: ${reason.trim()}` : "";
   const narrative = `${invertToAntiPattern(source.narrative)} (derived from ${bulletId} after ${harmful} harmful marks.${reasonSuffix})`;
@@ -207,19 +301,10 @@ function maybePromoteToAntiPattern(bulletId: string, reason?: string): void {
   });
 }
 
-export function cassMemoryContext(params: unknown): CassMemoryResult<InternalContextResult> {
-  if (!params || typeof params !== "object") {
-    return { ok: false, command: ["internal", "context"], error: "Invalid params" };
-  }
-
-  const p = params as Partial<CassMemoryContextParams>;
-  if (!p.task || typeof p.task !== "string") {
-    return { ok: false, command: ["internal", "context"], error: "Missing task" };
-  }
-
-  const limit = typeof p.limit === "number" && Number.isFinite(p.limit) ? Math.max(1, Math.floor(p.limit)) : 10;
+function embeddedContext(params: CassMemoryContextParams): CassMemoryResult<InternalContextResult> {
+  const limit = typeof params.limit === "number" && Number.isFinite(params.limit) ? Math.max(1, Math.floor(params.limit)) : 10;
   const searchLimit = Math.max(limit * 4, 20);
-  const rows = memorySearch({ query: p.task, limit: searchLimit });
+  const rows = memorySearch({ query: params.task, limit: searchLimit });
   const rankedRows = rankRows(rows);
 
   const relevantBullets = rankedRows
@@ -233,81 +318,224 @@ export function cassMemoryContext(params: unknown): CassMemoryResult<InternalCon
 
   return {
     ok: true,
-    command: ["internal", "context"],
+    command: ["embedded", "context"],
+    source: "embedded",
     data: {
-      task: p.task,
+      task: params.task,
       relevantBullets,
       antiPatterns,
       historySnippets: rankedRows.slice(0, Math.max(limit * 2, 10)).map(({ relevanceScore: _score, ...row }) => row),
       degraded: {
         cass: {
           available: false,
-          reason: "Running in embedded CliKit mode (no external cm/cass binary).",
-          suggestedFix: ["None required for plugin-local usage."],
+          reason: "Running in embedded CliKit mode (no external cm binary found).",
+          suggestedFix: [
+            "npm install -g cass-memory-system",
+            "cm init",
+          ],
         },
       },
     },
   };
 }
 
-export function cassMemoryMark(params: unknown): CassMemoryResult<{ id: number }> {
-  if (!params || typeof params !== "object") {
-    return { ok: false, command: ["internal", "mark"], error: "Invalid params" };
-  }
-
-  const p = params as Partial<CassMemoryMarkParams>;
-  if (!p.bulletId || typeof p.bulletId !== "string") {
-    return { ok: false, command: ["internal", "mark"], error: "Missing bulletId" };
-  }
-
-  const type = p.harmful ? "cass_feedback_harmful" : "cass_feedback_helpful";
-  const narrative = p.reason?.trim()
-    ? `Feedback for ${p.bulletId}: ${p.reason.trim()}`
-    : `Feedback for ${p.bulletId}`;
+function embeddedMark(params: CassMemoryMarkParams): CassMemoryResult<{ id: number }> {
+  const type = params.harmful ? "cass_feedback_harmful" : "cass_feedback_helpful";
+  const narrative = params.reason?.trim()
+    ? `Feedback for ${params.bulletId}: ${params.reason.trim()}`
+    : `Feedback for ${params.bulletId}`;
 
   const saved = memoryUpdate({
     type,
     narrative,
-    facts: [p.bulletId],
+    facts: [params.bulletId],
     confidence: 1.0,
   });
 
   if (!saved) {
-    return { ok: false, command: ["internal", "mark"], error: "Failed to save feedback" };
+    return { ok: false, command: ["embedded", "mark"], source: "embedded", error: "Failed to save feedback" };
   }
 
-  if (p.harmful) {
-    maybePromoteToAntiPattern(p.bulletId, p.reason);
+  if (params.harmful) {
+    maybePromoteToAntiPattern(params.bulletId, params.reason);
   }
 
-  return { ok: true, command: ["internal", "mark"], data: saved };
+  return { ok: true, command: ["embedded", "mark"], source: "embedded", data: saved };
 }
 
-export function cassMemoryReflect(params: unknown = {}): CassMemoryResult {
-  const p = (params && typeof params === "object" ? params : {}) as Partial<CassMemoryReflectParams>;
+function embeddedReflect(params: CassMemoryReflectParams): CassMemoryResult {
   return {
     ok: true,
-    command: ["internal", "reflect"],
+    command: ["embedded", "reflect"],
+    source: "embedded",
     data: {
       reflected: true,
       mode: "embedded",
-      days: p.days ?? 7,
-      maxSessions: p.maxSessions ?? 10,
-      dryRun: !!p.dryRun,
+      days: params.days ?? 7,
+      maxSessions: params.maxSessions ?? 10,
+      dryRun: !!params.dryRun,
+      note: "Embedded reflection is a stub. Install cm for full playbook-based reflection.",
     },
   };
 }
 
-export function cassMemoryDoctor(_params: CassMemoryExecOptions = {}): CassMemoryResult {
+function embeddedDoctor(): CassMemoryResult {
   const status = memoryAdmin({ operation: "status" });
   return {
     ok: status.success,
-    command: ["internal", "doctor"],
+    command: ["embedded", "doctor"],
+    source: "embedded",
     data: {
       mode: "embedded",
       memory: status.details,
       externalCmRequired: false,
+      note: "Running without cm binary. Install cm for full CASS features.",
     },
     error: status.success ? undefined : "Memory status check failed",
   };
+}
+
+// ---------------------------------------------------------------------------
+// Public API: tries cm CLI first, falls back to embedded
+// ---------------------------------------------------------------------------
+
+export async function cassMemoryContext(params: unknown): Promise<CassMemoryResult> {
+  if (!params || typeof params !== "object") {
+    return { ok: false, command: ["context"], error: "Invalid params" };
+  }
+
+  const p = params as Partial<CassMemoryContextParams>;
+  if (!p.task || typeof p.task !== "string") {
+    return { ok: false, command: ["context"], error: "Missing task" };
+  }
+
+  // Try real cm first
+  const cmPath = await findCmBinary(p.cmPath);
+  if (cmPath) {
+    const args = ["context", p.task, "--json"];
+    if (typeof p.limit === "number") args.push("--limit", String(p.limit));
+    if (typeof p.history === "number") args.push("--history", String(p.history));
+    if (typeof p.days === "number") args.push("--days", String(p.days));
+    if (p.noHistory) args.push("--no-history");
+
+    const result = await runCm(args, p);
+    if (result.ok) return result;
+    // If cm fails, fall through to embedded
+  }
+
+  // Embedded fallback
+  return embeddedContext(p as CassMemoryContextParams);
+}
+
+export async function cassMemoryMark(params: unknown): Promise<CassMemoryResult> {
+  if (!params || typeof params !== "object") {
+    return { ok: false, command: ["mark"], error: "Invalid params" };
+  }
+
+  const p = params as Partial<CassMemoryMarkParams>;
+  if (!p.bulletId || typeof p.bulletId !== "string") {
+    return { ok: false, command: ["mark"], error: "Missing bulletId" };
+  }
+
+  // Try real cm first
+  const cmPath = await findCmBinary(p.cmPath);
+  if (cmPath) {
+    const args = ["mark", p.bulletId, "--json"];
+    if (p.helpful) args.push("--helpful");
+    if (p.harmful) args.push("--harmful");
+    if (p.reason) args.push("--reason", p.reason);
+
+    const result = await runCm(args, p);
+    if (result.ok) return result;
+  }
+
+  // Embedded fallback
+  return embeddedMark(p as CassMemoryMarkParams);
+}
+
+export async function cassMemoryReflect(params: unknown = {}): Promise<CassMemoryResult> {
+  const p = (params && typeof params === "object" ? params : {}) as Partial<CassMemoryReflectParams>;
+
+  // Try real cm first
+  const cmPath = await findCmBinary(p.cmPath);
+  if (cmPath) {
+    const args = ["reflect", "--json"];
+    if (typeof p.days === "number") args.push("--days", String(p.days));
+    if (typeof p.maxSessions === "number") args.push("--max-sessions", String(p.maxSessions));
+    if (p.dryRun) args.push("--dry-run");
+    if (p.workspace) args.push("--workspace", p.workspace);
+
+    const result = await runCm(args, p);
+    if (result.ok) return result;
+  }
+
+  // Embedded fallback (stub)
+  return embeddedReflect(p as CassMemoryReflectParams);
+}
+
+export async function cassMemoryOutcome(params: unknown): Promise<CassMemoryResult> {
+  if (!params || typeof params !== "object") {
+    return { ok: false, command: ["outcome"], error: "Invalid params" };
+  }
+
+  const p = params as Partial<CassMemoryOutcomeParams>;
+  if (!p.status || !p.rules) {
+    return { ok: false, command: ["outcome"], error: "Missing status or rules" };
+  }
+
+  // outcome requires real cm — no embedded equivalent
+  const cmPath = await findCmBinary(p.cmPath);
+  if (!cmPath) {
+    return {
+      ok: false,
+      command: ["outcome"],
+      source: "embedded",
+      error: "cm binary not found. The outcome command requires the real cm CLI. Install via: npm install -g cass-memory-system",
+    };
+  }
+
+  const args = ["outcome", p.status, p.rules, "--json"];
+  if (p.summary) args.push("--text", p.summary);
+  if (typeof p.duration === "number") args.push("--duration", String(p.duration));
+  if (typeof p.errors === "number") args.push("--errors", String(p.errors));
+
+  return runCm(args, p);
+}
+
+export async function cassMemoryDoctor(params: CassMemoryExecOptions = {}): Promise<CassMemoryResult> {
+  // Try real cm first
+  const cmPath = await findCmBinary(params.cmPath);
+  if (cmPath) {
+    const args = ["doctor", "--json"];
+    const result = await runCm(args, params);
+    if (result.ok) return result;
+  }
+
+  // Embedded fallback
+  return embeddedDoctor();
+}
+
+/**
+ * Check whether the real cm binary is available.
+ * Useful for conditional logic in hooks/skills.
+ */
+export async function cassIsAvailable(cmPath?: string): Promise<{ available: boolean; version?: string; path?: string }> {
+  const resolved = await findCmBinary(cmPath);
+  if (!resolved) {
+    return { available: false };
+  }
+
+  try {
+    const { stdout } = await execFileAsync(resolved, ["--version"], { timeout: 5_000 });
+    return { available: true, version: stdout.trim(), path: resolved };
+  } catch {
+    return { available: false };
+  }
+}
+
+/**
+ * Reset the cached cm binary path. Useful after installation.
+ */
+export function cassResetCache(): void {
+  _cmPathCache = undefined;
 }

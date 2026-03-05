@@ -1,7 +1,7 @@
 ---
 description: Strategic planner and architect. Produces specs, plans, and research artifacts that Build consumes. Interview-first, research-driven, quality-gated.
 mode: primary
-model: proxypal/gpt-5.2-codex
+model: proxypal/gpt-5.3-codex
 temperature: 0.2
 tools:
   write: true

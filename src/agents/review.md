@@ -1,7 +1,7 @@
 ---
 description: Code reviewer, debugger, security auditor. Mandatory gate before merge.
 mode: subagent
-model: proxypal/gpt-5.2-codex
+model: proxypal/gpt-5.3-codex
 temperature: 0.1
 tools:
   write: true

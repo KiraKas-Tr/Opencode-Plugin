@@ -4,11 +4,25 @@ import * as path from "path";
 import matter from "gray-matter";
 
 const AGENTS_DIR_CANDIDATES = [
+  // Dev: running from src/agents
   import.meta.dir,
+  // Packaged plugin: running from dist/, agents live in src/agents/
+  path.join(import.meta.dir, "../src/agents"),
+  // Additional fallbacks for non-standard layouts
   path.join(import.meta.dir, "../../src/agents"),
+  path.join(import.meta.dir, "../agents"),
 ];
 
 function resolveAgentsDir(): string {
+  for (const dir of AGENTS_DIR_CANDIDATES) {
+    if (!fs.existsSync(dir)) continue;
+    try {
+      const hasAgentFiles = fs.readdirSync(dir).some((f) => f.endsWith(".md") && f !== "AGENTS.md");
+      if (hasAgentFiles) return dir;
+    } catch {
+      // Ignore unreadable candidate and continue.
+    }
+  }
   for (const dir of AGENTS_DIR_CANDIDATES) {
     if (fs.existsSync(dir)) {
       return dir;

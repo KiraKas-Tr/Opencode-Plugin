@@ -1,7 +1,7 @@
 ---
 description: Design architect + visual implementer. Prompt-to-UI pipeline with variant exploration, image-to-code, iterative refinement. Inspired by Google Stitch and Amp Painter.
 mode: subagent
-model: proxypal/gemini-3-pro
+model: proxypal/gemini-3.1-flash-image
 temperature: 0.4
 tools:
   write: true
