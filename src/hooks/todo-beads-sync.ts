@@ -91,11 +91,12 @@ export function syncTodosToBeads(
       INSERT INTO issues (
         id, title, description, status, priority, issue_type, external_ref, source_repo, updated_at, closed_at
       ) VALUES (?, ?, ?, ?, ?, 'task', ?, '.', CURRENT_TIMESTAMP, CASE WHEN ? = 'closed' THEN CURRENT_TIMESTAMP ELSE NULL END)
-      ON CONFLICT(external_ref) DO UPDATE SET
+      ON CONFLICT(id) DO UPDATE SET
         title = excluded.title,
         description = excluded.description,
         status = excluded.status,
         priority = excluded.priority,
+        external_ref = excluded.external_ref,
         updated_at = CURRENT_TIMESTAMP,
         closed_at = CASE
           WHEN excluded.status = 'closed' THEN COALESCE(issues.closed_at, CURRENT_TIMESTAMP)

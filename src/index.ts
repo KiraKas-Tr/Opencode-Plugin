@@ -390,6 +390,7 @@ const CliKitPlugin: Plugin = async (ctx) => {
                 }
               } catch (error) {
                 logHookError("todo-beads-sync", error, { event: event.type, sessionID });
+                await showToast("Todo-Beads sync failed — check console for details", "error", "CliKit Sync");
               }
             }
           }
