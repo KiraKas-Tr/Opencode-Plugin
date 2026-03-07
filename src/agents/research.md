@@ -7,6 +7,7 @@ tools:
   write: false
   edit: false
   bash: false
+  websearch: true
   webfetch: true
 permission:
   edit: deny
@@ -46,25 +47,9 @@ After initial search, validate before handoff:
 
 - **Context7** (`resolve-library-id` → `query-docs`) for official API docs
 - **GitHub grep** (`grep_searchGitHub`) for real-world code patterns
-- **Primary web source**: `websearch_web_search` (Exa built-in) — always use this first for recent releases, migration guides, blog posts, and all web discovery
-- **Fallback web source**: `webfetch` — only when Exa errors, returns no results, or a specific URL must be fetched directly for full content/citation
+- **Primary web source**: `websearch` (OpenCode built-in Exa) — always use this first for recent releases, migration guides, blog posts, and all web discovery
+- **Fallback web source**: `webfetch` — only when `websearch` errors or you need to fetch a specific URL for full page content/citation
 - Use 3+ sources in parallel when available
-
-### websearch_web_search Parameters
-
-```json
-{
-  "query": "search query string",
-  "numResults": 5,
-  "language": "en",
-  "region": "us",
-  "resultType": "all"
-}
-```
-
-- `resultType`: `"all"` (default), `"news"` (recent news), `"blogs"` (blog posts)
-- Increase `numResults` for broader coverage, reduce to save tokens
-- Use `excludeDomains` / `includeDomains` to filter specific sources
 
 ## Output Format
 
@@ -102,5 +87,5 @@ Never:
 - Present uncited assumptions as facts
 - Modify any files
 - Use a single source for high-impact recommendations
-- Use `webfetch` as primary web source — always try `websearch_web_search` (Exa) first
-- Skip Exa without reason; only fall back to `webfetch` when Exa errors or cannot provide sufficient coverage
+- Use `webfetch` as primary web source — always try `websearch` (Exa) first
+- Skip `websearch` without reason; only fall back to `webfetch` when `websearch` errors or a specific URL must be fetched directly
