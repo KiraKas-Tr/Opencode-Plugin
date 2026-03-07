@@ -7,7 +7,7 @@ tools:
   write: false
   edit: false
   bash: false
-  webfetch: false
+  webfetch: true
 permission:
   edit: deny
   bash: deny
@@ -45,11 +45,12 @@ After initial search, validate before handoff:
 ## Tool Strategy
 
 - **Context7** (`resolve-library-id` → `query-docs`) for official API docs
-- **GitHub grep** for real-world code patterns
-- **WebSearch MCP** (`web_search` tool) for recent releases, blog posts, migration guides, and web sources — **use this instead of webfetch**
+- **GitHub grep** (`grep_searchGitHub`) for real-world code patterns
+- **Primary web source**: `websearch_web_search` (Exa built-in) — always use this first for recent releases, migration guides, blog posts, and all web discovery
+- **Fallback web source**: `webfetch` — only when Exa errors, returns no results, or a specific URL must be fetched directly for full content/citation
 - Use 3+ sources in parallel when available
 
-### web_search Parameters
+### websearch_web_search Parameters
 
 ```json
 {
@@ -101,4 +102,5 @@ Never:
 - Present uncited assumptions as facts
 - Modify any files
 - Use a single source for high-impact recommendations
-- Use `webfetch` — always use `web_search` MCP for web lookups
+- Use `webfetch` as primary web source — always try `websearch_web_search` (Exa) first
+- Skip Exa without reason; only fall back to `webfetch` when Exa errors or cannot provide sufficient coverage

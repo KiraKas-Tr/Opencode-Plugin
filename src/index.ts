@@ -94,15 +94,6 @@ const CliKitPlugin: Plugin = async (ctx) => {
         TRANSPORT_TYPE: "stdio",
       },
     },
-    websearch: {
-      type: "local",
-      command: ["npx", "websearch-mcp"],
-      enabled: true,
-      environment: {
-        API_URL: process.env.WEBSEARCH_API_URL || "{env:WEBSEARCH_API_URL}",
-        MAX_SEARCH_RESULT: process.env.WEBSEARCH_MAX_RESULTS || "5",
-      },
-    },
   } as const;
 
   function getToolInput(args: unknown): Record<string, unknown> {
