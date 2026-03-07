@@ -96,5 +96,9 @@ export {
 export {
   isBlockedToolExecutionError,
   formatHookErrorLog,
-  logHookError,
+  writeErrorLog,
+  writeBufferedErrorLog,
+  bufferInitError,
+  drainInitErrors,
+  type BufferedError,
 } from "./error-logger";

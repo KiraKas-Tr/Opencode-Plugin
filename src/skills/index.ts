@@ -1,6 +1,7 @@
 import * as fs from "fs";
 import * as path from "path";
 import matter from "gray-matter";
+import { bufferInitError } from "../hooks/error-logger";
 
 const SKILLS_DIR_CANDIDATES = [
   path.join(import.meta.dir, "../skill"),
@@ -38,7 +39,7 @@ export function getBuiltinSkills(): Record<string, SkillConfig> {
   const skillsDir = resolveSkillsDir();
 
   if (!fs.existsSync(skillsDir)) {
-    console.warn("[CliKit] Skills directory not found:", skillsDir);
+    bufferInitError("skills", "warn", `Skills directory not found: ${skillsDir}`);
     return skills;
   }
 
@@ -52,7 +53,7 @@ export function getBuiltinSkills(): Record<string, SkillConfig> {
     const skillMdPath = path.join(skillPath, "SKILL.md");
 
     if (!fs.existsSync(skillMdPath)) {
-      console.warn(`[CliKit] Missing SKILL.md for skill: ${skillName}`);
+      bufferInitError("skills", "warn", `Missing SKILL.md for skill: ${skillName}`, { skillPath });
       continue;
     }
 
@@ -67,7 +68,10 @@ export function getBuiltinSkills(): Record<string, SkillConfig> {
         location: skillPath,
       };
     } catch (err) {
-      console.warn(`[CliKit] Failed to parse skill ${skillName}:`, err);
+      bufferInitError("skills", "error", `Failed to parse skill ${skillName}`, {
+        skillPath,
+        error: err instanceof Error ? err.message : String(err),
+      });
     }
   }
 

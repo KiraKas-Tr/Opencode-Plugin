@@ -2,6 +2,7 @@ import type { CommandConfig } from "../types";
 import * as fs from "fs";
 import * as path from "path";
 import matter from "gray-matter";
+import { bufferInitError } from "../hooks/error-logger";
 
 const COMMANDS_DIR_CANDIDATES = [
   path.join(import.meta.dir, "../command"),
@@ -40,7 +41,10 @@ function parseCommandMarkdown(filePath: string): CommandConfig | null {
 
     return config;
   } catch (error) {
-    console.error(`Failed to parse command file: ${filePath}`, error);
+    bufferInitError("commands", "error", `Failed to parse command file: ${filePath}`, {
+      file: filePath,
+      error: error instanceof Error ? error.message : String(error),
+    });
     return null;
   }
 }

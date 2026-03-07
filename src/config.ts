@@ -3,6 +3,7 @@ import * as path from "path";
 import * as os from "os";
 import type { AgentConfig, CommandConfig } from "./types";
 import type { SkillConfig } from "./skills";
+import { bufferInitError } from "./hooks/error-logger";
 
 export interface AgentOverride {
   model?: string;
@@ -212,6 +213,12 @@ const DEFAULT_CONFIG: CliKitConfig = {
       reflect_days: 7,
       log: false,
     },
+    beads_context: {
+      enabled: true,
+      max_issues: 20,
+      include_closed: false,
+      log: false,
+    },
   },
 };
 
@@ -308,7 +315,10 @@ function loadJsonFile<T>(filePath: string): T | null {
       return JSON.parse(withoutTrailingCommas) as T;
     }
   } catch (error) {
-    console.warn(`[CliKit] Failed to load config from ${filePath}:`, error);
+    bufferInitError("config", "warn", `Failed to load config from ${filePath}`, {
+      file: filePath,
+      error: error instanceof Error ? error.message : String(error),
+    });
     return null;
   }
 }

@@ -1,4 +1,5 @@
 import type { Plugin } from "@opencode-ai/plugin";
+import { tool } from "@opencode-ai/plugin";
 import { execFile } from "node:child_process";
 import { promisify } from "node:util";
 
@@ -50,10 +51,17 @@ import {
   getBeadsSnapshot,
   getBeadsCompactionContext,
   isBlockedToolExecutionError,
-  logHookError,
+  formatHookErrorLog,
+  writeErrorLog,
+  writeBufferedErrorLog,
+  drainInitErrors,
   type OpenCodeTodo,
 } from "./hooks";
 import { cassMemoryContext, cassMemoryReflect } from "./tools/cass-memory";
+import { swarm } from "./tools/swarm";
+import { quickResearch } from "./tools/quick-research";
+import { contextSummary } from "./tools/context-summary";
+import { beadsMemorySync } from "./tools/beads-memory-sync";
 
 const CliKitPlugin: Plugin = async (ctx) => {
   const todosBySession = new Map<string, OpenCodeTodo[]>();
@@ -191,6 +199,40 @@ const CliKitPlugin: Plugin = async (ctx) => {
     return `${normalized.slice(0, maxLength - 1)}…`;
   }
 
+  // Structured log via OpenCode SDK — preferred over console.* in plugins.
+  // level: "debug" | "info" | "warn" | "error"
+  async function cliLog(
+    level: "debug" | "info" | "warn" | "error",
+    message: string,
+    extra?: Record<string, unknown>
+  ): Promise<void> {
+    try {
+      await ctx.client.app.log({
+        body: {
+          service: "clikit-plugin",
+          level,
+          message,
+          ...(extra ? { extra } : {}),
+        },
+      });
+    } catch {
+      // Fallback: write to stderr so nothing is silently lost.
+      console.error(`[CliKit log fallback] ${level.toUpperCase()}: ${message}`, extra ?? "");
+    }
+  }
+
+  // Async wrapper that routes hook errors through client.app.log AND error-log.txt.
+  async function hookErr(
+    hookName: string,
+    error: unknown,
+    context?: Record<string, unknown>
+  ): Promise<void> {
+    // 1. Write to .opencode/error-log.txt (always, sync, silent)
+    writeErrorLog(hookName, error, ctx.directory, context);
+    // 2. Send to OpenCode SDK log (async, best-effort)
+    await cliLog("error", formatHookErrorLog(hookName, error, context));
+  }
+
   const pluginConfig = loadCliKitConfig(ctx.directory) ?? {};
   const debugLogsEnabled = pluginConfig.hooks?.session_logging === true && process.env.CLIKIT_DEBUG === "1";
   const toolLogsEnabled = pluginConfig.hooks?.tool_logging === true && process.env.CLIKIT_DEBUG === "1";
@@ -215,27 +257,91 @@ const CliKitPlugin: Plugin = async (ctx) => {
   const filteredSkills = filterSkills(builtinSkills, pluginConfig);
 
   if (debugLogsEnabled) {
-    console.log("[CliKit] Plugin initializing...");
-    console.log("[CliKit] Context:", JSON.stringify({ directory: ctx?.directory, hasClient: !!ctx?.client }));
-    console.log(
-      `[CliKit] Loaded ${Object.keys(filteredAgents).length}/${Object.keys(builtinAgents).length} agents`
-    );
-    console.log(
-      `[CliKit] Loaded ${Object.keys(filteredCommands).length}/${Object.keys(builtinCommands).length} commands`
-    );
-    console.log(
-      `[CliKit] Loaded ${Object.keys(filteredSkills).length}/${Object.keys(builtinSkills).length} skills`
-    );
+    void cliLog("info", "[CliKit] Plugin initializing...");
+    void cliLog("info", "[CliKit] Context", { directory: ctx?.directory, hasClient: !!ctx?.client });
+    void cliLog("info", `[CliKit] Loaded ${Object.keys(filteredAgents).length}/${Object.keys(builtinAgents).length} agents`);
+    void cliLog("info", `[CliKit] Loaded ${Object.keys(filteredCommands).length}/${Object.keys(builtinCommands).length} commands`);
+    void cliLog("info", `[CliKit] Loaded ${Object.keys(filteredSkills).length}/${Object.keys(builtinSkills).length} skills`);
 
     if (pluginConfig.disabled_agents?.length) {
-      console.log(`[CliKit] Disabled agents: ${pluginConfig.disabled_agents.join(", ")}`);
+      void cliLog("info", `[CliKit] Disabled agents: ${pluginConfig.disabled_agents.join(", ")}`);
     }
     if (pluginConfig.disabled_commands?.length) {
-      console.log(`[CliKit] Disabled commands: ${pluginConfig.disabled_commands.join(", ")}`);
+      void cliLog("info", `[CliKit] Disabled commands: ${pluginConfig.disabled_commands.join(", ")}`);
     }
   }
 
   return {
+    tool: {
+      // swarm — multi-agent task planning and coordination
+      swarm: tool({
+        description: "Plan, monitor, delegate, and abort tasks in a multi-agent swarm. Use operation=plan to decompose work into parallel tasks, operation=monitor to check progress, operation=delegate to assign a task to an agent role, operation=abort to cancel a task.",
+        args: {
+          operation: tool.schema.enum(["plan", "monitor", "delegate", "abort"]).describe("The swarm operation to perform"),
+          tasks: tool.schema.array(tool.schema.object({
+            id: tool.schema.string(),
+            title: tool.schema.string(),
+            description: tool.schema.string(),
+            dependencies: tool.schema.array(tool.schema.string()).optional(),
+            agentRole: tool.schema.enum(["fe", "be", "mobile", "devops", "qa"]).optional(),
+            files: tool.schema.array(tool.schema.string()).optional(),
+            status: tool.schema.enum(["pending", "in_progress", "completed", "failed", "blocked"]),
+          })).optional().describe("Tasks for operation=plan"),
+          parallelism: tool.schema.number().optional().describe("Max parallel tasks (default 3)"),
+          taskId: tool.schema.string().optional().describe("Task ID for operation=monitor|delegate|abort"),
+          agentRole: tool.schema.enum(["fe", "be", "mobile", "devops", "qa"]).optional().describe("Role to delegate to for operation=delegate"),
+          reason: tool.schema.string().optional().describe("Abort reason for operation=abort"),
+        },
+        async execute(args) {
+          const result = swarm(args);
+          return JSON.stringify(result, null, 2);
+        },
+      }),
+
+      // quick_research — search memory + hints for context7/github
+      quick_research: tool({
+        description: "Search local memory observations and get hints for context7 and GitHub code search. Use this before starting research to check what's already known.",
+        args: {
+          query: tool.schema.string().describe("Search query"),
+          sources: tool.schema.array(tool.schema.enum(["memory", "context7", "github"])).optional().describe("Sources to search (default: all)"),
+          language: tool.schema.string().optional().describe("Language filter for GitHub search"),
+          limit: tool.schema.number().optional().describe("Max memory results (default 5)"),
+        },
+        async execute(args) {
+          const result = quickResearch(args);
+          return JSON.stringify(result, null, 2);
+        },
+      }),
+
+      // context_summary — summarize memory observations into structured context
+      context_summary: tool({
+        description: "Summarize memory observations (decisions, learnings, blockers, progress) into a structured context digest. Useful for compaction or session handoff.",
+        args: {
+          scope: tool.schema.enum(["session", "bead", "all"]).optional().describe("Scope of observations (default: all)"),
+          beadId: tool.schema.string().optional().describe("Filter by bead/task ID (requires scope=bead)"),
+          maxTokens: tool.schema.number().optional().describe("Approximate token budget for summary (default 2000)"),
+        },
+        async execute(args) {
+          const result = contextSummary(args);
+          return JSON.stringify(result, null, 2);
+        },
+      }),
+
+      // beads_memory_sync — sync between Beads tasks and memory observations
+      beads_memory_sync: tool({
+        description: "Sync between Beads task database and memory observations. Use sync_to_memory to import completed tasks as progress observations, sync_from_memory to link observations back to tasks, link to associate an observation with a task, or status to check sync state.",
+        args: {
+          operation: tool.schema.enum(["sync_to_memory", "sync_from_memory", "link", "status"]).describe("Sync operation to perform"),
+          beadId: tool.schema.string().optional().describe("Bead/task ID for operation=link"),
+          observationId: tool.schema.number().optional().describe("Observation ID for operation=link"),
+        },
+        async execute(args) {
+          const result = beadsMemorySync(args);
+          return JSON.stringify(result, null, 2);
+        },
+      }),
+    },
+
     config: async (config) => {
       // Deep merge plugin agents with existing config agents
       // so per-agent fields (like model) from the plugin aren't
@@ -298,7 +404,7 @@ const CliKitPlugin: Plugin = async (ctx) => {
             ...(config.lsp || {}),
           };
           if (debugLogsEnabled) {
-            console.log(`[CliKit] Injected ${Object.keys(enabledLsp).length} LSP server(s)`);
+            await cliLog("info", `[CliKit] Injected ${Object.keys(enabledLsp).length} LSP server(s)`);
           }
         }
       }
@@ -312,8 +418,21 @@ const CliKitPlugin: Plugin = async (ctx) => {
       if (event.type === "session.created") {
         const info = props?.info as { id?: string; title?: string } | undefined;
 
+        // Drain init-time errors (agents/commands/skills/config had no ctx yet).
+        // Write each to error-log.txt + toast for errors.
+        const initErrors = drainInitErrors();
+        for (const entry of initErrors) {
+          writeBufferedErrorLog(entry, ctx.directory);
+          if (entry.level === "error") {
+            await cliLog("error", `[CliKit:${entry.source}] ${entry.message}`);
+            await showToast(`${entry.message}`, "error", `CliKit — ${entry.source}`);
+          } else {
+            await cliLog("warn", `[CliKit:${entry.source}] ${entry.message}`);
+          }
+        }
+
         if (debugLogsEnabled) {
-          console.log(`[CliKit] Session created: ${info?.id || "unknown"}`);
+          await cliLog("info", `[CliKit] Session created: ${info?.id || "unknown"}`);
         }
 
         // Memory Digest: generate _digest.md from SQLite observations
@@ -322,10 +441,10 @@ const CliKitPlugin: Plugin = async (ctx) => {
             const digestResult = generateMemoryDigest(ctx.directory, pluginConfig.hooks?.memory_digest);
             lastDigestTime = Date.now();
             if (pluginConfig.hooks?.memory_digest?.log !== false) {
-              console.log(formatDigestLog(digestResult));
+              await cliLog("info", formatDigestLog(digestResult));
             }
           } catch (error) {
-            logHookError("memory-digest", error, { event: event.type, phase: "session.created" });
+            await hookErr("memory-digest", error, { event: event.type, phase: "session.created" });
           }
         }
 
@@ -344,19 +463,19 @@ const CliKitPlugin: Plugin = async (ctx) => {
               const data = cassResult.data as Record<string, unknown> | undefined;
               const bullets = (data?.relevantBullets ?? []) as Array<{ narrative?: string }>;
               const bulletCount = bullets.length;
-              console.log(`[CliKit:cass-memory] Context loaded via ${source} (${bulletCount} bullets)`);
+              await cliLog("info", `[CliKit:cass-memory] Context loaded via ${source} (${bulletCount} bullets)`);
               if (bulletCount > 0) {
                 const topBullets = bullets
                   .slice(0, 3)
                   .map((bullet: { narrative?: string }, index: number) => `${index + 1}. ${toSingleLinePreview(bullet.narrative ?? "")}`);
-                console.log(`[CliKit:cass-memory] Top bullets: ${topBullets.join(" | ")}`);
+                await cliLog("info", `[CliKit:cass-memory] Top bullets: ${topBullets.join(" | ")}`);
                 if (cassHookConfig?.log === true) {
                   await showToast(topBullets.join(" • "), "info", "Cass Memory");
                 }
               }
             }
           } catch (error) {
-            logHookError("cass-memory", error, { event: event.type, phase: "session.created" });
+            await hookErr("cass-memory", error, { event: event.type, phase: "session.created" });
           }
         }
 
@@ -367,7 +486,7 @@ const CliKitPlugin: Plugin = async (ctx) => {
         const error = props?.error;
 
         if (debugLogsEnabled) {
-          console.error(`[CliKit] Session error:`, error);
+          await cliLog("error", "[CliKit] Session error", { error: String(error) });
         }
 
       }
@@ -391,14 +510,11 @@ const CliKitPlugin: Plugin = async (ctx) => {
               try {
                 const result = syncTodosToBeads(ctx.directory, sessionID, todos, pluginConfig.hooks?.todo_beads_sync);
                 if (pluginConfig.hooks?.todo_beads_sync?.log === true) {
-                  console.log(formatTodoBeadsSyncLog(result));
+                  await cliLog("info", formatTodoBeadsSyncLog(result));
                 }
               } catch (error) {
-                logHookError("todo-beads-sync", error, { event: event.type, sessionID });
-                const toastShown = await showToast("Todo-Beads sync failed — check console for details", "error", "CliKit Sync");
-                if (!toastShown) {
-                  console.error("[CliKit:todo-beads-sync] Failed to display sync error toast", { sessionID });
-                }
+                await hookErr("todo-beads-sync", error, { event: event.type, sessionID });
+                await showToast("Todo-Beads sync failed — check logs for details", "error", "CliKit Sync");
               }
             }
           }
@@ -411,7 +527,7 @@ const CliKitPlugin: Plugin = async (ctx) => {
         const sessionTodos = sessionID ? (todosBySession.get(sessionID) || []) : [];
 
         if (debugLogsEnabled) {
-          console.log(`[CliKit] Session idle: ${sessionID || "unknown"}`);
+          await cliLog("info", `[CliKit] Session idle: ${sessionID || "unknown"}`);
         }
 
         // Todo Enforcer: check on session idle
@@ -429,11 +545,11 @@ const CliKitPlugin: Plugin = async (ctx) => {
               }>);
 
               if (!result.complete && todoConfig?.warn_on_incomplete !== false) {
-                console.warn(formatIncompleteWarning(result, sessionID));
+                await cliLog("warn", formatIncompleteWarning(result, sessionID));
               }
             }
           } catch (error) {
-            logHookError("todo-enforcer", error, { event: event.type, sessionID });
+            await hookErr("todo-enforcer", error, { event: event.type, sessionID });
           }
         }
 
@@ -446,7 +562,7 @@ const CliKitPlugin: Plugin = async (ctx) => {
               lastDigestTime = now;
             }
           } catch (error) {
-            logHookError("memory-digest", error, { event: event.type, phase: "session.idle" });
+            await hookErr("memory-digest", error, { event: event.type, phase: "session.idle" });
           }
         }
 
@@ -463,11 +579,11 @@ const CliKitPlugin: Plugin = async (ctx) => {
               lastCassReflectTime = now;
               if (cassHookConfig?.log === true || debugLogsEnabled) {
                 const source = reflectResult.source ?? "unknown";
-                console.log(`[CliKit:cass-memory] Reflection completed via ${source} on session idle`);
+                await cliLog("info", `[CliKit:cass-memory] Reflection completed via ${source} on session idle`);
               }
             }
           } catch (error) {
-            logHookError("cass-memory", error, { event: event.type, phase: "session.idle" });
+            await hookErr("cass-memory", error, { event: event.type, phase: "session.idle" });
           }
         }
 
@@ -490,7 +606,7 @@ const CliKitPlugin: Plugin = async (ctx) => {
       const toolInput = getToolInput(beforeOutput.args ?? beforeInput.args);
 
       if (toolLogsEnabled) {
-        console.log(`[CliKit] Tool executing: ${toolName}`);
+        await cliLog("debug", `[CliKit] Tool executing: ${toolName}`);
       }
 
       // Git Guard: block dangerous git commands
@@ -502,7 +618,7 @@ const CliKitPlugin: Plugin = async (ctx) => {
               const allowForceWithLease = pluginConfig.hooks?.git_guard?.allow_force_with_lease !== false;
               const result = checkDangerousCommand(command, allowForceWithLease);
               if (result.blocked) {
-                console.warn(formatBlockedWarning(result));
+                await cliLog("warn", formatBlockedWarning(result));
                 await showToast(result.reason || "Blocked dangerous git command", "warning", "CliKit Guard");
                 blockToolExecution(result.reason || "Dangerous git command");
               }
@@ -511,7 +627,7 @@ const CliKitPlugin: Plugin = async (ctx) => {
             if (isBlockedToolExecutionError(error)) {
               throw error;
             }
-            logHookError("git-guard", error, { tool: toolName, command });
+            await hookErr("git-guard", error, { tool: toolName, command });
           }
         }
       }
@@ -532,7 +648,7 @@ const CliKitPlugin: Plugin = async (ctx) => {
 
               for (const file of stagedFiles) {
                 if (isSensitiveFile(file)) {
-                  console.warn(`[CliKit:security] Sensitive file staged: ${file}`);
+                  await cliLog("warn", `[CliKit:security] Sensitive file staged: ${file}`);
                   shouldBlock = true;
                 }
               }
@@ -540,7 +656,7 @@ const CliKitPlugin: Plugin = async (ctx) => {
               if (stagedDiff) {
                 const scanResult = scanContentForSecrets(stagedDiff);
                 if (!scanResult.safe) {
-                  console.warn(formatSecurityWarning(scanResult));
+                  await cliLog("warn", formatSecurityWarning(scanResult));
                   shouldBlock = true;
                 }
               }
@@ -558,7 +674,7 @@ const CliKitPlugin: Plugin = async (ctx) => {
                 }
                 const scanResult = scanContentForSecrets(content, file);
                 if (!scanResult.safe) {
-                  console.warn(formatSecurityWarning(scanResult));
+                  await cliLog("warn", formatSecurityWarning(scanResult));
                   shouldBlock = true;
                 }
               }
@@ -574,7 +690,7 @@ const CliKitPlugin: Plugin = async (ctx) => {
             if (isBlockedToolExecutionError(error)) {
               throw error;
             }
-            logHookError("security-check", error, { tool: toolName, command });
+            await hookErr("security-check", error, { tool: toolName, command });
           }
         }
       }
@@ -594,20 +710,20 @@ const CliKitPlugin: Plugin = async (ctx) => {
                   | undefined);
               const enforcement = checkEditPermission(targetFile, taskScope, pluginConfig.hooks?.swarm_enforcer);
               if (!enforcement.allowed) {
-                console.warn(formatEnforcementWarning(enforcement));
+                await cliLog("warn", formatEnforcementWarning(enforcement));
                 if (pluginConfig.hooks?.swarm_enforcer?.block_unreserved_edits) {
                   await showToast(enforcement.reason || "Edit blocked outside task scope", "warning", "CliKit Swarm");
                   blockToolExecution(enforcement.reason || "Edit outside reserved task scope");
                 }
               } else if (pluginConfig.hooks?.swarm_enforcer?.log === true) {
-                console.log(`[CliKit:swarm-enforcer] Allowed edit: ${targetFile}`);
+                await cliLog("debug", `[CliKit:swarm-enforcer] Allowed edit: ${targetFile}`);
               }
             }
           } catch (error) {
             if (isBlockedToolExecutionError(error)) {
               throw error;
             }
-            logHookError("swarm-enforcer", error, { tool: toolName, targetFile });
+            await hookErr("swarm-enforcer", error, { tool: toolName, targetFile });
           }
         }
       }
@@ -618,7 +734,7 @@ const CliKitPlugin: Plugin = async (ctx) => {
           const prompt = toolInput.prompt as string | undefined;
           try {
             if (prompt && containsQuestion(prompt)) {
-              console.warn(formatBlockerWarning());
+              await cliLog("warn", formatBlockerWarning());
               await showToast("Subagent prompt blocked: avoid direct questions", "warning", "CliKit Guard");
               blockToolExecution("Subagents should not ask questions");
             }
@@ -626,7 +742,7 @@ const CliKitPlugin: Plugin = async (ctx) => {
             if (isBlockedToolExecutionError(error)) {
               throw error;
             }
-            logHookError("subagent-question-blocker", error, { tool: toolName });
+            await hookErr("subagent-question-blocker", error, { tool: toolName });
           }
         }
       }
@@ -638,7 +754,7 @@ const CliKitPlugin: Plugin = async (ctx) => {
       let toolOutputContent: string = output.output;
 
       if (toolLogsEnabled) {
-        console.log(`[CliKit] Tool completed: ${toolName} -> ${output.title}`);
+        await cliLog("debug", `[CliKit] Tool completed: ${toolName} -> ${output.title}`);
       }
 
       // Empty Message Sanitizer
@@ -649,7 +765,7 @@ const CliKitPlugin: Plugin = async (ctx) => {
             const placeholder = sanitizerConfig?.placeholder || "(No output)";
 
             if (sanitizerConfig?.log_empty === true) {
-              console.log(`[CliKit] Empty output detected for tool: ${toolName}`);
+              await cliLog("debug", `[CliKit] Empty output detected for tool: ${toolName}`);
             }
 
             const sanitized = sanitizeContent(toolOutputContent, placeholder);
@@ -659,7 +775,7 @@ const CliKitPlugin: Plugin = async (ctx) => {
             }
           }
         } catch (error) {
-          logHookError("empty-message-sanitizer", error, { tool: toolName });
+          await hookErr("empty-message-sanitizer", error, { tool: toolName });
         }
       }
 
@@ -672,12 +788,12 @@ const CliKitPlugin: Plugin = async (ctx) => {
               toolOutputContent = result.content;
               output.output = result.content;
               if (pluginConfig.hooks?.truncator?.log === true) {
-                console.log(formatTruncationLog(result));
+                await cliLog("info", formatTruncationLog(result));
               }
             }
           }
         } catch (error) {
-          logHookError("truncator", error, { tool: toolName });
+          await hookErr("truncator", error, { tool: toolName });
         }
       }
 
@@ -696,11 +812,11 @@ const CliKitPlugin: Plugin = async (ctx) => {
           output.system.push(snapshot);
 
           if (beadsConfig?.log === true || debugLogsEnabled) {
-            console.log("[CliKit:beads-context] Injected Beads snapshot into system prompt");
+            await cliLog("info", "[CliKit:beads-context] Injected Beads snapshot into system prompt");
           }
         }
       } catch (error) {
-        logHookError("beads-context", error, { phase: "system.transform" });
+        await hookErr("beads-context", error, { phase: "system.transform" });
       }
     },
 
@@ -717,11 +833,11 @@ const CliKitPlugin: Plugin = async (ctx) => {
           output.context.push(compactionContext);
 
           if (beadsConfig?.log === true || debugLogsEnabled) {
-            console.log("[CliKit:beads-context] Injected Beads state into compaction context");
+            await cliLog("info", "[CliKit:beads-context] Injected Beads state into compaction context");
           }
         }
       } catch (error) {
-        logHookError("beads-context", error, { phase: "session.compacting" });
+        await hookErr("beads-context", error, { phase: "session.compacting" });
       }
     },
   };

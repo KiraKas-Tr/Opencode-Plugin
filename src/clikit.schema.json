@@ -1,0 +1,263 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "CliKit Configuration",
+  "description": "Configuration schema for the CliKit OpenCode plugin",
+  "type": "object",
+  "properties": {
+    "$schema": {
+      "type": "string",
+      "description": "JSON Schema reference"
+    },
+    "disabled_agents": {
+      "type": "array",
+      "items": { "type": "string" },
+      "description": "List of agent names to disable"
+    },
+    "disabled_commands": {
+      "type": "array",
+      "items": { "type": "string" },
+      "description": "List of command names to disable"
+    },
+    "disabled_skills": {
+      "type": "array",
+      "items": { "type": "string" },
+      "description": "List of skill names to disable"
+    },
+    "agents": {
+      "type": "object",
+      "description": "Per-agent overrides",
+      "additionalProperties": {
+        "$ref": "#/definitions/AgentOverride"
+      }
+    },
+    "commands": {
+      "type": "object",
+      "description": "Per-command overrides",
+      "additionalProperties": {
+        "type": "object"
+      }
+    },
+    "skills": {
+      "description": "Skill configuration — array of names, object with enable/disable/sources, or per-skill overrides",
+      "oneOf": [
+        {
+          "type": "array",
+          "items": { "type": "string" }
+        },
+        {
+          "$ref": "#/definitions/SkillsConfigObject"
+        },
+        {
+          "type": "object",
+          "additionalProperties": {
+            "oneOf": [
+              { "type": "boolean" },
+              { "$ref": "#/definitions/SkillOverride" }
+            ]
+          }
+        }
+      ]
+    },
+    "lsp": {
+      "type": "object",
+      "description": "LSP server configurations",
+      "additionalProperties": {
+        "$ref": "#/definitions/LspServerConfig"
+      }
+    },
+    "hooks": {
+      "$ref": "#/definitions/HooksConfig"
+    }
+  },
+  "additionalProperties": false,
+  "definitions": {
+    "AgentOverride": {
+      "type": "object",
+      "properties": {
+        "model": { "type": "string", "description": "Override the model for this agent" },
+        "temperature": { "type": "number", "minimum": 0, "maximum": 2 },
+        "mode": { "type": "string", "enum": ["subagent", "primary", "all"] },
+        "disabled": { "type": "boolean" },
+        "tools": {
+          "type": "object",
+          "additionalProperties": { "type": "boolean" }
+        },
+        "permission": {
+          "type": "object",
+          "properties": {
+            "edit": { "type": "string", "enum": ["allow", "ask", "deny"] },
+            "bash": {
+              "oneOf": [
+                { "type": "string", "enum": ["allow", "ask", "deny"] },
+                { "type": "object", "additionalProperties": { "type": "string", "enum": ["allow", "ask", "deny"] } }
+              ]
+            },
+            "webfetch": { "type": "string", "enum": ["allow", "ask", "deny"] }
+          },
+          "additionalProperties": false
+        }
+      },
+      "additionalProperties": false
+    },
+    "LspServerConfig": {
+      "type": "object",
+      "required": ["command"],
+      "properties": {
+        "command": { "type": "array", "items": { "type": "string" } },
+        "extensions": { "type": "array", "items": { "type": "string" } },
+        "priority": { "type": "integer" },
+        "disabled": { "type": "boolean" },
+        "env": { "type": "object", "additionalProperties": { "type": "string" } },
+        "initialization": { "type": "object" }
+      },
+      "additionalProperties": false
+    },
+    "HooksConfig": {
+      "type": "object",
+      "properties": {
+        "session_logging": { "type": "boolean" },
+        "tool_logging": { "type": "boolean" },
+        "todo_enforcer": {
+          "type": "object",
+          "properties": {
+            "enabled": { "type": "boolean" },
+            "warn_on_incomplete": { "type": "boolean" }
+          },
+          "additionalProperties": false
+        },
+        "empty_message_sanitizer": {
+          "type": "object",
+          "properties": {
+            "enabled": { "type": "boolean" },
+            "log_empty": { "type": "boolean" },
+            "placeholder": { "type": "string" }
+          },
+          "additionalProperties": false
+        },
+        "git_guard": {
+          "type": "object",
+          "properties": {
+            "enabled": { "type": "boolean" },
+            "allow_force_with_lease": { "type": "boolean" }
+          },
+          "additionalProperties": false
+        },
+        "security_check": {
+          "type": "object",
+          "properties": {
+            "enabled": { "type": "boolean" },
+            "block_commits": { "type": "boolean" }
+          },
+          "additionalProperties": false
+        },
+        "subagent_question_blocker": {
+          "type": "object",
+          "properties": {
+            "enabled": { "type": "boolean" }
+          },
+          "additionalProperties": false
+        },
+        "truncator": {
+          "type": "object",
+          "properties": {
+            "enabled": { "type": "boolean" },
+            "max_output_chars": { "type": "integer" },
+            "max_output_lines": { "type": "integer" },
+            "preserve_head_lines": { "type": "integer" },
+            "preserve_tail_lines": { "type": "integer" },
+            "log": { "type": "boolean" }
+          },
+          "additionalProperties": false
+        },
+        "swarm_enforcer": {
+          "type": "object",
+          "properties": {
+            "enabled": { "type": "boolean" },
+            "strict_file_locking": { "type": "boolean" },
+            "block_unreserved_edits": { "type": "boolean" },
+            "log": { "type": "boolean" }
+          },
+          "additionalProperties": false
+        },
+        "memory_digest": {
+          "type": "object",
+          "properties": {
+            "enabled": { "type": "boolean" },
+            "max_per_type": { "type": "integer" },
+            "include_types": { "type": "array", "items": { "type": "string" } },
+            "index_highlights_per_type": { "type": "integer" },
+            "write_topic_files": { "type": "boolean" },
+            "log": { "type": "boolean" }
+          },
+          "additionalProperties": false
+        },
+        "todo_beads_sync": {
+          "type": "object",
+          "properties": {
+            "enabled": { "type": "boolean" },
+            "close_missing": { "type": "boolean" },
+            "log": { "type": "boolean" }
+          },
+          "additionalProperties": false
+        },
+        "cass_memory": {
+          "type": "object",
+          "properties": {
+            "enabled": { "type": "boolean" },
+            "context_on_session_created": { "type": "boolean" },
+            "reflect_on_session_idle": { "type": "boolean" },
+            "context_limit": { "type": "integer" },
+            "reflect_days": { "type": "integer" },
+            "cm_path": { "type": "string" },
+            "log": { "type": "boolean" }
+          },
+          "additionalProperties": false
+        }
+      },
+      "additionalProperties": false
+    },
+    "SkillsConfigObject": {
+      "type": "object",
+      "properties": {
+        "sources": {
+          "type": "array",
+          "items": {
+            "oneOf": [
+              { "type": "string" },
+              {
+                "type": "object",
+                "required": ["path"],
+                "properties": {
+                  "path": { "type": "string" },
+                  "recursive": { "type": "boolean" },
+                  "glob": { "type": "string" }
+                }
+              }
+            ]
+          }
+        },
+        "enable": { "type": "array", "items": { "type": "string" } },
+        "disable": { "type": "array", "items": { "type": "string" } }
+      },
+      "additionalProperties": true
+    },
+    "SkillOverride": {
+      "type": "object",
+      "properties": {
+        "disable": { "type": "boolean" },
+        "description": { "type": "string" },
+        "template": { "type": "string" },
+        "from": { "type": "string" },
+        "model": { "type": "string" },
+        "agent": { "type": "string" },
+        "subtask": { "type": "boolean" },
+        "argument-hint": { "type": "string" },
+        "license": { "type": "string" },
+        "compatibility": { "type": "string" },
+        "metadata": { "type": "object" },
+        "allowed-tools": { "type": "array", "items": { "type": "string" } }
+      },
+      "additionalProperties": false
+    }
+  }
+}
