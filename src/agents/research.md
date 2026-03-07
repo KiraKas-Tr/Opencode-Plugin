@@ -8,7 +8,7 @@ tools:
   edit: false
   bash: false
   websearch: true
-  webfetch: false
+  webfetch: true
 permission:
   edit: deny
   bash: deny
