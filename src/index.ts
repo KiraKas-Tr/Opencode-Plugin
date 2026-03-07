@@ -840,11 +840,6 @@ const CliKitPlugin: Plugin = async (ctx) => {
         await hookErr("beads-context", error, { phase: "session.compacting" });
       }
     },
-
-    // --- Enable Exa websearch built-in tool ---
-    "shell.env": async (_input, output) => {
-      output.env["OPENCODE_ENABLE_EXA"] = "1";
-    },
   };
 };
 
