@@ -1,0 +1,12 @@
+node_modules
+bun.lock
+.gitignore
+dist/
+.opencode/
+.beads/
+
+# Memory runtime artifacts
+memory/**
+!memory/_templates/
+!memory/_templates/**
+!memory/**/.gitkeep
