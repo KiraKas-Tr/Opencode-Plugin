@@ -1,6 +1,10 @@
 import * as fs from "fs";
 import * as path from "path";
 import { Database } from "bun:sqlite";
+import { execFile } from "node:child_process";
+import { promisify } from "node:util";
+
+const execFileAsync = promisify(execFile);
 
 const SQLITE_BUSY_CODES = new Set([
   "SQLITE_BUSY",
@@ -32,6 +36,7 @@ export interface TodoBeadsSyncResult {
   created: number;
   updated: number;
   closed: number;
+  flushed?: boolean;
   skippedReason?: string;
 }
 
@@ -232,7 +237,15 @@ export function syncTodosToBeads(
 
   for (let attempt = 1; attempt <= MAX_SYNC_RETRIES; attempt += 1) {
     try {
-      return syncTodosToBeadsAttempt(beadsDbPath, sessionID, todos, config);
+      const result = syncTodosToBeadsAttempt(beadsDbPath, sessionID, todos, config);
+
+      // Flush JSONL after a successful write so the bd daemon and CLI tools
+      // (e.g. `bd list`, `beads-village_ls`) see the changes immediately.
+      if (result.created > 0 || result.updated > 0 || result.closed > 0) {
+        flushBeadsJsonl(projectDirectory, result);
+      }
+
+      return result;
     } catch (error) {
       lastError = error;
 
@@ -245,6 +258,31 @@ export function syncTodosToBeads(
   }
 
   throw lastError instanceof Error ? lastError : new Error("Todo-Beads sync failed after retries");
+}
+
+/**
+ * Flush the SQLite DB to JSONL so that `bd` CLI and the daemon pick up the
+ * changes that were written directly via the sync hook.
+ *
+ * Uses `bd export -o .beads/issues.jsonl` which is the canonical JSONL path
+ * read by `bd list`, `bd show`, and beads-village MCP tools.
+ * Falls back silently — a flush failure should never break the sync result.
+ */
+function flushBeadsJsonl(projectDirectory: string, result: TodoBeadsSyncResult): void {
+  const jsonlPath = path.join(projectDirectory, ".beads", "issues.jsonl");
+
+  // Fire-and-forget: don't await, don't throw
+  execFileAsync("bd", ["export", "--force", "-o", jsonlPath], {
+    cwd: projectDirectory,
+    timeout: 5000,
+  })
+    .then(() => {
+      result.flushed = true;
+    })
+    .catch(() => {
+      // Non-fatal: JSONL will be updated on next daemon cycle
+      result.flushed = false;
+    });
 }
 
 export function formatTodoBeadsSyncLog(result: TodoBeadsSyncResult): string {

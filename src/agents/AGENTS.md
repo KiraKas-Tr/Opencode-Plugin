@@ -2,18 +2,54 @@
 
 Each `.md` file in this directory defines an agent. The frontmatter sets model, tools, and permissions. The markdown body becomes the agent's system prompt. Loaded by `index.ts` using gray-matter.
 
-## Delegation
+## Agent Roles
 
-- @build — implements features. Default for all implementation work.
-- @plan — creates specs and plans. Default for planning. Has `bash: false` — delegates git history to @explore.
-- @vision — prompt-to-UI, image-to-code, variant exploration. Loads skills like `frontend-aesthetics` and `mockup-to-code`.
-- @explore — fast read-only codebase navigation. Has restricted bash (grep, find, git read-only).
-- @review — code review and security audit. Use before merging.
-- @oracle — merged deep analysis + architecture advisor (from previous oracle + looker).
-- @research — merged external research + GitHub evidence specialist (from previous scout + librarian).
+| Agent | Role | Mode | Modifies Code? |
+|---|---|---|---|
+| **@build** | Primary orchestrator and code executor. Delegates, implements, verifies. | primary | ✅ Yes |
+| **@plan** | Primary strategic planner. Produces specs and plans. Architecture-aware. | primary | ❌ Plans only |
+| **@oracle** | Architecture advisor and complex analysis. Deep local inspection. | subagent | ❌ Read-only |
+| **@explore** | Fast codebase navigator. File search, definitions, git history. | subagent | ❌ Read-only |
+| **@research** | External research. Docs, APIs, GitHub evidence, web sources. | subagent | ❌ Read-only |
+| **@review** | Code reviewer and security auditor. Quality gate before merge. | subagent | ❌ Read-only |
+| **@vision** | Design architect and visual implementer. Frontend UI only. | subagent | ✅ Frontend only |
 
-## Rules
+## Beads Task Management
 
-- Primary agents (@build, @plan) can delegate to subagents.
-- Subagents should NOT delegate to other subagents.
-- Read the specific agent's `.md` file before modifying its behavior.
+All agents use **Beads** (`beads-village_*` MCP tools) as the persistent task source of truth.
+
+**Core cycle:**
+```
+beads-village_init → beads-village_add → beads-village_claim → work → beads-village_done
+```
+
+- **@build**: Creates issues on task start, claims and closes on completion
+- **@plan**: Creates issues for every plan task after plan approval
+- **Subagents**: Read-only — do not create/modify Beads issues
+
+`todowrite` is for in-session UI display only. Beads persists across sessions.
+
+## Delegation Rules
+
+- Primary agents (@build, @plan) can delegate to subagents
+- Subagents should NOT delegate to other subagents (exception: Oracle → Research for external evidence)
+- Build delegates architecture decisions to Oracle or Plan — does not decide itself
+- Plan consults Oracle for hard trade-offs — Oracle provides analysis, Plan makes the plan
+- Read the specific agent's `.md` file before modifying its behavior
+
+## Delegation Flow
+
+```
+User → @build (orchestrator)
+         ├── @explore (find code)
+         ├── @research (find docs)
+         ├── @oracle (hard decisions)
+         ├── @plan (multi-step planning)
+         ├── @vision (UI work)
+         └── @review (quality gate)
+
+User → @plan (planning)
+         ├── @explore (codebase context)
+         ├── @research (external info)
+         └── @oracle (architecture trade-offs)
+```
