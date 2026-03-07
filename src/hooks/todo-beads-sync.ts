@@ -2,6 +2,16 @@ import * as fs from "fs";
 import * as path from "path";
 import { Database } from "bun:sqlite";
 
+const SQLITE_BUSY_CODES = new Set([
+  "SQLITE_BUSY",
+  "SQLITE_BUSY_RECOVERY",
+  "SQLITE_BUSY_SNAPSHOT",
+  "SQLITE_LOCKED",
+]);
+
+const DEFAULT_BUSY_TIMEOUT_MS = 3000;
+const MAX_SYNC_RETRIES = 4;
+
 export interface OpenCodeTodo {
   id: string;
   content: string;
@@ -23,6 +33,47 @@ export interface TodoBeadsSyncResult {
   updated: number;
   closed: number;
   skippedReason?: string;
+}
+
+interface ExistingIssueRow {
+  id: string;
+  external_ref: string;
+  status: string;
+}
+
+function sleepSync(ms: number): void {
+  const shared = new SharedArrayBuffer(4);
+  const view = new Int32Array(shared);
+  Atomics.wait(view, 0, 0, ms);
+}
+
+function getSqliteErrorCode(error: unknown): string | undefined {
+  if (!error || typeof error !== "object") {
+    return undefined;
+  }
+
+  const maybeCode = (error as { code?: unknown }).code;
+  return typeof maybeCode === "string" ? maybeCode : undefined;
+}
+
+function isBusySqliteError(error: unknown): boolean {
+  const code = getSqliteErrorCode(error);
+  if (code && SQLITE_BUSY_CODES.has(code)) {
+    return true;
+  }
+
+  const message = error instanceof Error ? error.message : String(error);
+  return /database is locked|SQLITE_BUSY|SQLITE_LOCKED/i.test(message);
+}
+
+function configureBeadsDb(db: Database): void {
+  db.exec(`PRAGMA busy_timeout = ${DEFAULT_BUSY_TIMEOUT_MS}`);
+
+  try {
+    db.exec("PRAGMA journal_mode = WAL");
+  } catch {
+    // WAL is helpful but non-fatal if another process is currently busy.
+  }
 }
 
 function mapTodoStatusToIssueStatus(status: string): "open" | "in_progress" | "closed" {
@@ -54,6 +105,110 @@ function buildIssueId(sessionID: string, todoID: string): string {
   return `oc-${sessionPart}-${todoPart}`;
 }
 
+function syncTodosToBeadsAttempt(
+  beadsDbPath: string,
+  sessionID: string,
+  todos: OpenCodeTodo[],
+  config?: TodoBeadsSyncConfig,
+): TodoBeadsSyncResult {
+  const db = new Database(beadsDbPath);
+  configureBeadsDb(db);
+
+  try {
+    const prefix = `opencode:todo:${sessionID}:`;
+    let created = 0;
+    let updated = 0;
+    let closed = 0;
+
+    db.exec("BEGIN IMMEDIATE");
+
+    try {
+      const existingRows = db.query(
+        "SELECT id, external_ref, status FROM issues WHERE external_ref LIKE ?",
+      ).all(`${prefix}%`) as ExistingIssueRow[];
+
+      const existingByRef = new Map(existingRows.map((row) => [row.external_ref, row]));
+      const activeRefs = new Set<string>();
+
+      const insertIssue = db.prepare(`
+        INSERT INTO issues (
+          id, title, description, status, priority, issue_type, external_ref, source_repo, updated_at, closed_at
+        ) VALUES (?, ?, ?, ?, ?, 'task', ?, '.', CURRENT_TIMESTAMP, CASE WHEN ? = 'closed' THEN CURRENT_TIMESTAMP ELSE NULL END)
+      `);
+
+      const updateIssue = db.prepare(`
+        UPDATE issues SET
+          title = ?,
+          description = ?,
+          status = ?,
+          priority = ?,
+          external_ref = ?,
+          updated_at = CURRENT_TIMESTAMP,
+          closed_at = CASE
+            WHEN ? = 'closed' THEN COALESCE(closed_at, CURRENT_TIMESTAMP)
+            ELSE NULL
+          END
+        WHERE external_ref = ?
+      `);
+
+      for (const todo of todos) {
+        const externalRef = `${prefix}${todo.id}`;
+        activeRefs.add(externalRef);
+
+        const mappedStatus = mapTodoStatusToIssueStatus(todo.status);
+        const issueId = buildIssueId(sessionID, todo.id);
+        const title = (todo.content || "Untitled todo").slice(0, 500);
+        const priority = mapTodoPriorityToIssuePriority(todo.priority);
+        const description = `Synced from OpenCode todo ${todo.id} (session ${sessionID}).`;
+
+        const existingIssue = existingByRef.get(externalRef);
+
+        if (existingIssue) {
+          updated += 1;
+          updateIssue.run(title, description, mappedStatus, priority, externalRef, mappedStatus, externalRef);
+        } else {
+          created += 1;
+          insertIssue.run(issueId, title, description, mappedStatus, priority, externalRef, mappedStatus);
+        }
+      }
+
+      if (config?.close_missing !== false) {
+        const closeIssue = db.prepare(
+          "UPDATE issues SET status = 'closed', closed_at = COALESCE(closed_at, CURRENT_TIMESTAMP), updated_at = CURRENT_TIMESTAMP WHERE external_ref = ? AND status != 'closed'",
+        );
+
+        for (const [externalRef, row] of existingByRef.entries()) {
+          if (!activeRefs.has(externalRef) && row.status !== "closed") {
+            closeIssue.run(externalRef);
+            closed += 1;
+          }
+        }
+      }
+
+      db.exec("COMMIT");
+
+      return {
+        synced: true,
+        sessionID,
+        totalTodos: todos.length,
+        created,
+        updated,
+        closed,
+      };
+    } catch (error) {
+      try {
+        db.exec("ROLLBACK");
+      } catch {
+        // Ignore rollback failures; original error is more useful.
+      }
+
+      throw error;
+    }
+  } finally {
+    db.close();
+  }
+}
+
 export function syncTodosToBeads(
   projectDirectory: string,
   sessionID: string,
@@ -73,80 +228,23 @@ export function syncTodosToBeads(
     };
   }
 
-  const db = new Database(beadsDbPath);
-  let created = 0;
-  let updated = 0;
-  let closed = 0;
+  let lastError: unknown;
 
-  try {
-    const prefix = `opencode:todo:${sessionID}:`;
-    const existingRows = db.query(
-      "SELECT external_ref, status FROM issues WHERE external_ref LIKE ?",
-    ).all(`${prefix}%`) as Array<{ external_ref: string; status: string }>;
+  for (let attempt = 1; attempt <= MAX_SYNC_RETRIES; attempt += 1) {
+    try {
+      return syncTodosToBeadsAttempt(beadsDbPath, sessionID, todos, config);
+    } catch (error) {
+      lastError = error;
 
-    const existingByRef = new Map(existingRows.map((row) => [row.external_ref, row.status]));
-    const activeRefs = new Set<string>();
-
-    const upsertIssue = db.prepare(`
-      INSERT INTO issues (
-        id, title, description, status, priority, issue_type, external_ref, source_repo, updated_at, closed_at
-      ) VALUES (?, ?, ?, ?, ?, 'task', ?, '.', CURRENT_TIMESTAMP, CASE WHEN ? = 'closed' THEN CURRENT_TIMESTAMP ELSE NULL END)
-      ON CONFLICT(id) DO UPDATE SET
-        title = excluded.title,
-        description = excluded.description,
-        status = excluded.status,
-        priority = excluded.priority,
-        external_ref = excluded.external_ref,
-        updated_at = CURRENT_TIMESTAMP,
-        closed_at = CASE
-          WHEN excluded.status = 'closed' THEN COALESCE(issues.closed_at, CURRENT_TIMESTAMP)
-          ELSE NULL
-        END
-    `);
-
-    for (const todo of todos) {
-      const externalRef = `${prefix}${todo.id}`;
-      activeRefs.add(externalRef);
-
-      const mappedStatus = mapTodoStatusToIssueStatus(todo.status);
-      const issueId = buildIssueId(sessionID, todo.id);
-      const title = (todo.content || "Untitled todo").slice(0, 500);
-      const priority = mapTodoPriorityToIssuePriority(todo.priority);
-      const description = `Synced from OpenCode todo ${todo.id} (session ${sessionID}).`;
-
-      if (existingByRef.has(externalRef)) {
-        updated += 1;
-      } else {
-        created += 1;
+      if (!isBusySqliteError(error) || attempt === MAX_SYNC_RETRIES) {
+        throw error;
       }
 
-      upsertIssue.run(issueId, title, description, mappedStatus, priority, externalRef, mappedStatus);
+      sleepSync(50 * attempt);
     }
-
-    if (config?.close_missing !== false) {
-      const closeIssue = db.prepare(
-        "UPDATE issues SET status = 'closed', closed_at = COALESCE(closed_at, CURRENT_TIMESTAMP), updated_at = CURRENT_TIMESTAMP WHERE external_ref = ? AND status != 'closed'",
-      );
-
-      for (const [externalRef, status] of existingByRef.entries()) {
-        if (!activeRefs.has(externalRef) && status !== "closed") {
-          closeIssue.run(externalRef);
-          closed += 1;
-        }
-      }
-    }
-
-    return {
-      synced: true,
-      sessionID,
-      totalTodos: todos.length,
-      created,
-      updated,
-      closed,
-    };
-  } finally {
-    db.close();
   }
+
+  throw lastError instanceof Error ? lastError : new Error("Todo-Beads sync failed after retries");
 }
 
 export function formatTodoBeadsSyncLog(result: TodoBeadsSyncResult): string {

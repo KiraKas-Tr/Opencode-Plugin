@@ -88,6 +88,13 @@ export interface CassMemoryHookConfig {
   log?: boolean;
 }
 
+export interface BeadsContextHookConfig {
+  enabled?: boolean;
+  max_issues?: number;
+  include_closed?: boolean;
+  log?: boolean;
+}
+
 export interface HooksConfig {
   session_logging?: boolean;
   tool_logging?: boolean;
@@ -101,6 +108,7 @@ export interface HooksConfig {
   memory_digest?: MemoryDigestHookConfig;
   todo_beads_sync?: TodoBeadsSyncHookConfig;
   cass_memory?: CassMemoryHookConfig;
+  beads_context?: BeadsContextHookConfig;
 }
 
 export interface SkillOverride {

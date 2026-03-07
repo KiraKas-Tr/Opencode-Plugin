@@ -85,6 +85,13 @@ export {
   type TodoBeadsSyncResult,
 } from "./todo-beads-sync";
 
+// Beads Context — inject Beads snapshot into agent system prompt & compaction
+export {
+  getBeadsSnapshot,
+  getBeadsCompactionContext,
+  type BeadsContextConfig,
+} from "./beads-context";
+
 // Hook Error Logger
 export {
   isBlockedToolExecutionError,

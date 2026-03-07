@@ -46,6 +46,9 @@ import {
   // Todo -> Beads Sync
   syncTodosToBeads,
   formatTodoBeadsSyncLog,
+  // Beads Context
+  getBeadsSnapshot,
+  getBeadsCompactionContext,
   isBlockedToolExecutionError,
   logHookError,
   type OpenCodeTodo,
@@ -93,7 +96,7 @@ const CliKitPlugin: Plugin = async (ctx) => {
     throw new Error(`[CliKit] Blocked tool execution: ${reason}`);
   }
 
-  async function showToast(message: string, variant: "info" | "success" | "warning" | "error", title = "CliKit"): Promise<void> {
+  async function showToast(message: string, variant: "info" | "success" | "warning" | "error", title = "CliKit"): Promise<boolean> {
     try {
       await ctx.client.tui.showToast({
         body: {
@@ -103,8 +106,10 @@ const CliKitPlugin: Plugin = async (ctx) => {
           duration: 3500,
         },
       });
+      return true;
     } catch {
       // Toasts are best-effort; never break hook flow.
+      return false;
     }
   }
 
@@ -390,7 +395,10 @@ const CliKitPlugin: Plugin = async (ctx) => {
                 }
               } catch (error) {
                 logHookError("todo-beads-sync", error, { event: event.type, sessionID });
-                await showToast("Todo-Beads sync failed — check console for details", "error", "CliKit Sync");
+                const toastShown = await showToast("Todo-Beads sync failed — check console for details", "error", "CliKit Sync");
+                if (!toastShown) {
+                  console.error("[CliKit:todo-beads-sync] Failed to display sync error toast", { sessionID });
+                }
               }
             }
           }
@@ -673,6 +681,48 @@ const CliKitPlugin: Plugin = async (ctx) => {
         }
       }
 
+    },
+
+    // --- Beads as Source of Truth: inject issue snapshot into agent system prompt ---
+    "experimental.chat.system.transform": async (_input, output) => {
+      const beadsConfig = pluginConfig.hooks?.beads_context;
+      if (beadsConfig?.enabled === false) {
+        return;
+      }
+
+      try {
+        const snapshot = getBeadsSnapshot(ctx.directory, beadsConfig);
+        if (snapshot) {
+          output.system.push(snapshot);
+
+          if (beadsConfig?.log === true || debugLogsEnabled) {
+            console.log("[CliKit:beads-context] Injected Beads snapshot into system prompt");
+          }
+        }
+      } catch (error) {
+        logHookError("beads-context", error, { phase: "system.transform" });
+      }
+    },
+
+    // --- Beads as Source of Truth: persist task state across compaction ---
+    "experimental.session.compacting": async (_input, output) => {
+      const beadsConfig = pluginConfig.hooks?.beads_context;
+      if (beadsConfig?.enabled === false) {
+        return;
+      }
+
+      try {
+        const compactionContext = getBeadsCompactionContext(ctx.directory, beadsConfig);
+        if (compactionContext) {
+          output.context.push(compactionContext);
+
+          if (beadsConfig?.log === true || debugLogsEnabled) {
+            console.log("[CliKit:beads-context] Injected Beads state into compaction context");
+          }
+        }
+      } catch (error) {
+        logHookError("beads-context", error, { phase: "session.compacting" });
+      }
     },
   };
 };
