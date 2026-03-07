@@ -8,10 +8,11 @@ tools:
   edit: false
   bash: false
   websearch: true
-  webfetch: true
+  webfetch: false
 permission:
   edit: deny
   bash: deny
+  webfetch: deny
 ---
 
 # Research Agent
@@ -45,11 +46,12 @@ After initial search, validate before handoff:
 
 ## Tool Strategy
 
+- **`websearch`** — OpenCode built-in Exa search. Use this for ALL web lookups: recent releases, migration guides, blog posts, changelogs, docs, and any web discovery. **This is your only web tool.**
 - **Context7** (`resolve-library-id` → `query-docs`) for official API docs
 - **GitHub grep** (`grep_searchGitHub`) for real-world code patterns
-- **Primary web source**: `websearch` (OpenCode built-in Exa) — always use this first for recent releases, migration guides, blog posts, and all web discovery
-- **Fallback web source**: `webfetch` — only when `websearch` errors or you need to fetch a specific URL for full page content/citation
 - Use 3+ sources in parallel when available
+
+> `webfetch` is **disabled**. Do not attempt to call it. Use `websearch` for all web research needs.
 
 ## Output Format
 
@@ -78,14 +80,14 @@ After initial search, validate before handoff:
 ## Guardrails
 
 Always:
+- Use `websearch` for every web lookup — no exceptions
 - Prefer official docs and source over blog summaries
 - Cite links for all claims
 - Call out version-specific behavior
 - Include re-check section in every response
 
 Never:
+- Call `webfetch` — it is disabled
 - Present uncited assumptions as facts
 - Modify any files
 - Use a single source for high-impact recommendations
-- Use `webfetch` as primary web source — always try `websearch` (Exa) first
-- Skip `websearch` without reason; only fall back to `webfetch` when `websearch` errors or a specific URL must be fetched directly
