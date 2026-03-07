@@ -172,6 +172,55 @@ export function scaffoldProjectOpencode(projectDir: string, packageRoot = getPac
   return stats;
 }
 
+function getShellRcFiles(): string[] {
+  const home = getRealHome();
+  const rcFiles: string[] = [];
+
+  // Detect active shell
+  const shell = process.env.SHELL || "";
+
+  if (shell.includes("zsh")) {
+    rcFiles.push(path.join(home, ".zshrc"));
+  } else if (shell.includes("fish")) {
+    rcFiles.push(path.join(home, ".config", "fish", "config.fish"));
+  } else {
+    // Default: bash (covers bash, sh, and unknown shells)
+    rcFiles.push(path.join(home, ".bashrc"));
+    // Also add .bash_profile if it exists (macOS)
+    const bashProfile = path.join(home, ".bash_profile");
+    if (fs.existsSync(bashProfile)) {
+      rcFiles.push(bashProfile);
+    }
+  }
+
+  return rcFiles;
+}
+
+function ensureEnvInShellRc(key: string, value: string): void {
+  const exportLine = `export ${key}=${value}`;
+  const marker = `# Added by clikit-plugin`;
+  const block = `\n${marker}\n${exportLine}\n`;
+
+  const rcFiles = getShellRcFiles();
+
+  for (const rcFile of rcFiles) {
+    try {
+      const existing = fs.existsSync(rcFile) ? fs.readFileSync(rcFile, "utf-8") : "";
+
+      // Skip if already set (any value)
+      if (existing.includes(`export ${key}=`) || existing.includes(`${key}=`)) {
+        console.log(`✓ ${key} already set in ${rcFile}`);
+        continue;
+      }
+
+      fs.appendFileSync(rcFile, block, "utf-8");
+      console.log(`✓ Added ${exportLine} to ${rcFile}`);
+    } catch (err) {
+      console.warn(`⚠ Could not write to ${rcFile}: ${err}`);
+    }
+  }
+}
+
 function removeLegacyGlobalPluginAssets(configDir: string): void {
   const legacyPluginPath = path.join(configDir, "plugins", "clikit.js");
   const legacyAgentsDir = path.join(configDir, "plugins", "agents");
@@ -321,6 +370,9 @@ async function install(options: InstallOptions): Promise<number> {
     }
 
     removeLegacyGlobalPluginAssets(getConfigDir());
+
+    // Ensure OPENCODE_ENABLE_EXA is set in shell rc for websearch (Exa) support
+    ensureEnvInShellRc("OPENCODE_ENABLE_EXA", "1");
 
     const memoryDir = path.join(getConfigDir(), "memory");
     const memorySubdirs = ["specs", "plans", "research", "reviews", "handoffs", "beads", "prds"];
