@@ -78,23 +78,33 @@ Every message enters here first. Classify silently before acting.
 
 **Mandatory for every task — no exceptions.**
 
-### 1.1 Beads: init, issue, claim
-
 > Reference: `.opencode/AGENTS.md`, `skill/beads/SKILL.md`
 
-Every session starts with:
+### Two layers — understand the difference
+
+| Layer | Role | Tools |
+|-------|------|-------|
+| **Beads (control)** | Inspect state, understand what exists, what's ready, what's blocked. Decision layer — you read and create issues here. | `beads-village_ls`, `beads-village_show`, `beads-village_status`, `beads-village_inbox` |
+| **beads-village (execution loop)** | Enter the work cycle. Claim ownership, lock files, execute, close. | `beads-village_init`, `beads-village_claim`, `beads-village_reserve`, `beads-village_done` |
+
+Use **Beads (control)** to decide what to work on.  
+Use **beads-village (execution loop)** to actually do it.
+
+---
+
+### 1.1 Beads — Control layer (inspect before acting)
+
+Check workspace state and existing issues first:
 
 ```
-beads-village_init(team="project")
+beads-village_status(include_agents=true)   # who's active, workspace overview
+beads-village_inbox(unread=true)            # any messages or blockers from other agents
+beads-village_ls(status="ready")            # what issues are unblocked and claimable
 ```
 
-Check for an existing issue first:
+If the task matches an existing ready issue → go to §1.2 (execution loop).
 
-```
-beads-village_ls(status="ready")
-```
-
-If no existing issue covers this task, create one:
+If no existing issue covers this task, create one now:
 
 ```
 beads-village_add(
@@ -106,15 +116,26 @@ beads-village_add(
 )
 ```
 
-Then claim it:
-
-```
-beads-village_claim()
-```
-
 **No Beads issue → no execution. No exceptions.**
 
-### 1.2 Worktree: create isolated branch
+---
+
+### 1.2 beads-village — Execution loop (claim and enter)
+
+Join the workspace and claim the issue:
+
+```
+beads-village_init(team="project")   # always first — every session
+beads-village_claim()                # claim next ready task for your role
+```
+
+Verify what you claimed:
+
+```
+beads-village_show(<issue-id>)       # read full context before starting
+```
+
+### 1.3 Worktree — create isolated branch
 
 > Reference: `skill/using-git-worktrees/SKILL.md`
 
@@ -146,7 +167,7 @@ Branch type conventions:
 
 **No worktree → no execution. No exceptions.**
 
-### 1.3 File locking
+### 1.4 beads-village — File locking
 
 Check existing locks before touching anything:
 
@@ -298,7 +319,7 @@ If any check fails: do **not** output the bundle — return to Phase 3 failure r
 
 ## Phase 5 — Close & Sync
 
-### 5.1 Close Beads issue
+### 5.1 beads-village — Close execution loop
 
 ```
 beads-village_done(
@@ -307,9 +328,22 @@ beads-village_done(
 )
 ```
 
-This auto-releases all file locks.
+This closes the execution loop and auto-releases all file locks.
 
-### 5.2 Worktree cleanup (after merge or discard)
+### 5.2 Beads — Control layer sync
+
+After done, sync state so other agents see the update:
+
+```
+beads-village_sync()                         # push git-backed state to remote
+beads-village_msg(                           # optional: broadcast if blocking others
+  subj="<issue-id> done",
+  body="<summary>",
+  global=true, to="all"
+)
+```
+
+### 5.3 Worktree cleanup (after merge or discard)
 
 ```bash
 git worktree remove .worktrees/<branch>
@@ -317,7 +351,7 @@ git worktree prune
 git branch -d <branch>          # only after confirmed merge
 ```
 
-### 5.3 Session handoff (if ending mid-task)
+### 5.4 Session handoff (if ending mid-task)
 
 If a session ends before the task is complete:
 - Write a handoff doc at `.opencode/memory/handoffs/YYYY-MM-DD-<phase>.md` (schema: `schemas.md` §5.2)
