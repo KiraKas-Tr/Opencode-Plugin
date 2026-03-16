@@ -77,6 +77,22 @@ Use this template when creating implementation plans.
 **Boundaries:**
 - [What NOT to do]
 
+**Task Packet:**
+- **packet_id:** P-T-001
+- **goal:** [Single executable concern]
+- **files_in_scope:**
+  - create: [`path/to/new-file.ts`]
+  - modify: [`path/to/existing.ts`]
+  - delete: []
+- **verification_commands:**
+  - `bun run typecheck`
+  - `bun test path/to/test.ts`
+- **risks:**
+  - [Top risk for this packet]
+- **escalate_if:**
+  - [Verification fails twice]
+  - [A file outside scope must be edited]
+
 ---
 
 ### Task 2: [Title]
@@ -95,6 +111,16 @@ Use this template when creating implementation plans.
 
 **Files to DELETE:**
 - (none)
+
+---
+
+## Execution Model
+
+- Workflow mode: `compressed`
+- Execution unit: **Task Packet**
+- Source of truth: **Beads**
+- `/start`: execute + verify loop
+- `/verify`: optional deep audit / pre-ship review
 
 ---
 
@@ -133,6 +159,14 @@ graph TD
 
 Tasks eligible for Quick Mode (no full plan needed):
 - [ ] T-001 (S, ≤3 files, no security/db/api)
+
+## Packet Checklist
+
+- [ ] Every task has a packet_id
+- [ ] Every packet stays within 1–3 files
+- [ ] Every packet has executable verification commands
+- [ ] Every packet has an escalate_if clause
+- [ ] File Impact matches all packet scopes
 
 ---
 

@@ -65,6 +65,9 @@
         "$ref": "#/definitions/LspServerConfig"
       }
     },
+    "workflow": {
+      "$ref": "#/definitions/WorkflowConfig"
+    },
     "hooks": {
       "$ref": "#/definitions/HooksConfig"
     }
@@ -121,7 +124,8 @@
           "type": "object",
           "properties": {
             "enabled": { "type": "boolean" },
-            "warn_on_incomplete": { "type": "boolean" }
+            "warn_on_incomplete": { "type": "boolean" },
+            "beads_authoritative": { "type": "boolean" }
           },
           "additionalProperties": false
         },
@@ -165,6 +169,7 @@
             "max_output_lines": { "type": "integer" },
             "preserve_head_lines": { "type": "integer" },
             "preserve_tail_lines": { "type": "integer" },
+            "packet_friendly": { "type": "boolean" },
             "log": { "type": "boolean" }
           },
           "additionalProperties": false
@@ -187,6 +192,7 @@
             "include_types": { "type": "array", "items": { "type": "string" } },
             "index_highlights_per_type": { "type": "integer" },
             "write_topic_files": { "type": "boolean" },
+            "compact_mode": { "type": "boolean" },
             "log": { "type": "boolean" }
           },
           "additionalProperties": false
@@ -196,6 +202,7 @@
           "properties": {
             "enabled": { "type": "boolean" },
             "close_missing": { "type": "boolean" },
+            "mode": { "type": "string", "enum": ["disabled", "legacy_sync"] },
             "log": { "type": "boolean" }
           },
           "additionalProperties": false
@@ -212,7 +219,31 @@
             "log": { "type": "boolean" }
           },
           "additionalProperties": false
+        },
+        "beads_context": {
+          "type": "object",
+          "properties": {
+            "enabled": { "type": "boolean" },
+            "max_issues": { "type": "integer" },
+            "include_closed": { "type": "boolean" },
+            "active_only": { "type": "boolean" },
+            "ready_limit": { "type": "integer" },
+            "log": { "type": "boolean" }
+          },
+          "additionalProperties": false
         }
+      },
+      "additionalProperties": false
+    },
+    "WorkflowConfig": {
+      "type": "object",
+      "properties": {
+        "mode": { "type": "string", "enum": ["classic", "compressed"] },
+        "active_roles": { "type": "array", "items": { "type": "string" } },
+        "use_packets": { "type": "boolean" },
+        "embed_verify_in_start": { "type": "boolean" },
+        "verify_is_audit": { "type": "boolean" },
+        "subagent_call_budget": { "type": "integer", "minimum": 0 }
       },
       "additionalProperties": false
     },

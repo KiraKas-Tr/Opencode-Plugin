@@ -81,6 +81,14 @@ async function loadPlugin(ctx: PluginInput) {
   return CliKitPlugin(ctx);
 }
 
+async function loadPluginWithConfig(config: Record<string, unknown>) {
+  const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), "clikit-plugin-config-"));
+  fs.writeFileSync(path.join(tmpDir, "clikit.json"), JSON.stringify(config), "utf-8");
+  const built = buildMockCtx({ directory: tmpDir });
+  const hooks = await loadPlugin(built.ctx);
+  return { ...built, hooks, tmpDir };
+}
+
 // ─── Helpers to fire internal functions by triggering events/hooks ───────────
 
 async function fireSessionCreated(hooks: Awaited<ReturnType<typeof loadPlugin>>, id = "test-123") {
@@ -146,8 +154,13 @@ describe("cliLog: routes through client.app.log", () => {
     }
   });
 
-  it("uses level=warn for todo-enforcer incomplete warning", async () => {
+  it("uses level=warn for todo-enforcer incomplete warning when enabled", async () => {
     const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), "clikit-clilog-warn-"));
+    fs.writeFileSync(
+      path.join(tmpDir, "clikit.json"),
+      JSON.stringify({ hooks: { todo_enforcer: { warn_on_incomplete: true, beads_authoritative: false } } }),
+      "utf-8"
+    );
     const { ctx, logCalls } = buildMockCtx({ directory: tmpDir });
 
     try {
@@ -182,6 +195,64 @@ describe("cliLog: routes through client.app.log", () => {
       const warnCalls = logCalls.filter((c) => c.body.level === "warn");
       expect(warnCalls.length).toBeGreaterThan(0);
       expect(warnCalls[0].body.service).toBe("clikit-plugin");
+    } finally {
+      fs.rmSync(tmpDir, { recursive: true, force: true });
+    }
+  });
+});
+
+describe("workflow runtime overrides", () => {
+  it("injects classic workflow capsule into system prompt", async () => {
+    const { hooks, tmpDir } = await loadPluginWithConfig({ workflow: { mode: "classic" } });
+
+    try {
+      const output = { system: [] as string[] };
+      await hooks["experimental.chat.system.transform"]?.({} as never, output as never);
+      expect(output.system.join("\n")).toContain("Mode: classic");
+      expect(output.system.join("\n")).toContain("`/verify` remains a mandatory standalone gate");
+    } finally {
+      fs.rmSync(tmpDir, { recursive: true, force: true });
+    }
+  });
+
+  it("injects compressed workflow capsule by default", async () => {
+    const { hooks, tmpDir } = await loadPluginWithConfig({});
+
+    try {
+      const output = { system: [] as string[] };
+      await hooks["experimental.chat.system.transform"]?.({} as never, output as never);
+      expect(output.system.join("\n")).toContain("Mode: compressed");
+      expect(output.system.join("\n")).toContain("Subagent budget per packet");
+    } finally {
+      fs.rmSync(tmpDir, { recursive: true, force: true });
+    }
+  });
+
+  it("applies classic-mode command overrides during config merge", async () => {
+    const { ctx, tmpDir } = await loadPluginWithConfig({ workflow: { mode: "classic" } });
+
+    try {
+      const hooks = await loadPlugin(ctx);
+      const runtimeConfig = { command: {}, agent: {} } as Record<string, unknown>;
+      await hooks.config?.(runtimeConfig as never);
+      const startTemplate = ((runtimeConfig.command as Record<string, { template?: string }>).start?.template) || "";
+      const verifyTemplate = ((runtimeConfig.command as Record<string, { template?: string }>).verify?.template) || "";
+      expect(startTemplate).toContain("Classic mode is active");
+      expect(verifyTemplate).toContain("mandatory before ship");
+    } finally {
+      fs.rmSync(tmpDir, { recursive: true, force: true });
+    }
+  });
+
+  it("applies non-packet override when use_packets=false", async () => {
+    const { ctx, tmpDir } = await loadPluginWithConfig({ workflow: { use_packets: false } });
+
+    try {
+      const hooks = await loadPlugin(ctx);
+      const runtimeConfig = { command: {}, agent: {} } as Record<string, unknown>;
+      await hooks.config?.(runtimeConfig as never);
+      const planTemplate = ((runtimeConfig.command as Record<string, { template?: string }>).plan?.template) || "";
+      expect(planTemplate).toContain("Packetized execution is disabled");
     } finally {
       fs.rmSync(tmpDir, { recursive: true, force: true });
     }

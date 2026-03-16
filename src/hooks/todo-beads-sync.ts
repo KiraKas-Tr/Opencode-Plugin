@@ -26,6 +26,7 @@ export interface OpenCodeTodo {
 export interface TodoBeadsSyncConfig {
   enabled?: boolean;
   close_missing?: boolean;
+  mode?: "disabled" | "legacy_sync";
   log?: boolean;
 }
 
@@ -220,6 +221,18 @@ export function syncTodosToBeads(
   todos: OpenCodeTodo[],
   config?: TodoBeadsSyncConfig,
 ): TodoBeadsSyncResult {
+  if (config?.mode === "disabled" || config?.enabled === false) {
+    return {
+      synced: false,
+      sessionID,
+      totalTodos: todos.length,
+      created: 0,
+      updated: 0,
+      closed: 0,
+      skippedReason: "Todo sync disabled; Beads is authoritative",
+    };
+  }
+
   const beadsDbPath = path.join(projectDirectory, ".beads", "beads.db");
   if (!fs.existsSync(beadsDbPath)) {
     return {

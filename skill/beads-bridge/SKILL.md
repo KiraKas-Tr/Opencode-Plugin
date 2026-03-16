@@ -5,41 +5,72 @@ description: Use to bridge beads git-backed tasks with OpenCode's native todo sy
 
 # Beads Bridge Skill
 
-You are running the **beads-bridge** skill. Bridge between beads git-backed tasks and OpenCode todos.
+Bridge between **beads-village MCP tasks** (persistent, git-backed) and **OpenCode native todos** (session-only display).
 
-## Purpose
+## Mental Model
 
-Enables coordination between:
-- **Beads git-backed tasks**: Persistent tasks in `.beads/` directory
-- **OpenCode native todos**: Session-native task list
+```
+beads-village issues  ←→  OpenCode todos
+(persists across sessions)   (UI display only)
+```
 
-## Bridging Operations
+- **Beads** = source of truth for all tasks
+- **`todowrite`** = in-session UI mirror only, for human readability
+- Never use `todowrite` as primary task tracking — it resets each session
 
-| Action | Description |
-|--------|-------------|
-| Sync todos | Import beads tasks to OpenCode todo list |
-| Export progress | Push OpenCode completions to beads |
-| Cross-session | Maintain state across agent sessions |
-| Swarm view | Unified task view for multiple agents |
+---
 
-## Workflow
+## Sync Pattern
 
-1. Load beads state from `.beads/`
-2. Bridge imports ready tasks to native todos
-3. Work on tasks using native tools
-4. Bridge syncs completions back to beads
-5. Other agents see progress via beads git-backed tasks
+### Session Start
+```python
+# 1. Join workspace
+beads-village_init(team="project")
 
-## Use Cases
+# 2. See what's ready
+beads-village_ls(status="ready")
 
-- Multi-agent swarms sharing a task backlog
-- Long-running projects with session breaks
-- Cross-workspace coordination
-- Human review integration
+# 3. Mirror to session todos (optional, for UI)
+todowrite([{content: issue.title, status: "pending"} for issue in ready_issues])
 
-## Best Practices
+# 4. Claim your task
+beads-village_claim()
+```
 
-- Run bridge sync at session start and end
-- Use beads git-backed tasks for persistent storage
-- Use native todos for active work tracking
-- Keep task titles consistent across systems
+### Session End
+```python
+# 1. Close completed issues in beads
+beads-village_done(id="proj-abc", msg="what was done")
+
+# 2. Sync to git
+beads-village_sync()
+```
+
+---
+
+## Key Rules
+
+- **Beads is authoritative** — if todo and beads conflict, beads wins
+- **Sync at session start** — always check beads before assuming state
+- **Don't create todos for long-running work** — create beads issues instead
+- Todos are for current session context only; beads survive across sessions and agents
+
+---
+
+## Multi-Agent Coordination
+
+When multiple agents share a project:
+
+```python
+# Check who's working on what
+beads-village_status(include_agents=true)
+
+# Check file locks before editing
+beads-village_reservations()
+
+# Broadcast progress to team
+beads-village_msg(subj="Auth done", body="Token endpoint ready", global=true, to="all")
+
+# Read team messages
+beads-village_inbox(unread=true)
+```

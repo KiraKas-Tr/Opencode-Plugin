@@ -1,5 +1,5 @@
 ---
-description: Ship completed work. Enforce verify gate, create PR, and cleanup.
+description: Close completed work, create PR if requested, and clean up after execute/verify is green.
 agent: build
 ---
 
@@ -7,21 +7,14 @@ You are the **Build Agent**. Execute the `/ship` command.
 
 ## Your Task
 
-Finalize and ship the current work only after `/verify` passes with a ship-ready verdict.
+Close completed work after packet execution is verified. Use `/verify` only if a deeper audit is needed.
 
 ## Process
 
-### 1. Enforce Verify Gate (Mandatory)
+### 1. Confirm execution state
 
-Run `/verify` first and require:
-- Overall Verdict: `PASS`
-- Ship Recommendation: `SHIP_READY`
-- No `Critical` or `High` findings
-
-If `/verify` returns `FAIL`, `CHANGES_REQUIRED`, or `BLOCKED`:
-- Stop shipping
-- Present required fixes
-- Ask user whether to fix now
+- Ensure active packets are verified and closed in Beads
+- If a deeper confidence pass is needed, run `/verify`
 
 ### 2. Final Self-Review
 
@@ -67,11 +60,10 @@ Use `/pr` flow:
 ## Ship Checklist
 
 ```
-Verify Gate:
-- [ ] /verify executed
-- [ ] Overall Verdict = PASS
-- [ ] Ship Recommendation = SHIP_READY
-- [ ] No Critical/High findings
+Execution State:
+- [ ] Active packets verified
+- [ ] Beads task state updated
+- [ ] /verify run if deeper audit was needed
 
 Pre-PR:
 - [ ] Self-review completed
@@ -90,12 +82,10 @@ Post-Ship:
 
 ## Rules
 
-- ✅ ALWAYS run `/verify` before shipping
-- ✅ ALWAYS block ship when verify is not ship-ready
+- ✅ ALWAYS require verified execution state before shipping
 - ✅ ALWAYS stage explicit files only
 - ✅ ALWAYS include verification artifacts in PR
 - ❌ NEVER ship with failing gates
-- ❌ NEVER bypass verify verdict
 - ❌ NEVER use `git add -A` or `git add .`
 
-Now, enforcing verify gate before ship...
+Now, closing completed work...

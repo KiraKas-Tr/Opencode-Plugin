@@ -1,5 +1,5 @@
 ---
-description: Deep verification gate before ship. Run required checks + structured review verdict.
+description: Run an optional deep audit for confidence before ship or after packet execution.
 agent: build
 subtask: true
 ---
@@ -8,7 +8,7 @@ You are the **Build Agent**. Execute the `/verify` command.
 
 ## Your Task
 
-Run a strict pre-ship verification gate and produce a ship recommendation.
+Run a deep audit. `/start` already performs normal execute+verify; `/verify` is the extra confidence pass.
 
 ## Process
 
@@ -26,7 +26,7 @@ Before running checks:
 - If script is missing, use safe fallback command.
 - Do **not** skip a required gate.
 
-### 3) Run Required Verification Gates (All 4)
+### 3) Run Verification Gates (All 4)
 
 Run all gates even if earlier gates fail. Record status and key output for each.
 
@@ -82,7 +82,7 @@ Review checklist:
 ### Overall Verdict
 - PASS | FAIL
 
-### Ship Recommendation
+### Audit Recommendation
 - SHIP_READY | CHANGES_REQUIRED | BLOCKED
 
 ### Required Fixes (if not SHIP_READY)
@@ -92,7 +92,7 @@ Review checklist:
 
 ## Gate Rules
 
-- ✅ ALWAYS run all 4 required gates
+- ✅ ALWAYS run all 4 gates in audit mode
 - ✅ ALWAYS read constraints before checks
 - ✅ ALWAYS include command used + key output per gate
 - ✅ ALWAYS include severity-ranked review findings
@@ -100,4 +100,4 @@ Review checklist:
 - ❌ NEVER mark PASS if any required gate fails
 - ❌ NEVER mark SHIP_READY when Critical/High findings exist
 
-Now, running deep verification...
+Now, running deep audit...

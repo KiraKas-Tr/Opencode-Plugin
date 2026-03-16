@@ -20,6 +20,7 @@ export interface MemoryDigestConfig {
   include_types?: string[];
   index_highlights_per_type?: number;
   write_topic_files?: boolean;
+  compact_mode?: boolean;
   log?: boolean;
 }
 
@@ -129,8 +130,9 @@ export function generateMemoryDigest(
     return result;
   }
 
-  const maxPerType = config?.max_per_type ?? 10;
-  const indexHighlightsPerType = config?.index_highlights_per_type ?? 2;
+  const compactMode = config?.compact_mode !== false;
+  const maxPerType = config?.max_per_type ?? (compactMode ? 5 : 10);
+  const indexHighlightsPerType = config?.index_highlights_per_type ?? (compactMode ? 1 : 2);
   const writeTopicFiles = config?.write_topic_files !== false;
   const includeTypes = config?.include_types ?? [
     "decision",
@@ -185,7 +187,8 @@ export function generateMemoryDigest(
       for (const row of rows.slice(0, indexHighlightsPerType)) {
         const date = formatDate(row.created_at);
         const headline = row.narrative.split("\n")[0];
-        sections.push(`- ${date}: ${headline}`);
+        const beadNote = row.bead_id ? ` [${row.bead_id}]` : "";
+        sections.push(`- ${date}${beadNote}: ${headline}`);
       }
       sections.push("");
 

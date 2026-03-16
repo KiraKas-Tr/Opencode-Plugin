@@ -248,48 +248,69 @@ Risk: [Description], Probability: L/M/H, Impact: L/M/H, Mitigation: [How]
 
 ---
 
-## 6. Task Envelope Schema
+## 6. Task Packet Schema
 
-Task Envelope is the wrapper passed to Build Agent containing the task and context.
+A Task Packet is the smallest executable unit passed from Plan → Build.
+One packet = one concern = 1–3 files = one verify bundle.
 
 ```yaml
-# Task Envelope - passed from Plan to Build Agent
-envelope_id: "E-uuid"
+# Task Packet — the execution unit in compressed workflow
+packet_id: "P-T001"             # Format: P-<task_id>
 bead_id: "B-YYYY-MM-DD-descriptor"
+task_id: "T-001"
 created_at: "ISO-8601"
 
-task:                           # Full Task Schema (section 1)
-  task_id: "T-001"
-  title: "Task title"
-  # ... all Task Schema fields
+goal: "One sentence describing what to accomplish"
+
+files_in_scope:                 # BUILD BOUNDARY — only these files may be touched
+  create: []
+  modify: []
+  delete: []
+
+dependencies:                   # Packet IDs that must be done first
+  - "P-T000"
+
+acceptance_criteria:            # All must be agent-executable (command + expected output)
+  - cmd: "bun test src/foo.test.ts"
+    expect: "exits 0"
+  - cmd: "lsp_diagnostics src/foo.ts"
+    expect: "zero errors"
+
+verification_commands:          # Run in order after implementation
+  - "bun run typecheck"
+  - "bun test src/foo.test.ts"
+
+risks:
+  - "Edge case: empty input not handled in bar()"
+
+escalate_if:                    # Conditions that require Oracle / re-plan
+  - "Verify fails after 2 attempts"
+  - "Files outside scope need modification"
 
 context:
   spec_path: ".opencode/memory/specs/YYYY-MM-DD-feature.md"
   plan_path: ".opencode/memory/plans/YYYY-MM-DD-feature.md"
-  research_paths: []            # Optional research references
-  
-  file_impact:                  # From plan.md
-    create: []
-    modify: []
-    delete: []
-  
-  prerequisites:
-    completed_tasks: ["T-xxx"]
-    pending_reviews: []
-
-execution:
-  mode: quick | deep
-  max_retries: 3
-  verification_commands:
-    - "pnpm typecheck"
-    - "pnpm test"
-    - "pnpm lint"
+  research_paths: []            # Optional
 ```
+
+### Packet rules
+
+- 1 packet = 1 task = 1 concern
+- `files_in_scope` is the build boundary — enforced by swarm-enforcer
+- `acceptance_criteria` must be machine-verifiable — no "user manually checks"
+- If implementation requires touching a file outside `files_in_scope`, escalate (do not expand scope silently)
+- After 2 failed verify attempts → stop, revert, escalate via `escalate_if` path
 
 ### Usage
 
-Plan Agent: Creates Envelope (after /plan approval), does not receive
-Build Agent: Does not create, receives Envelope (for /implement)
+Plan Agent: Creates packets after plan approval, maps each T-xxx to a Beads issue
+Build Agent: Claims one packet via `beads-village_claim`, executes, verifies, marks done
+Subagents: Read packet context only — do not create or close packets
+
+### Legacy Envelope compatibility
+
+Prior `envelope_id` format is superseded by `packet_id`. Existing envelope artifacts
+remain readable but new plans should use the packet schema above.
 
 ---
 

@@ -92,6 +92,12 @@ Use this template when creating specifications.
 | AC-01 | [Criteria] | [How to verify] |
 | AC-02 | [Criteria] | [How to verify] |
 
+### Execution Notes
+- Preferred workflow mode: `compressed`
+- Expected execution unit: **Task Packet**
+- Beads issue/task is the live execution state
+- Manual-only verification is not allowed unless explicitly marked as follow-up
+
 ---
 
 ## Assumptions
@@ -106,6 +112,12 @@ Use this template when creating specifications.
 
 - [ ] [Question 1]
 - [ ] [Question 2]
+
+## Planning Handoff Hints
+
+- Likely files in scope: [candidate files/directories]
+- Likely packet boundaries: [how the work should split into 1–3 file packets]
+- Escalate if: [conditions that should trigger re-plan or Oracle]
 
 ---
 

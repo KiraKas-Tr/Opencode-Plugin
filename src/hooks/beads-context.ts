@@ -19,6 +19,8 @@ export interface BeadsContextConfig {
   enabled?: boolean;
   max_issues?: number;
   include_closed?: boolean;
+  active_only?: boolean;
+  ready_limit?: number;
   log?: boolean;
 }
 
@@ -63,6 +65,77 @@ function openBeadsDbReadonly(projectDirectory: string): Database | null {
   }
 }
 
+function formatIssueLine(issue: BeadsIssueRow): string {
+  const icon = STATUS_ICONS[issue.status] ?? "?";
+  const priority = PRIORITY_LABELS[issue.priority] ?? `p${issue.priority}`;
+  const assignee = issue.assignee ? ` @${issue.assignee}` : "";
+  return `- ${icon} \`${issue.id}\` **${issue.title}** (${priority}${assignee})`;
+}
+
+function formatCompressedBeadsSnapshot(
+  issues: BeadsIssueRow[],
+  config?: BeadsContextConfig,
+): string | null {
+  if (issues.length === 0) {
+    return null;
+  }
+
+  const inProgress = issues.filter((issue) => issue.status === "in_progress");
+  const ready = issues.filter((issue) => issue.status === "open");
+  const includeClosed = config?.include_closed === true;
+  const closed = includeClosed ? issues.filter((issue) => issue.status === "closed") : [];
+  const readyLimit = config?.ready_limit ?? 3;
+  const activeOnly = config?.active_only !== false;
+
+  const lines: string[] = [
+    "## Beads Task State",
+    "",
+    "Beads is the live execution source of truth. Prefer the active issue and its direct dependencies.",
+    "",
+  ];
+
+  if (inProgress.length > 0) {
+    lines.push("### Active Issue");
+    lines.push(formatIssueLine(inProgress[0]));
+    if (inProgress.length > 1) {
+      lines.push(`- +${inProgress.length - 1} additional in-progress issue(s)`);
+    }
+    lines.push("");
+  }
+
+  if (!activeOnly && ready.length > 0) {
+    lines.push("### Ready Queue");
+    for (const issue of ready.slice(0, readyLimit)) {
+      lines.push(formatIssueLine(issue));
+    }
+    if (ready.length > readyLimit) {
+      lines.push(`- +${ready.length - readyLimit} more ready issue(s)`);
+    }
+    lines.push("");
+  } else if (activeOnly && ready.length > 0 && inProgress.length === 0) {
+    lines.push("### Ready Queue (fallback)");
+    for (const issue of ready.slice(0, readyLimit)) {
+      lines.push(formatIssueLine(issue));
+    }
+    if (ready.length > readyLimit) {
+      lines.push(`- +${ready.length - readyLimit} more ready issue(s)`);
+    }
+    lines.push("");
+  } else if (activeOnly && ready.length > 0) {
+    lines.push(`Ready queue hidden (active_only=true, ${ready.length} ready issue(s) available).`);
+    lines.push("");
+  }
+
+  if (closed.length > 0) {
+    lines.push(`Recently closed available on demand: ${closed.length}`);
+    lines.push("");
+  }
+
+  lines.push("Use `mcp__beads_village__show({id})` for full details.");
+  lines.push("Use `mcp__beads_village__claim()` only when starting the next packet.");
+  return lines.join("\n");
+}
+
 export function getBeadsSnapshot(
   projectDirectory: string,
   config?: BeadsContextConfig,
@@ -95,67 +168,15 @@ export function getBeadsSnapshot(
       return null;
     }
 
-    // Count by status
-    const countByStatus: Record<string, number> = {};
-    for (const issue of issues) {
-      countByStatus[issue.status] = (countByStatus[issue.status] ?? 0) + 1;
-    }
-
-    // Format header
-    const statusSummary = Object.entries(countByStatus)
-      .map(([status, count]) => `${status}: ${count}`)
-      .join(", ");
-
-    const lines: string[] = [
-      `## Active Beads Issues (${statusSummary})`,
-      "",
-    ];
-
-    // Group by status
-    const inProgress = issues.filter((i) => i.status === "in_progress");
-    const open = issues.filter((i) => i.status === "open");
-    const closed = issues.filter((i) => i.status === "closed");
-
-    if (inProgress.length > 0) {
-      lines.push("### In Progress");
-      for (const issue of inProgress) {
-        lines.push(formatIssueLine(issue));
-      }
-      lines.push("");
-    }
-
-    if (open.length > 0) {
-      lines.push("### Ready");
-      for (const issue of open) {
-        lines.push(formatIssueLine(issue));
-      }
-      lines.push("");
-    }
-
-    if (closed.length > 0 && includeClosed) {
-      lines.push("### Recently Closed");
-      for (const issue of closed) {
-        lines.push(formatIssueLine(issue));
-      }
-      lines.push("");
-    }
-
-    lines.push("Use `mcp__beads_village__show({id})` to see full issue details.");
-    lines.push("Use `mcp__beads_village__claim()` to pick up the next ready task.");
-
-    return lines.join("\n");
+    return formatCompressedBeadsSnapshot(issues, {
+      ...config,
+      include_closed: includeClosed,
+    });
   } catch {
     return null;
   } finally {
     db.close();
   }
-}
-
-function formatIssueLine(issue: BeadsIssueRow): string {
-  const icon = STATUS_ICONS[issue.status] ?? "?";
-  const priority = PRIORITY_LABELS[issue.priority] ?? `p${issue.priority}`;
-  const assignee = issue.assignee ? ` @${issue.assignee}` : "";
-  return `- ${icon} \`${issue.id}\` **${issue.title}** (${priority}${assignee})`;
 }
 
 export function getBeadsCompactionContext(
@@ -175,8 +196,8 @@ export function getBeadsCompactionContext(
   return [
     "## Beads Task State (Source of Truth)",
     "",
-    "The following Beads issues represent the canonical task state.",
-    "Preserve this context across compaction — it takes priority over OpenCode todos.",
+    "Preserve active Beads task state across compaction. Prefer the active issue and direct packet scope.",
+    "OpenCode todos are informational only when Beads state is available.",
     "",
     snapshot,
   ].join("\n");

@@ -81,7 +81,8 @@ export function checkTodoCompletion(todos: unknown): TodoCheckResult {
 
 export function formatIncompleteWarning(
   result: TodoCheckResult | unknown,
-  sessionId?: string
+  sessionId?: string,
+  beadsAuthoritative?: boolean,
 ): string {
   const safeResult = normalizeTodoResult(result);
   const lines: string[] = [];
@@ -103,7 +104,11 @@ export function formatIncompleteWarning(
   }
 
   lines.push("");
-  lines.push("  Complete all todos before finishing.");
+  lines.push(
+    beadsAuthoritative
+      ? "  Todos are informational only here — update/close the active Beads issue instead."
+      : "  Complete all todos before finishing.",
+  );
 
   return lines.join("\n");
 }

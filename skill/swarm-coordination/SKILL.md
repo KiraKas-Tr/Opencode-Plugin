@@ -50,5 +50,6 @@ Mitigations:
 
 - Claim only ready (unblocked) tasks
 - Reserve files early, release promptly
-- Use `beads-village_broadcast` for coordination
-- Check `beads-village_discover` for active agents
+- Use `beads-village_msg(global=true, to="all")` for coordination broadcasts
+- Check `beads-village_status(include_agents=true)` for active agents
+- Use `beads-village_ls(status="ready")` to find unblocked tasks

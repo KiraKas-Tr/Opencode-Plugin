@@ -26,6 +26,7 @@ export interface LspServerConfig {
 export interface TodoEnforcerHookConfig {
   enabled?: boolean;
   warn_on_incomplete?: boolean;
+  beads_authoritative?: boolean;
 }
 
 export interface EmptyMessageSanitizerHookConfig {
@@ -54,6 +55,7 @@ export interface TruncatorHookConfig {
   max_output_lines?: number;
   preserve_head_lines?: number;
   preserve_tail_lines?: number;
+  packet_friendly?: boolean;
   log?: boolean;
 }
 
@@ -70,12 +72,14 @@ export interface MemoryDigestHookConfig {
   include_types?: string[];
   index_highlights_per_type?: number;
   write_topic_files?: boolean;
+  compact_mode?: boolean;
   log?: boolean;
 }
 
 export interface TodoBeadsSyncHookConfig {
   enabled?: boolean;
   close_missing?: boolean;
+  mode?: "disabled" | "legacy_sync";
   log?: boolean;
 }
 
@@ -93,7 +97,18 @@ export interface BeadsContextHookConfig {
   enabled?: boolean;
   max_issues?: number;
   include_closed?: boolean;
+  active_only?: boolean;
+  ready_limit?: number;
   log?: boolean;
+}
+
+export interface WorkflowConfig {
+  mode?: "classic" | "compressed";
+  active_roles?: string[];
+  use_packets?: boolean;
+  embed_verify_in_start?: boolean;
+  verify_is_audit?: boolean;
+  subagent_call_budget?: number;
 }
 
 export interface HooksConfig {
@@ -145,6 +160,7 @@ export interface CliKitConfig {
   skills?: SkillsConfig;
   lsp?: Record<string, LspServerConfig>;
   hooks?: HooksConfig;
+  workflow?: WorkflowConfig;
 }
 
 const DEFAULT_CONFIG: CliKitConfig = {
@@ -155,12 +171,21 @@ const DEFAULT_CONFIG: CliKitConfig = {
   commands: {},
   skills: {},
   lsp: {},
+  workflow: {
+    mode: "compressed",
+    active_roles: ["build", "plan", "review", "coordinator"],
+    use_packets: true,
+    embed_verify_in_start: true,
+    verify_is_audit: true,
+    subagent_call_budget: 2,
+  },
   hooks: {
     session_logging: false,
     tool_logging: false,
     todo_enforcer: {
       enabled: true,
-      warn_on_incomplete: true,
+      warn_on_incomplete: false,
+      beads_authoritative: true,
     },
     empty_message_sanitizer: {
       enabled: true,
@@ -184,6 +209,7 @@ const DEFAULT_CONFIG: CliKitConfig = {
       max_output_lines: 500,
       preserve_head_lines: 50,
       preserve_tail_lines: 50,
+      packet_friendly: true,
       log: false,
     },
     swarm_enforcer: {
@@ -194,15 +220,17 @@ const DEFAULT_CONFIG: CliKitConfig = {
     },
     memory_digest: {
       enabled: true,
-      max_per_type: 10,
+      max_per_type: 5,
       include_types: ["decision", "learning", "blocker", "progress", "handoff"],
-      index_highlights_per_type: 2,
+      index_highlights_per_type: 1,
       write_topic_files: true,
+      compact_mode: true,
       log: false,
     },
     todo_beads_sync: {
-      enabled: true,
+      enabled: false,
       close_missing: true,
+      mode: "disabled",
       log: false,
     },
     cass_memory: {
@@ -215,8 +243,10 @@ const DEFAULT_CONFIG: CliKitConfig = {
     },
     beads_context: {
       enabled: true,
-      max_issues: 20,
+      max_issues: 8,
       include_closed: false,
+      active_only: true,
+      ready_limit: 3,
       log: false,
     },
   },

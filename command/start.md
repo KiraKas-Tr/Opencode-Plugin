@@ -1,5 +1,5 @@
 ---
-description: Begin implementing from an existing plan. Pick up next task and start coding.
+description: Run compressed execution loop from an existing plan. Claim one packet, implement, verify, and close it.
 agent: build
 ---
 
@@ -7,7 +7,7 @@ You are the **Build Agent**. Execute the `/start` command.
 
 ## Your Task
 
-Begin implementation from an existing plan. Pick up the next available task and start coding.
+Run the compressed execution loop: load the active plan, claim the next packet, implement it, verify it, and close it.
 
 ## Process
 
@@ -26,32 +26,35 @@ If no plan exists:
 - Read latest `handoff.md` (if exists) — resume from previous session
 - Check bead status via `mcp__beads_village__ls()`
 
-### 3. Determine Next Task
+### 3. Determine Next Packet
 
-Find the first task that is:
-- Status: `not_started`
-- All dependencies are `done`
-- Not blocked
+Find the first task / packet that is executable:
+- dependencies satisfied
+- within Beads ready state
+- not blocked
 
 If resuming from handoff, pick up `in_progress` tasks first.
 
-### 4. Create Todos
+### 4. Execute Packet
 
-Break the task into detailed, trackable todos using the TodoWrite tool.
+- Reserve packet files via `mcp__beads_village__reserve()`
+- Follow `files_in_scope` strictly
+- Implement only the active packet
 
-### 5. Begin Implementation
+### 5. Verify Before Done
 
-- Reserve files via `mcp__beads_village__reserve()`
-- Follow the plan's file impact strictly
-- Implement incrementally — edit, verify, mark complete, repeat
+Run in order:
+- `lsp_diagnostics`
+- packet verification commands
+- lint/build when relevant
 
-### 6. Verify Each Task
+If verification fails twice, stop and escalate.
 
-After completing each task:
-- Run targeted checks (typecheck, tests, lint)
-- Verify acceptance criteria
-- Mark task as `done` in plan
-- Move to next task
+### 6. Close Packet
+
+- mark Beads task done
+- report evidence
+- continue only if another ready packet exists and the user asked to keep going
 
 ## Quick Start Checklist
 
@@ -59,19 +62,19 @@ After completing each task:
 1. ✅ Plan exists and is approved
 2. ✅ Context loaded (spec, plan, handoff)
 3. ✅ Next task identified
-4. ✅ Todos created
+4. ✅ Packet selected
 5. ✅ Files reserved
-6. 🔄 Implementation in progress
+6. 🔄 Execute + verify loop in progress
 ```
 
 ## Rules
 
 - ✅ ALWAYS load plan and spec before starting
 - ✅ ALWAYS check for existing handoff to resume
-- ✅ ALWAYS create todos before coding
-- ✅ ALWAYS verify each task before moving on
+- ✅ ALWAYS execute one packet at a time
+- ✅ ALWAYS verify before marking packet done
 - ✅ ALWAYS respect file impact boundaries
 - ❌ NEVER skip verification gates
 - ❌ NEVER implement without an approved plan
 
-Now, let me find your plan and start implementing...
+Now, run the next packet.

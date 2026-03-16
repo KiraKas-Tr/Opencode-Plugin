@@ -8,12 +8,54 @@ Curated agents, commands, skills, and memory system for OpenCode.
 - **19 Slash Commands**: /create, /start, /plan, /ship, /verify, /review, /debug, /pr, and more
 - **48 Workflow Skills**: TDD, debugging, design, UI/UX, integrations, ritual-workflow, and more
 - **7 Internal Utilities**: memory (read/search/get/timeline/update/admin), observation, swarm, beads-memory-sync, quick-research, context-summary, cass-memory (used by hooks, not directly registered as agent tools)
-- **10 Runtime Hooks**: todo enforcer, empty output sanitizer, git guard, security check, subagent blocker, truncator, swarm enforcer, memory digest, todo→beads sync, and cass-memory
+- **11 Runtime Hooks**: todo enforcer, empty output sanitizer, git guard, security check, subagent blocker, truncator, swarm enforcer, memory digest, todo→beads sync, beads-context, and cass-memory
 - **Memory System**: Templates, specs, plans, research artifacts with FTS5 search
 - **Extended Permissions**: doom_loop, external_directory controls
 - **Configurable**: Enable/disable agents, override models, customize behavior
 
 ## Installation
+
+### Step 1 — Install Beads (required)
+
+CliKit uses [Beads](https://github.com/steveyegge/beads) (`bd`) for persistent task tracking. Install it system-wide first.
+
+**Windows (PowerShell):**
+```pwsh
+irm https://raw.githubusercontent.com/steveyegge/beads/main/install.ps1 | iex
+```
+
+**macOS / Linux — Homebrew (recommended):**
+```bash
+brew install beads
+```
+
+**npm / bun:**
+```bash
+npm install -g @beads/bd
+# or
+bun install -g --trust @beads/bd
+```
+
+**go install (Go 1.24+ required):**
+```bash
+go install github.com/steveyegge/beads/cmd/bd@latest
+```
+
+Verify:
+```bash
+bd version
+```
+
+### Step 2 — Initialize Beads in your project
+
+```bash
+cd your-project
+bd init --quiet
+```
+
+This creates the `.beads/` database directory. Do this once per project.
+
+### Step 3 — Install CliKit
 
 ```bash
 # Install CliKit globally for OpenCode
@@ -22,11 +64,11 @@ bun x clikit-plugin install
 # Restart OpenCode
 ```
 
-That's it! The plugin will be registered in `~/.config/opencode/opencode.json`.
+The plugin is registered in `~/.config/opencode/opencode.json`.
 
 CliKit injects default MCP server entries at runtime when missing:
 
-- `beads-village` (`npx beads-village`)
+- `beads-village` (`npx beads-village`) — requires `bd init` to have been run in the project
 - `context7` (`https://mcp.context7.com/mcp`)
 - `grep` (`https://mcp.grep.app`)
 - `human-mcp` (`npx @goonnguyen/human-mcp`)
@@ -41,8 +83,14 @@ Recommended environment variables:
 After installation, use these commands:
 
 ```
-/create → /plan → /start → /verify → /ship
+/create → /plan → /start → /ship
 ```
+
+Compressed workflow notes:
+- `/start` now acts as the default execute + verify loop
+- `/verify` remains available for deep audit / extra confidence
+- Beads is the live execution source of truth
+- Plans should decompose work into **Task Packets** (1 concern, 1–3 files, one verify bundle)
 
 ## Configuration
 
@@ -85,16 +133,25 @@ Project config overrides user config.
   "hooks": {
     "session_logging": false,
     "tool_logging": false,
-    "todo_enforcer": { "enabled": true },
+    "todo_enforcer": { "enabled": true, "beads_authoritative": true, "warn_on_incomplete": false },
     "empty_message_sanitizer": { "enabled": true },
     "git_guard": { "enabled": true },
     "security_check": { "enabled": true },
     "subagent_question_blocker": { "enabled": true },
-    "truncator": { "enabled": true },
+    "truncator": { "enabled": true, "packet_friendly": true },
     "swarm_enforcer": { "enabled": true },
-    "memory_digest": { "enabled": true },
-    "todo_beads_sync": { "enabled": true },
-    "cass_memory": { "enabled": true }
+    "memory_digest": { "enabled": true, "compact_mode": true },
+    "todo_beads_sync": { "enabled": false, "mode": "disabled" },
+    "cass_memory": { "enabled": true },
+    "beads_context": { "enabled": true, "active_only": true, "ready_limit": 3 }
+  },
+  "workflow": {
+    "mode": "compressed",
+    "active_roles": ["build", "plan", "review", "coordinator"],
+    "use_packets": true,
+    "embed_verify_in_start": true,
+    "verify_is_audit": true,
+    "subagent_call_budget": 2
   }
 }
 ```
@@ -111,12 +168,13 @@ Project config overrides user config.
 | `skills` | `object \| string[]` | `{}` | Skill enable/disable and per-skill overrides |
 | `hooks.session_logging` | `boolean` | `false` | Session lifecycle logging |
 | `hooks.tool_logging` | `boolean` | `false` | Tool execution logging |
+| `workflow.mode` | `classic \| compressed` | `compressed` | Select compressed packet workflow |
 
 ### Hooks
 
 | Hook | Default | Description |
 |------|---------|-------------|
-| `todo_enforcer` | on | Warns when todos are incomplete at session idle |
+| `todo_enforcer` | on | Optional UI warning; Beads can remain authoritative |
 | `empty_message_sanitizer` | on | Replaces empty tool outputs with placeholder |
 | `git_guard` | on | Blocks dangerous git commands (force push, hard reset, rm -rf) |
 | `security_check` | on | Scans for secrets/credentials before git commits |
@@ -124,7 +182,8 @@ Project config overrides user config.
 | `truncator` | on | Truncates large outputs to prevent context overflow |
 | `swarm_enforcer` | on | Enforces task isolation in multi-agent swarms |
 | `memory_digest` | on | Generates `memory/_digest.md` index + topic files (`decision.md`, `learning.md`, etc.) from SQLite observations |
-| `todo_beads_sync` | on | Mirrors OpenCode todos into Beads issues |
+| `todo_beads_sync` | off | Legacy todo→Beads mirror; disabled in compressed workflow |
+| `beads_context` | on | Injects active Beads task state into prompts |
 | `cass_memory` | on | Loads embedded memory context on session start and runs idle reflection (`cassMemoryContext`, `cassMemoryReflect`) |
 
 ## Agents
@@ -139,16 +198,18 @@ Project config overrides user config.
 | `review` | subagent | Code review & quality gate |
 | `vision` | subagent | Design direction + visual implementation |
 
+Default active roles in compressed workflow: `build`, `plan`, `review`, plus coordinator logic in runtime. `explore`, `research`, `oracle`, and `vision` are on-demand specialists.
+
 ## Commands
 
 Run with `/command-name` in OpenCode:
 
 - `/create` - Start new bead, create specification
-- `/start` - Begin implementing from a plan
+- `/start` - Run the packet execution + verification loop from a plan
 - `/plan` - Create implementation plan
 - `/debug` - Debug issues, find root cause, implement fix
-- `/verify` - Run full verification suite
-- `/ship` - Final verification + PR + cleanup
+- `/verify` - Run optional deep audit / confidence pass
+- `/ship` - Close verified work, create PR, and clean up
 - `/review` - Request code review
 - `/review-codebase` - Full codebase audit
 - `/vision` - Review UI for design, a11y, responsiveness

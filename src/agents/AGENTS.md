@@ -14,16 +14,34 @@ Each `.md` file in this directory defines an agent. The frontmatter sets model, 
 | **@review** | Code reviewer and security auditor. Quality gate before merge. | subagent | ❌ Read-only |
 | **@vision** | Design architect and visual implementer. Frontend UI only. | subagent | ✅ Frontend only |
 
+## Active Roles in Compressed Workflow
+
+Default active roles:
+- `@build`
+- `@plan`
+- `@review`
+- coordinator logic in command/runtime flow
+
+On-demand specialists:
+- `@explore`
+- `@research`
+- `@oracle`
+- `@vision`
+
 ## Beads Task Management
 
-All agents use **Beads** (`beads-village_*` MCP tools) as the persistent task source of truth.
+Agents use **Beads** (`beads-village_*` MCP tools) for persistent task tracking.
+
+**Policy:** Beads is used for non-trivial work. Trivial fixes (typo, single-line) skip Beads and execute immediately.
 
 **Core cycle:**
 ```
 beads-village_init → beads-village_add → beads-village_claim → work → beads-village_done
 ```
 
-- **@build**: Creates issues on task start, claims and closes on completion
+Execution happens one **Task Packet** at a time.
+
+- **@build**: Creates issues for non-trivial tasks, claims and closes on completion
 - **@plan**: Creates issues for every plan task after plan approval
 - **Subagents**: Read-only — do not create/modify Beads issues
 

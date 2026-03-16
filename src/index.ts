@@ -7,6 +7,7 @@ const execFileAsync = promisify(execFile);
 import { getBuiltinAgents } from "./agents";
 import { getBuiltinCommands } from "./commands";
 import { getBuiltinSkills, resolveSkillsDir } from "./skills";
+import type { AgentConfig, CommandConfig } from "./types";
 import {
   loadCliKitConfig,
   filterAgents,
@@ -233,6 +234,164 @@ const CliKitPlugin: Plugin = async (ctx) => {
     await cliLog("error", formatHookErrorLog(hookName, error, context));
   }
 
+  type EffectiveWorkflow = {
+    mode: "classic" | "compressed";
+    activeRoles: string[];
+    usePackets: boolean;
+    embedVerifyInStart: boolean;
+    verifyIsAudit: boolean;
+    subagentCallBudget: number;
+  };
+
+  function getEffectiveWorkflow(): EffectiveWorkflow {
+    const raw = pluginConfig.workflow ?? {};
+    const classicMode = raw.mode === "classic";
+    return {
+      mode: classicMode ? "classic" : "compressed",
+      activeRoles: raw.active_roles || ["build", "plan", "review", "coordinator"],
+      usePackets: classicMode ? raw.use_packets === true : raw.use_packets !== false,
+      embedVerifyInStart: classicMode ? false : raw.embed_verify_in_start !== false,
+      verifyIsAudit: classicMode ? false : raw.verify_is_audit !== false,
+      subagentCallBudget: raw.subagent_call_budget ?? 2,
+    };
+  }
+
+  function prependBlock(content: string | undefined, block: string): string {
+    return `${block.trim()}\n\n${(content || "").trim()}`.trim();
+  }
+
+  function applyWorkflowOverridesToAgents(agents: Record<string, AgentConfig>): Record<string, AgentConfig> {
+    const workflow = getEffectiveWorkflow();
+    const result: Record<string, AgentConfig> = { ...agents };
+
+    const runtimeBlock = workflow.mode === "classic"
+      ? [
+          "## Runtime Workflow Override",
+          "- Mode: classic",
+          `- Use packets: ${workflow.usePackets ? "yes" : "no"}`,
+          `- Subagent budget per unit of work: ${workflow.subagentCallBudget}`,
+          "- Do not assume `/start` embeds verification; `/verify` is the standalone gate before ship.",
+        ].join("\n")
+      : [
+          "## Runtime Workflow Override",
+          "- Mode: compressed",
+          `- Use packets: ${workflow.usePackets ? "yes" : "no"}`,
+          `- Subagent budget per packet: ${workflow.subagentCallBudget}`,
+          workflow.embedVerifyInStart
+            ? "- `/start` performs execute + verify loop."
+            : "- `/start` performs execute only.",
+          workflow.verifyIsAudit
+            ? "- `/verify` is optional deep audit."
+            : "- `/verify` is mandatory pre-ship gate.",
+        ].join("\n");
+
+    for (const agentName of ["build", "plan", "review"]) {
+      const agent = result[agentName];
+      if (!agent) continue;
+      result[agentName] = {
+        ...agent,
+        prompt: prependBlock(typeof agent.prompt === "string" ? agent.prompt : "", runtimeBlock),
+      };
+    }
+
+    return result;
+  }
+
+  function applyWorkflowOverridesToCommands(commands: Record<string, CommandConfig>): Record<string, CommandConfig> {
+    const workflow = getEffectiveWorkflow();
+    const result: Record<string, CommandConfig> = { ...commands };
+
+    if (workflow.mode === "classic") {
+      if (result.start?.template) {
+        result.start = {
+          ...result.start,
+          template: prependBlock(
+            result.start.template,
+            [
+              "## Runtime Workflow Override",
+              "- Classic mode is active.",
+              "- Implement using the approved plan/task boundaries.",
+              "- Verification remains a standalone `/verify` gate before `/ship`.",
+            ].join("\n"),
+          ),
+        };
+      }
+
+      if (result.verify?.template) {
+        result.verify = {
+          ...result.verify,
+          template: prependBlock(
+            result.verify.template,
+            [
+              "## Runtime Workflow Override",
+              "- Classic mode is active.",
+              "- This verification pass is mandatory before ship.",
+            ].join("\n"),
+          ),
+        };
+      }
+
+      if (result.ship?.template) {
+        result.ship = {
+          ...result.ship,
+          template: prependBlock(
+            result.ship.template,
+            [
+              "## Runtime Workflow Override",
+              "- Classic mode is active.",
+              "- Require `/verify` PASS before `/ship`.",
+            ].join("\n"),
+          ),
+        };
+      }
+    }
+
+    if (!workflow.usePackets) {
+      for (const commandName of ["plan", "start"]) {
+        const command = result[commandName];
+        if (!command?.template) continue;
+        result[commandName] = {
+          ...command,
+          template: prependBlock(
+            command.template,
+            [
+              "## Runtime Workflow Override",
+              "- Packetized execution is disabled.",
+              "- Fall back to approved task/file-impact boundaries from the plan.",
+            ].join("\n"),
+          ),
+        };
+      }
+    }
+
+    return result;
+  }
+
+  function getWorkflowSystemCapsule(): string | null {
+    const workflow = getEffectiveWorkflow();
+    const roles = workflow.activeRoles.join(", ");
+    const budget = workflow.subagentCallBudget;
+    return [
+      "## CliKit Workflow Capsule",
+      "",
+      `Mode: ${workflow.mode}`,
+      `Active roles: ${roles}`,
+      workflow.usePackets
+        ? "Execution unit: Task Packet (1 concern, 1-3 files, one verify bundle)"
+        : "Execution unit: plan tasks with explicit file-impact boundaries",
+      "Source of truth: Beads live task state; OpenCode todos are informational only",
+      workflow.usePackets
+        ? `Subagent budget per packet: ${budget}`
+        : `Subagent budget per unit of work: ${budget}`,
+      workflow.embedVerifyInStart
+        ? "`/start` performs execute + verify loop"
+        : "`/start` performs execute only",
+      workflow.verifyIsAudit
+        ? "`/verify` is an optional deep audit / pre-ship confidence pass"
+        : "`/verify` remains a mandatory standalone gate",
+    ].join("\n");
+  }
+
   const pluginConfig = loadCliKitConfig(ctx.directory) ?? {};
   const debugLogsEnabled = pluginConfig.hooks?.session_logging === true && process.env.CLIKIT_DEBUG === "1";
   const toolLogsEnabled = pluginConfig.hooks?.tool_logging === true && process.env.CLIKIT_DEBUG === "1";
@@ -252,8 +411,8 @@ const CliKitPlugin: Plugin = async (ctx) => {
   const builtinCommands = getBuiltinCommands();
   const builtinSkills = getBuiltinSkills();
 
-  const filteredAgents = filterAgents(builtinAgents, pluginConfig);
-  const filteredCommands = filterCommands(builtinCommands, pluginConfig);
+  const filteredAgents = applyWorkflowOverridesToAgents(filterAgents(builtinAgents, pluginConfig));
+  const filteredCommands = applyWorkflowOverridesToCommands(filterCommands(builtinCommands, pluginConfig));
   const filteredSkills = filterSkills(builtinSkills, pluginConfig);
 
   if (debugLogsEnabled) {
@@ -504,9 +663,12 @@ const CliKitPlugin: Plugin = async (ctx) => {
               .sort((a, b) => a.id.localeCompare(b.id))
               .map((t) => `${t.id}:${t.status}`)
           );
-          if (todoHash !== lastTodoHash) {
-            lastTodoHash = todoHash;
-            if (pluginConfig.hooks?.todo_beads_sync?.enabled !== false) {
+            if (todoHash !== lastTodoHash) {
+              lastTodoHash = todoHash;
+            if (
+              pluginConfig.hooks?.todo_beads_sync?.enabled !== false &&
+              pluginConfig.hooks?.todo_beads_sync?.mode !== "disabled"
+            ) {
               try {
                 const result = syncTodosToBeads(ctx.directory, sessionID, todos, pluginConfig.hooks?.todo_beads_sync);
                 if (pluginConfig.hooks?.todo_beads_sync?.log === true) {
@@ -545,7 +707,10 @@ const CliKitPlugin: Plugin = async (ctx) => {
               }>);
 
               if (!result.complete && todoConfig?.warn_on_incomplete !== false) {
-                await cliLog("warn", formatIncompleteWarning(result, sessionID));
+                await cliLog(
+                  "warn",
+                  formatIncompleteWarning(result, sessionID, todoConfig?.beads_authoritative === true),
+                );
               }
             }
           } catch (error) {
@@ -802,6 +967,11 @@ const CliKitPlugin: Plugin = async (ctx) => {
     // --- Beads as Source of Truth: inject issue snapshot into agent system prompt ---
     "experimental.chat.system.transform": async (_input, output) => {
       const beadsConfig = pluginConfig.hooks?.beads_context;
+      const workflowCapsule = getWorkflowSystemCapsule();
+      if (workflowCapsule) {
+        output.system.push(workflowCapsule);
+      }
+
       if (beadsConfig?.enabled === false) {
         return;
       }
@@ -823,6 +993,11 @@ const CliKitPlugin: Plugin = async (ctx) => {
     // --- Beads as Source of Truth: persist task state across compaction ---
     "experimental.session.compacting": async (_input, output) => {
       const beadsConfig = pluginConfig.hooks?.beads_context;
+      const workflowCapsule = getWorkflowSystemCapsule();
+      if (workflowCapsule) {
+        output.context.push(workflowCapsule);
+      }
+
       if (beadsConfig?.enabled === false) {
         return;
       }

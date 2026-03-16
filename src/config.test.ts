@@ -103,6 +103,9 @@ describe("loadCliKitConfig", () => {
 
       const config = loadCliKitConfig(projectDir);
       expect(config.disabled_agents).toEqual(["review"]);
+      expect(config.workflow?.mode).toBe("compressed");
+      expect(config.workflow?.use_packets).toBe(true);
+      expect(config.hooks?.beads_context?.active_only).toBe(true);
     } finally {
       if (prevConfigDir === undefined) {
         delete process.env.OPENCODE_CONFIG_DIR;
@@ -111,6 +114,33 @@ describe("loadCliKitConfig", () => {
       }
       fs.rmSync(projectDir, { recursive: true, force: true });
       fs.rmSync(globalConfigDir, { recursive: true, force: true });
+    }
+  });
+
+  it("supports compressed workflow overrides in project config", () => {
+    const projectDir = fs.mkdtempSync(path.join(os.tmpdir(), "clikit-project-"));
+
+    try {
+      fs.writeFileSync(
+        path.join(projectDir, "clikit.json"),
+        JSON.stringify({
+          workflow: {
+            mode: "classic",
+            subagent_call_budget: 5,
+          },
+          hooks: {
+            todo_beads_sync: { enabled: true, mode: "legacy_sync" },
+          },
+        }),
+        "utf-8"
+      );
+
+      const config = loadCliKitConfig(projectDir);
+      expect(config.workflow?.mode).toBe("classic");
+      expect(config.workflow?.subagent_call_budget).toBe(5);
+      expect(config.hooks?.todo_beads_sync?.mode).toBe("legacy_sync");
+    } finally {
+      fs.rmSync(projectDir, { recursive: true, force: true });
     }
   });
 });

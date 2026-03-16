@@ -1,0 +1,32 @@
+{
+  "agent-4689": {
+    "agent_id": "agent-4689",
+    "team": "default",
+    "role": "fe",
+    "workspace": "/mnt/c/Users/Kira/Desktop/clikit/.opencode",
+    "is_leader": true,
+    "current_task": null,
+    "last_seen": 1772357863.9865873,
+    "started_at": 1772357309.9855428
+  },
+  "agent-11811": {
+    "agent_id": "agent-11811",
+    "team": "default",
+    "role": "devops",
+    "workspace": "/mnt/c/Users/Kira/Desktop/clikit/.opencode",
+    "is_leader": false,
+    "current_task": null,
+    "last_seen": 1772793348.29241,
+    "started_at": 1772793348.292417
+  },
+  "agent-22385": {
+    "agent_id": "agent-22385",
+    "team": "default",
+    "role": "be",
+    "workspace": "/mnt/c/Users/Kira/Desktop/clikit/.opencode",
+    "is_leader": true,
+    "current_task": null,
+    "last_seen": 1772885299.314738,
+    "started_at": 1772885299.3147428
+  }
+}

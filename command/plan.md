@@ -16,9 +16,10 @@ Use template at: `@.opencode/memory/_templates/plan.md`
 
 ## Execution Rules
 
-- **DO NOT** generate a plan without exploring the codebase first
-- **DO NOT** write acceptance criteria that require human manual testing
-- Auto-generate the plan after gap analysis — don't ask "should I create the plan now?"
+- Explore before planning
+- Plan in **Task Packets**
+- Use machine-verifiable acceptance criteria only
+- Auto-generate once scope is clear
 
 ## Process
 
@@ -94,9 +95,10 @@ Cross-reference memory findings against the plan:
 Write to `.opencode/memory/plans/YYYY-MM-DD-<feature>.md`.
 
 **Task decomposition rules:**
-- Each task = 1 module/concern = 1-3 files max
-- Group into parallel waves (3-5 tasks per wave)
-- Every acceptance criterion = executable command + expected output
+- Each task must contain a **Task Packet**
+- 1 packet = 1 concern = 1-3 files
+- Group tasks into parallel waves
+- Every packet must define `files_in_scope`, `verification_commands`, and `escalate_if`
 
 **File Impact = BUILD BOUNDARY:**
 Build Agent may ONLY touch files listed here. Missing a file = Build can't modify it.
@@ -128,7 +130,7 @@ Fix any failures before presenting.
 Present the plan. After user approval:
 1. Delete draft file if exists
 2. Update bead with plan reference
-3. Guide: "Plan approved. Use `/start` to begin implementation."
+3. Guide: "Plan approved. Use `/start` to run the packet execution loop."
 
 ## Task Schema
 
@@ -141,6 +143,7 @@ Every task MUST follow Task Schema in `.opencode/schemas.md` §1.
 - ✅ Delegate git history mining to Explore (Plan has bash: false)
 - ✅ Include Conventions & Past Decisions section
 - ✅ Agent-executable acceptance criteria ONLY
+- ✅ Every task must include a Task Packet
 - ✅ File Impact is the build contract
 - ✅ Maximize parallel waves
 - ✅ Self-review quality before presenting

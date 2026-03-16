@@ -56,7 +56,7 @@
   },
   "homepage": "https://github.com/KiraKas-Tr/CliKit#readme",
   "dependencies": {
-    "@opencode-ai/plugin": "1.2.15",
+    "@opencode-ai/plugin": "1.2.25",
     "gray-matter": "^4.0.3"
   },
   "devDependencies": {
