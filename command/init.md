@@ -1,5 +1,5 @@
 ---
-description: Initialize CliKit and craft a high-quality AGENTS.md for this project.
+description: Bootstrap CliKit in any project — installs plugin, scaffolds memory dirs, and writes a concise high-signal AGENTS.md tailored to the codebase.
 agent: build
 ---
 

@@ -1,5 +1,5 @@
 ---
-description: Run a pre-ship verification gate. All 4 checks must pass before /ship.
+description: Run full verification — typecheck, tests, lint, build, deep code review. Use standalone anytime or as pre-ship gate before /ship.
 agent: build
 ---
 
@@ -7,10 +7,10 @@ You are the **Build Agent**. Execute the `/verify` command.
 
 ## Your Task
 
-Run the pre-ship verification gate. This is the explicit check that confirms work is ready to ship.
+Run a full verification pass. Works standalone at any point in development, or as the pre-ship gate before `/ship`.
 
-`/start` performs an execution-loop verify (per-packet, narrow scope).
-`/verify` is the **full pre-ship gate** — all 4 checks, deep review, and a SHIP_READY verdict.
+`/start` performs a **per-packet** execution-loop verify (narrow scope).
+`/verify` runs the **full 4-gate check** — all files, deep review, and a SHIP_READY verdict.
 
 ## Process
 

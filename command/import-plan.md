@@ -1,5 +1,5 @@
 ---
-description: Import external planning data (Jira, Notion, Linear, etc.)
+description: Import tasks from Jira, Notion, Linear, or raw markdown/JSON and convert them into tracked Beads issues with a ready-to-execute plan.
 agent: plan
 ---
 

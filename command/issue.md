@@ -1,5 +1,5 @@
 ---
-description: Quick issue creation in beads village.
+description: Instantly capture any task, bug, or idea as a tracked Beads issue with priority and tags — no full spec needed.
 agent: build
 ---
 

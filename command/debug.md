@@ -1,5 +1,5 @@
 ---
-description: Debug issues, find root cause, implement fix.
+description: Reproduce a bug, trace root cause with 5-Whys, fix it, and add a regression test — all in one command.
 agent: build
 ---
 

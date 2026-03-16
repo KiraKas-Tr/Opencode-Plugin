@@ -1,5 +1,5 @@
 ---
-description: Intelligent git commit with Conventional Commits format.
+description: Analyze staged changes and generate a perfect Conventional Commit message — type, scope, body, and bead link auto-detected.
 agent: build
 ---
 

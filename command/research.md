@@ -1,5 +1,5 @@
 ---
-description: Deep exploration and research before planning.
+description: Deep-dive any library, API, or pattern — web search, official docs, and real GitHub examples synthesized into a saved research report.
 agent: research
 subtask: true
 ---

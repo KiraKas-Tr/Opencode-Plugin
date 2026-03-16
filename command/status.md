@@ -1,5 +1,5 @@
 ---
-description: Current state overview of workspace, beads, and active artifacts.
+description: Instant workspace snapshot — active Beads tasks, ready work, git state, and all memory artifacts in one view.
 agent: build
 ---
 

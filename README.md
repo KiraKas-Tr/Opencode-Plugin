@@ -5,7 +5,7 @@ Curated agents, commands, skills, and memory system for OpenCode.
 ## Features
 
 - **7 Specialized Agents**: build, plan, explore, review, vision, oracle, research
-- **Commands**: primary workflow + utility commands (see Commands section)
+- **15 Slash Commands**: /create, /start, /ship, /verify, /debug, /design, /research, /commit, /pr, and more
 - **48 Workflow Skills**: TDD, debugging, design, UI/UX, integrations, ritual-workflow, and more
 - **7 Internal Utilities**: memory (read/search/get/timeline/update/admin), observation, swarm, beads-memory-sync, quick-research, context-summary, cass-memory (used by hooks, not directly registered as agent tools)
 - **11 Runtime Hooks**: todo enforcer, empty output sanitizer, git guard, security check, subagent blocker, truncator, swarm enforcer, memory digest, todo→beads sync, beads-context, and cass-memory
@@ -93,11 +93,13 @@ After installation, use these commands:
 ```
 
 Workflow notes:
+- All 15 commands work **standalone** — the pipeline is recommended, not required
 - `/create` explores codebase first, then produces both spec and plan
-- `/start` executes the plan produced by `/create`, one Task Packet at a time
-- `/verify` is the **pre-ship gate** — all 4 checks must pass before `/ship` finalizes
-- `/research` conducts external research before planning (deep mode)
-- `/design` implements UI/UX with variant exploration and a11y (uses Vision agent, deep mode)
+- `/start` executes the plan, one Task Packet at a time — creates a minimal inline plan if none exists
+- `/verify` runs all 4 gates (typecheck, tests, lint, build) + deep review — use anytime, not just pre-ship
+- `/ship` finalized work and creates PR — runs self-review standalone, recommended to run `/verify` first
+- `/research` conducts external research — use standalone before any complex implementation
+- `/design` implements UI/UX with variant exploration and a11y — uses Vision agent
 - Beads is the live execution source of truth
 - Plans decompose work into **Task Packets** (1 concern, 1–3 files, one verify bundle)
 
@@ -211,28 +213,30 @@ Default active roles in compressed workflow: `build`, `plan`, `review`, plus coo
 
 ## Commands
 
-Run with `/command-name` in OpenCode:
+Run with `/command-name` in OpenCode. **All 15 commands work standalone** — the pipeline is a recommended flow, not a requirement.
 
-### Primary (Quick mode: `/create → /start → /ship → /verify`)
-- `/create` - Explore codebase, gather requirements, create spec + plan
-- `/start` - Execute plan packets with per-packet verification
-- `/ship` - Finalize work, commit, create PR (requires `/verify` SHIP_READY)
-- `/verify` - Pre-ship gate: all 4 checks + deep review, returns SHIP_READY verdict
+### Workflow pipeline
+| Command | Standalone? | One-liner |
+|---------|-------------|-----------|
+| `/create` | ✅ | Explore codebase → interview requirements → produce spec + plan |
+| `/research` | ✅ | Deep-dive any library, API, or pattern with saved report |
+| `/design` | ✅ | UI/UX design + implementation — variant exploration, a11y, responsive (Vision agent) |
+| `/start` | ✅ | Execute plan packets — creates minimal inline plan if none exists |
+| `/ship` | ✅ | Commit + create PR — self-review built in, `/verify` recommended |
+| `/verify` | ✅ | Full 4-gate check (typecheck, tests, lint, build) + deep code review |
 
-### Deep mode extras (`/create → /research → /design → /start → /ship → /verify`)
-- `/research` - External docs, API comparison, library investigation
-- `/design` - UI/UX design + implementation with variant exploration (Vision agent)
-
-### Utilities
-- `/debug` - Root-cause debug, implement fix, add regression test
-- `/issue` - Quick issue creation in Beads
-- `/status` - Workspace, beads, and artifact overview
-- `/init` - Initialize CliKit in a project
-- `/handoff` - Save session state for a break
-- `/resume` - Resume from handoff
-- `/commit` - Intelligent git commit (Conventional Commits)
-- `/pr` - Generate and create pull request
-- `/import-plan` - Import from Jira/Notion/Linear
+### Utilities (all standalone)
+| Command | One-liner |
+|---------|-----------|
+| `/debug` | Reproduce → 5-Whys root cause → fix → regression test |
+| `/issue` | Instantly capture a task, bug, or idea as a Beads issue |
+| `/status` | Workspace snapshot — Beads tasks, git state, active artifacts |
+| `/init` | Bootstrap CliKit — scaffold dirs + write tailored AGENTS.md |
+| `/handoff` | Auto-capture session state for graceful pause |
+| `/resume` | Pick up cold from latest handoff, no warm-up questions |
+| `/commit` | Auto-detect type/scope → perfect Conventional Commit message |
+| `/pr` | Full PR description from git diff, linked to spec/plan/bead |
+| `/import-plan` | Import Jira/Notion/Linear tasks → Beads issues + plan |
 
 ## Skills
 

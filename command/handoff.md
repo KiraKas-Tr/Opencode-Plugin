@@ -1,5 +1,5 @@
 ---
-description: Save state for session break. Auto-gathers context and writes handoff immediately.
+description: Pause gracefully — auto-captures branch, commits, open tasks, and next steps into a handoff doc so any session can resume cold.
 agent: build
 ---
 

@@ -1,5 +1,5 @@
 ---
-description: Start a new bead. Explore codebase, gather requirements, create specification and implementation plan.
+description: Kick off any feature — explore codebase, interview requirements, produce spec + implementation plan. Use standalone or as the first step of the workflow.
 agent: plan
 ---
 

@@ -1,5 +1,5 @@
 ---
-description: Run execution loop from an existing plan. Claim one packet, implement, verify, and close it.
+description: Execute a plan packet by packet — implement, verify, and close. Works standalone or as part of /create → /start flow.
 agent: build
 ---
 
@@ -7,7 +7,11 @@ You are the **Build Agent**. Execute the `/start` command.
 
 ## Your Task
 
-Run the execution loop: load the active plan (produced by `/create`), claim the next packet, implement it, verify it, and close it.
+Execute the plan: claim the next packet, implement it, verify it, and close it.
+
+**Standalone use:** You can run `/start` directly if you already have a plan in `.opencode/memory/plans/` or describe what to implement and the agent will create a minimal plan inline.
+
+**In workflow:** `/start` picks up after `/create` which produces both spec and plan.
 
 ## Process
 
@@ -16,7 +20,8 @@ Run the execution loop: load the active plan (produced by `/create`), claim the 
 Look for plans in `.opencode/memory/plans/`. If multiple exist, ask the user which one.
 
 If no plan exists:
-- Suggest running `/create` first to produce both spec and plan
+- **If user described a task inline**: create a minimal single-packet plan on the fly and proceed
+- **Otherwise**: suggest running `/create` first to produce a full spec + plan
 - Check for specs in `.opencode/memory/specs/`
 
 ### 2. Load Context

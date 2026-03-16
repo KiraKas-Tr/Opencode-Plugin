@@ -1,5 +1,5 @@
 ---
-description: Create pull request with comprehensive description.
+description: Generate a complete PR description from git diff — summary, file changes, test evidence, linked spec/plan — then create it via gh.
 agent: build
 ---
 

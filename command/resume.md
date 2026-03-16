@@ -1,5 +1,5 @@
 ---
-description: Resume from handoff. Auto-loads state and starts working immediately.
+description: Pick up exactly where you left off — loads the latest handoff, detects drift, and starts executing without any warm-up questions.
 agent: build
 ---
 

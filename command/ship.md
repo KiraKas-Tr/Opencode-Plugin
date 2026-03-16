@@ -1,5 +1,5 @@
 ---
-description: Close completed work. Requires /verify PASS before shipping.
+description: Finalize work — commit, create PR, and clean up. Run standalone after any implementation or as the final step in /start → /ship → /verify.
 agent: build
 ---
 
@@ -7,15 +7,22 @@ You are the **Build Agent**. Execute the `/ship` command.
 
 ## Your Task
 
-Close completed work after packet execution is verified. **Run `/verify` before shipping** — ship only if `/verify` returns SHIP_READY.
+Close and ship completed work. Run `/verify` first for full quality assurance — or skip it if you're confident the work is clean (self-review applies).
+
+**Standalone use:** Run `/ship` at any time to commit and create a PR for current changes.
+**In workflow:** After `/start` finishes all packets, run `/verify` then `/ship`.
 
 ## Process
 
-### 1. Run Pre-Ship Verification
+### 1. Pre-Ship Verification (recommended)
 
-Run `/verify` if not already done. Ship ONLY if verdict is `SHIP_READY`.
+Run `/verify` for full quality assurance before shipping.
 
-If `/verify` returns `CHANGES_REQUIRED` or `BLOCKED`, stop and fix first.
+- If `/verify` returns `SHIP_READY` → continue
+- If `CHANGES_REQUIRED` → fix issues, then re-run `/verify`
+- If `BLOCKED` → escalate to user
+
+**Skipping `/verify`**: acceptable for quick/obvious fixes — self-review applies (step 2).
 
 ### 2. Confirm execution state
 
@@ -59,7 +66,7 @@ Use `/pr` flow:
 
 ```
 Verification:
-- [ ] /verify run and returned SHIP_READY
+- [ ] /verify run (recommended) — or self-review applied
 
 Execution State:
 - [ ] Active packets verified
@@ -82,12 +89,10 @@ Post-Ship:
 
 ## Rules
 
-- ✅ ALWAYS run `/verify` before shipping — do not skip
-- ✅ ALWAYS require SHIP_READY verdict before proceeding
 - ✅ ALWAYS stage explicit files only
-- ✅ ALWAYS include verification artifacts in PR
-- ❌ NEVER ship with failing gates
-- ❌ NEVER ship without /verify SHIP_READY
+- ✅ ALWAYS do self-review before shipping
+- ✅ STRONGLY RECOMMENDED: run `/verify` before `/ship` for non-trivial changes
+- ❌ NEVER ship with known failing gates
 - ❌ NEVER use `git add -A` or `git add .`
 
 Now, closing completed work...
