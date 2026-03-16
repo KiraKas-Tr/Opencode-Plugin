@@ -82,19 +82,22 @@ Every message enters here first. Classify silently before acting.
 
 ### Two layers — understand the difference
 
-| Layer | Role | Tools |
-|-------|------|-------|
-| **Beads (control)** | Inspect state, understand what exists, what's ready, what's blocked. Decision layer — you read and create issues here. | `beads-village_ls`, `beads-village_show`, `beads-village_status`, `beads-village_inbox` |
-| **beads-village (execution loop)** | Enter the work cycle. Claim ownership, lock files, execute, close. | `beads-village_init`, `beads-village_claim`, `beads-village_reserve`, `beads-village_done` |
+| Layer | Role | Interface |
+|-------|------|-----------|
+| **bd (control plane)** | Inspect workspace state, create/update/query issues, manage worktrees. Decision layer — understand what exists and what to do next. | `bd` CLI — shell commands |
+| **beads-village (execution loop)** | Enter the work cycle as an agent. Claim ownership, lock files, execute, close. | `beads-village_*` MCP tools — in-session |
 
-Use **Beads (control)** to decide what to work on.  
-Use **beads-village (execution loop)** to actually do it.
+**bd** is used for inspection and issue management (creating issues, checking ready work, managing worktrees).  
+**beads-village_*** is used for the execution loop (init session, claim, reserve, done).
+
+> **AI agents use `beads-village_*` MCP tools for the execution loop — never shell `bd` commands for claiming/locking/closing.**  
+> `bd` CLI is for control-plane operations: creating issues, checking status, managing worktrees.
 
 ---
 
-### 1.1 Beads — Control layer (inspect before acting)
+### 1.1 bd — Control plane (inspect before acting)
 
-Check workspace state and existing issues first:
+Check workspace state and existing issues first via `beads-village_*` MCP tools (agent's read path into beads):
 
 ```
 beads-village_status(include_agents=true)   # who's active, workspace overview
@@ -104,7 +107,7 @@ beads-village_ls(status="ready")            # what issues are unblocked and clai
 
 If the task matches an existing ready issue → go to §1.2 (execution loop).
 
-If no existing issue covers this task, create one now:
+If no existing issue covers this task, create one:
 
 ```
 beads-village_add(
@@ -116,7 +119,7 @@ beads-village_add(
 )
 ```
 
-**No Beads issue → no execution. No exceptions.**
+**No bd issue → no execution. No exceptions.**
 
 ---
 
@@ -139,20 +142,21 @@ beads-village_show(<issue-id>)       # read full context before starting
 
 > Reference: `skill/using-git-worktrees/SKILL.md`
 
-Verify pre-conditions:
+Use `bd worktree create` — **not** raw `git worktree add`. The `bd` command automatically sets up `.beads/redirect` so the worktree shares the same beads database as the main repo.
+
+Verify pre-conditions first:
 
 ```bash
-git rev-parse --is-inside-work-tree   # must be a git repo
-git status --porcelain                # must be clean (no uncommitted changes)
+git rev-parse --is-inside-work-tree   # must be inside a git repo
+git status --porcelain                # must be clean — no uncommitted changes
 ```
 
-Create worktree on a task-scoped branch:
+Create the worktree:
 
 ```bash
 # Branch naming: <type>/<issue-id>-<short-desc>
-# e.g. fix/bd-42-auth-null-check  |  feature/bd-7-csv-export
-BRANCH="<type>/<issue-id>-<desc>"
-git worktree add -b $BRANCH .worktrees/$BRANCH
+# e.g.  fix/bd-42-auth-null-check   |   feature/bd-7-csv-export
+bd worktree create <issue-id>-<short-desc> --branch <type>/<issue-id>-<short-desc>
 ```
 
 Branch type conventions:
@@ -164,6 +168,13 @@ Branch type conventions:
 | `refactor/` | Code improvements |
 | `chore/` | Maintenance, deps, tooling |
 | `hotfix/` | Urgent production fix |
+
+Verify the worktree was created with beads redirect:
+
+```bash
+bd worktree list              # confirm worktree + branch
+bd worktree info              # from inside the worktree dir
+```
 
 **No worktree → no execution. No exceptions.**
 
@@ -273,7 +284,7 @@ git checkout -- <changed-files>
 ```
 
 Then:
-1. Update the Beads issue with a full blocker description (`beads-village_show` → note the state)
+1. Update the bd issue with a full blocker description (`beads-village_show` → note the state)
 2. Delegate to `@oracle` with: what was tried, what failed, full error output
 3. If Oracle cannot resolve → ask user before proceeding
 
@@ -330,7 +341,7 @@ beads-village_done(
 
 This closes the execution loop and auto-releases all file locks.
 
-### 5.2 Beads — Control layer sync
+### 5.2 bd — Control plane sync
 
 After done, sync state so other agents see the update:
 
@@ -346,9 +357,9 @@ beads-village_msg(                           # optional: broadcast if blocking o
 ### 5.3 Worktree cleanup (after merge or discard)
 
 ```bash
-git worktree remove .worktrees/<branch>
-git worktree prune
-git branch -d <branch>          # only after confirmed merge
+bd worktree remove <name>        # safety checks + removes beads redirect
+git worktree prune               # clean up stale git entries
+git branch -d <branch>           # only after confirmed merge
 ```
 
 ### 5.4 Session handoff (if ending mid-task)
@@ -363,14 +374,14 @@ If a session ends before the task is complete:
 ## Guardrails
 
 **Always:**
-- Phase 1 (Beads issue + worktree) before any code change — no exceptions
+- Phase 1 (bd issue + worktree) before any code change — no exceptions
 - Output Evidence Bundle before closing
 - Work one packet at a time
 - Stay inside reserved file scope
 
 **Never:**
-- Execute without a Beads issue
-- Edit files without a worktree
+- Execute without a bd issue
+- Edit files without a worktree (created via `bd worktree create`)
 - Suppress type errors (`as any`, `@ts-ignore`)
 - Silently expand scope beyond `files_in_scope`
 - Leave the workspace in a broken state
