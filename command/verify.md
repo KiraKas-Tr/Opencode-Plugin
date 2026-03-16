@@ -1,14 +1,16 @@
 ---
-description: Run an optional deep audit for confidence before ship or after packet execution.
+description: Run a pre-ship verification gate. All 4 checks must pass before /ship.
 agent: build
-subtask: true
 ---
 
 You are the **Build Agent**. Execute the `/verify` command.
 
 ## Your Task
 
-Run a deep audit. `/start` already performs normal execute+verify; `/verify` is the extra confidence pass.
+Run the pre-ship verification gate. This is the explicit check that confirms work is ready to ship.
+
+`/start` performs an execution-loop verify (per-packet, narrow scope).
+`/verify` is the **full pre-ship gate** — all 4 checks, deep review, and a SHIP_READY verdict.
 
 ## Process
 

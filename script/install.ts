@@ -73,12 +73,16 @@ async function install() {
       console.log(`  Synced command: ${file}`);
     }
 
-    // Cleanup renamed legacy command file
+    // Cleanup renamed legacy command files
     const legacyStatusPath = path.join(destCommandDir, "status.md");
-    const statusBeadsPath = path.join(destCommandDir, "status-beads.md");
-    if (fs.existsSync(legacyStatusPath) && fs.existsSync(statusBeadsPath)) {
+    const legacyStatusBeadsPath = path.join(destCommandDir, "status-beads.md");
+    if (fs.existsSync(legacyStatusPath)) {
       fs.rmSync(legacyStatusPath);
       console.log("  Removed legacy command: status.md");
+    }
+    if (fs.existsSync(legacyStatusBeadsPath)) {
+      fs.rmSync(legacyStatusBeadsPath);
+      console.log("  Removed legacy command: status-beads.md");
     }
   }
 

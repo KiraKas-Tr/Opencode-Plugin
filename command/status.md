@@ -1,5 +1,5 @@
 ---
-description: Current state overview of workspace and beads.
+description: Current state overview of workspace, beads, and active artifacts.
 agent: build
 ---
 
@@ -95,7 +95,6 @@ Look for:
 | Start new feature | `/create` |
 | Begin implementing | `/start` |
 | Resume paused work | `/resume` |
-| Review changes | `/review` |
 | Ship & merge | `/ship` |
 | Commit changes | `/commit` |
 
@@ -114,7 +113,7 @@ Look for:
 |------|------|
 | Beads | `mcp__beads_village__status()` |
 | Tasks | `mcp__beads_village__ls()` |
-| Ready tasks | `mcp__beads_village__ready()` |
+| Ready tasks | `mcp__beads_village__ls(status="ready")` |
 | Reservations | `mcp__beads_village__reservations()` |
 | Messages | `mcp__beads_village__inbox()` |
 | Git | `git status`, `git log` |

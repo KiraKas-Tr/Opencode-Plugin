@@ -88,9 +88,8 @@ mcp__beads_village__add(
 **Tags:** [tags]
 
 ### Next Steps
-- Claim with `/implement`
-- Add to plan with `/plan`
-- View all with `/status-beads`
+- Start with `/start` (after `/create` generates a plan)
+- View all with `/status`
 ```
 
 ## Advanced Options

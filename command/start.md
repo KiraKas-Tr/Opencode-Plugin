@@ -1,5 +1,5 @@
 ---
-description: Run compressed execution loop from an existing plan. Claim one packet, implement, verify, and close it.
+description: Run execution loop from an existing plan. Claim one packet, implement, verify, and close it.
 agent: build
 ---
 
@@ -7,7 +7,7 @@ You are the **Build Agent**. Execute the `/start` command.
 
 ## Your Task
 
-Run the compressed execution loop: load the active plan, claim the next packet, implement it, verify it, and close it.
+Run the execution loop: load the active plan (produced by `/create`), claim the next packet, implement it, verify it, and close it.
 
 ## Process
 
@@ -16,14 +16,14 @@ Run the compressed execution loop: load the active plan, claim the next packet, 
 Look for plans in `.opencode/memory/plans/`. If multiple exist, ask the user which one.
 
 If no plan exists:
-- Suggest running `/plan` first
+- Suggest running `/create` first to produce both spec and plan
 - Check for specs in `.opencode/memory/specs/`
 
 ### 2. Load Context
 
 - Read `plan.md` — get task list, file impact, dependencies
 - Read `spec.md` — understand requirements and acceptance criteria
-- Read latest `handoff.md` (if exists) — resume from previous session
+- Read latest handoff in `.opencode/memory/handoffs/` (if exists) — resume from previous session
 - Check bead status via `mcp__beads_village__ls()`
 
 ### 3. Determine Next Packet
@@ -41,25 +41,27 @@ If resuming from handoff, pick up `in_progress` tasks first.
 - Follow `files_in_scope` strictly
 - Implement only the active packet
 
-### 5. Verify Before Done
+### 5. Verify Before Done (execution-loop verify)
 
-Run in order:
+Run per-packet verification:
 - `lsp_diagnostics`
 - packet verification commands
 - lint/build when relevant
+
+This is a **per-packet** check. For the full pre-ship gate, run `/verify` after all packets are done.
 
 If verification fails twice, stop and escalate.
 
 ### 6. Close Packet
 
-- mark Beads task done
-- report evidence
-- continue only if another ready packet exists and the user asked to keep going
+- Mark Beads task done
+- Report evidence
+- Continue only if another ready packet exists and the user asked to keep going
 
 ## Quick Start Checklist
 
 ```
-1. ✅ Plan exists and is approved
+1. ✅ Plan exists and is approved (created by /create)
 2. ✅ Context loaded (spec, plan, handoff)
 3. ✅ Next task identified
 4. ✅ Packet selected
@@ -76,5 +78,6 @@ If verification fails twice, stop and escalate.
 - ✅ ALWAYS respect file impact boundaries
 - ❌ NEVER skip verification gates
 - ❌ NEVER implement without an approved plan
+- ❌ If no plan exists, suggest `/create` — NOT `/plan`
 
 Now, run the next packet.

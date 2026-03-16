@@ -5,7 +5,7 @@ Curated agents, commands, skills, and memory system for OpenCode.
 ## Features
 
 - **7 Specialized Agents**: build, plan, explore, review, vision, oracle, research
-- **19 Slash Commands**: /create, /start, /plan, /ship, /verify, /review, /debug, /pr, and more
+- **Commands**: primary workflow + utility commands (see Commands section)
 - **48 Workflow Skills**: TDD, debugging, design, UI/UX, integrations, ritual-workflow, and more
 - **7 Internal Utilities**: memory (read/search/get/timeline/update/admin), observation, swarm, beads-memory-sync, quick-research, context-summary, cass-memory (used by hooks, not directly registered as agent tools)
 - **11 Runtime Hooks**: todo enforcer, empty output sanitizer, git guard, security check, subagent blocker, truncator, swarm enforcer, memory digest, todo→beads sync, beads-context, and cass-memory
@@ -82,15 +82,24 @@ Recommended environment variables:
 
 After installation, use these commands:
 
+**Quick mode** (simple features):
 ```
-/create → /plan → /start → /ship
+/create → /start → /ship → /verify
 ```
 
-Compressed workflow notes:
-- `/start` now acts as the default execute + verify loop
-- `/verify` remains available for deep audit / extra confidence
+**Deep mode** (complex features, research, UI):
+```
+/create → /research → /design → /start → /ship → /verify
+```
+
+Workflow notes:
+- `/create` explores codebase first, then produces both spec and plan
+- `/start` executes the plan produced by `/create`, one Task Packet at a time
+- `/verify` is the **pre-ship gate** — all 4 checks must pass before `/ship` finalizes
+- `/research` conducts external research before planning (deep mode)
+- `/design` implements UI/UX with variant exploration and a11y (uses Vision agent, deep mode)
 - Beads is the live execution source of truth
-- Plans should decompose work into **Task Packets** (1 concern, 1–3 files, one verify bundle)
+- Plans decompose work into **Task Packets** (1 concern, 1–3 files, one verify bundle)
 
 ## Configuration
 
@@ -204,24 +213,25 @@ Default active roles in compressed workflow: `build`, `plan`, `review`, plus coo
 
 Run with `/command-name` in OpenCode:
 
-- `/create` - Start new bead, create specification
-- `/start` - Run the packet execution + verification loop from a plan
-- `/plan` - Create implementation plan
-- `/debug` - Debug issues, find root cause, implement fix
-- `/verify` - Run optional deep audit / confidence pass
-- `/ship` - Close verified work, create PR, and clean up
-- `/review` - Request code review
-- `/review-codebase` - Full codebase audit
-- `/vision` - Review UI for design, a11y, responsiveness
-- `/pr` - Create pull request
+### Primary (Quick mode: `/create → /start → /ship → /verify`)
+- `/create` - Explore codebase, gather requirements, create spec + plan
+- `/start` - Execute plan packets with per-packet verification
+- `/ship` - Finalize work, commit, create PR (requires `/verify` SHIP_READY)
+- `/verify` - Pre-ship gate: all 4 checks + deep review, returns SHIP_READY verdict
+
+### Deep mode extras (`/create → /research → /design → /start → /ship → /verify`)
+- `/research` - External docs, API comparison, library investigation
+- `/design` - UI/UX design + implementation with variant exploration (Vision agent)
+
+### Utilities
+- `/debug` - Root-cause debug, implement fix, add regression test
+- `/issue` - Quick issue creation in Beads
+- `/status` - Workspace, beads, and artifact overview
 - `/init` - Initialize CliKit in a project
-- `/research` - External research
-- `/design` - UI/UX design implementation
-- `/handoff` - Save state for session break
-- `/resume` - Continue from handoff
-- `/status-beads` - Workspace and bead overview
-- `/commit` - Intelligent git commit
-- `/issue` - Quick issue creation
+- `/handoff` - Save session state for a break
+- `/resume` - Resume from handoff
+- `/commit` - Intelligent git commit (Conventional Commits)
+- `/pr` - Generate and create pull request
 - `/import-plan` - Import from Jira/Notion/Linear
 
 ## Skills

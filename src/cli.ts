@@ -225,7 +225,9 @@ function removeLegacyGlobalPluginAssets(configDir: string): void {
   const legacyPluginPath = path.join(configDir, "plugins", "clikit.js");
   const legacyAgentsDir = path.join(configDir, "plugins", "agents");
   const legacyCommandDir = path.join(configDir, "command");
+  // Legacy: status.md was the old name before status-beads, now status-beads.md is also legacy
   const legacyStatusPath = path.join(legacyCommandDir, "status.md");
+  const legacyStatusBeadsPath = path.join(legacyCommandDir, "status-beads.md");
 
   if (fs.existsSync(legacyPluginPath)) {
     fs.rmSync(legacyPluginPath, { force: true });
@@ -240,6 +242,11 @@ function removeLegacyGlobalPluginAssets(configDir: string): void {
   if (fs.existsSync(legacyStatusPath)) {
     fs.rmSync(legacyStatusPath, { force: true });
     console.log(`✓ Removed legacy command file: ${legacyStatusPath}`);
+  }
+
+  if (fs.existsSync(legacyStatusBeadsPath)) {
+    fs.rmSync(legacyStatusBeadsPath, { force: true });
+    console.log(`✓ Removed legacy command file: ${legacyStatusBeadsPath}`);
   }
 }
 

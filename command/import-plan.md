@@ -131,7 +131,7 @@ mcp__beads_village__add(
 
 1. Review and fill gaps
 2. Get user approval on plan
-3. `/implement` to start execution
+3. `/start` to begin execution
 ```
 
 ## Field Mapping Reference

@@ -209,7 +209,7 @@ describe("workflow runtime overrides", () => {
       const output = { system: [] as string[] };
       await hooks["experimental.chat.system.transform"]?.({} as never, output as never);
       expect(output.system.join("\n")).toContain("Mode: classic");
-      expect(output.system.join("\n")).toContain("`/verify` remains a mandatory standalone gate");
+      expect(output.system.join("\n")).toContain("`/verify` is the mandatory pre-ship gate");
     } finally {
       fs.rmSync(tmpDir, { recursive: true, force: true });
     }
@@ -251,8 +251,8 @@ describe("workflow runtime overrides", () => {
       const hooks = await loadPlugin(ctx);
       const runtimeConfig = { command: {}, agent: {} } as Record<string, unknown>;
       await hooks.config?.(runtimeConfig as never);
-      const planTemplate = ((runtimeConfig.command as Record<string, { template?: string }>).plan?.template) || "";
-      expect(planTemplate).toContain("Packetized execution is disabled");
+      const startTemplate = ((runtimeConfig.command as Record<string, { template?: string }>).start?.template) || "";
+      expect(startTemplate).toContain("Packetized execution is disabled");
     } finally {
       fs.rmSync(tmpDir, { recursive: true, force: true });
     }

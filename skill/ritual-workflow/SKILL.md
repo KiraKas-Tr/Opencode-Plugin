@@ -74,13 +74,23 @@ State is tracked in `.opencode/memory/ritual-state.json`:
 
 ## Commands
 
+**Quick mode:**
 | Command | Phase | Action |
 |---------|-------|--------|
-| `/create` | DISCOVER | Initialize ritual, gather requirements |
-| `/plan` | PLAN | Create implementation plan |
-| `/start` | IMPLEMENT | Begin implementation |
-| `/verify` | VERIFY | Run checks |
-| `/ship` | COMPLETE | Finalize and deploy |
+| `/create` | DISCOVER + PLAN | Explore, gather requirements, create spec + plan |
+| `/start` | IMPLEMENT | Execute plan packets one at a time |
+| `/verify` | VERIFY | Pre-ship gate — all 4 checks, SHIP_READY verdict |
+| `/ship` | COMPLETE | Finalize, commit, create PR |
+
+**Deep mode (complex / UI / research):**
+| Command | Phase | Action |
+|---------|-------|--------|
+| `/create` | DISCOVER + PLAN | As above |
+| `/research` | PLAN (research) | External docs, API comparison |
+| `/design` | PLAN (UI) | Variant exploration, design implementation |
+| `/start` | IMPLEMENT | As above |
+| `/verify` | VERIFY | As above |
+| `/ship` | COMPLETE | As above |
 
 ## Enforcement
 
@@ -95,7 +105,8 @@ Run `checkRitualProgress()` to see current phase and blockers.
 
 ## Red Flags
 
-- Skipping to IMPLEMENT without PLAN
-- Marking COMPLETE with failing tests
-- Moving forward without user approval
+- Skipping IMPLEMENT without a plan (run `/create` first)
+- Marking COMPLETE with failing `/verify` gates
+- Moving forward without user approval on spec+plan
 - Ignoring phase gates
+- Running `/ship` before `/verify` returns SHIP_READY

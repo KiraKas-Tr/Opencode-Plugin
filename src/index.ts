@@ -270,7 +270,7 @@ const CliKitPlugin: Plugin = async (ctx) => {
           "- Mode: classic",
           `- Use packets: ${workflow.usePackets ? "yes" : "no"}`,
           `- Subagent budget per unit of work: ${workflow.subagentCallBudget}`,
-          "- Do not assume `/start` embeds verification; `/verify` is the standalone gate before ship.",
+           "- Do not assume `/start` embeds verification; `/verify` is the pre-ship gate — required before `/ship`.",
         ].join("\n")
       : [
           "## Runtime Workflow Override",
@@ -282,7 +282,7 @@ const CliKitPlugin: Plugin = async (ctx) => {
             : "- `/start` performs execute only.",
           workflow.verifyIsAudit
             ? "- `/verify` is optional deep audit."
-            : "- `/verify` is mandatory pre-ship gate.",
+            : "- `/verify` is the pre-ship gate — required before `/ship`.",
         ].join("\n");
 
     for (const agentName of ["build", "plan", "review"]) {
@@ -347,7 +347,8 @@ const CliKitPlugin: Plugin = async (ctx) => {
     }
 
     if (!workflow.usePackets) {
-      for (const commandName of ["plan", "start"]) {
+      // /plan is absorbed into /create; only /start needs the packet-disabled note
+      for (const commandName of ["start"]) {
         const command = result[commandName];
         if (!command?.template) continue;
         result[commandName] = {
@@ -388,7 +389,7 @@ const CliKitPlugin: Plugin = async (ctx) => {
         : "`/start` performs execute only",
       workflow.verifyIsAudit
         ? "`/verify` is an optional deep audit / pre-ship confidence pass"
-        : "`/verify` remains a mandatory standalone gate",
+        : "`/verify` is the mandatory pre-ship gate — ship only after SHIP_READY verdict",
     ].join("\n");
   }
 

@@ -8,11 +8,20 @@ The plugin (`src/index.ts`) loads agents from `src/agents/*.md`, commands from `
 
 ## Workflow
 
+**Quick mode** (simple features):
 ```
-Intake → /plan → /start (execute + verify loop) → /ship
+/create → /start → /ship → /verify
 ```
 
-`/verify` remains available as an optional deep audit / confidence pass.
+**Deep mode** (complex features, research, UI):
+```
+/create → /research → /design → /start → /ship → /verify
+```
+
+- `/create` produces both spec and plan — `/start` works directly from this output
+- `/verify` is the pre-ship gate — run before `/ship` finalizes
+- `/research` = external docs, API comparison, library research
+- `/design` = UI/UX design and implementation (uses Vision agent)
 
 ## Where to Find Things
 

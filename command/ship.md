@@ -1,5 +1,5 @@
 ---
-description: Close completed work, create PR if requested, and clean up after execute/verify is green.
+description: Close completed work. Requires /verify PASS before shipping.
 agent: build
 ---
 
@@ -7,14 +7,19 @@ You are the **Build Agent**. Execute the `/ship` command.
 
 ## Your Task
 
-Close completed work after packet execution is verified. Use `/verify` only if a deeper audit is needed.
+Close completed work after packet execution is verified. **Run `/verify` before shipping** — ship only if `/verify` returns SHIP_READY.
 
 ## Process
 
-### 1. Confirm execution state
+### 1. Run Pre-Ship Verification
+
+Run `/verify` if not already done. Ship ONLY if verdict is `SHIP_READY`.
+
+If `/verify` returns `CHANGES_REQUIRED` or `BLOCKED`, stop and fix first.
+
+### 2. Confirm execution state
 
 - Ensure active packets are verified and closed in Beads
-- If a deeper confidence pass is needed, run `/verify`
 
 ### 2. Final Self-Review
 
@@ -24,14 +29,7 @@ Before creating PR:
 - Confirm no debug artifacts (`console.log`, `TODO`, temporary hacks)
 - Confirm changes stay within planned file impact
 
-### 3. Optional Formal Review
-
-If requested, run `/review` and apply verdict:
-- `approved` → continue
-- `changes_required` → stop and fix first
-- `blocked` → escalate to user
-
-### 4. Git Preparation
+### 3. Git Preparation
 
 ```bash
 # Ensure clean understanding of local state
@@ -44,14 +42,14 @@ git add <explicit-file-list>
 git commit -m "type(scope): description"
 ```
 
-### 5. Create PR
+### 4. Create PR
 
 Use `/pr` flow:
 - Generate complete PR description
 - Link spec, plan, verify, and review artifacts
 - Create PR via `gh pr create`
 
-### 6. Post-Ship Cleanup
+### 5. Post-Ship Cleanup
 
 - Update bead/task status
 - Create handoff note if needed
@@ -60,10 +58,12 @@ Use `/pr` flow:
 ## Ship Checklist
 
 ```
+Verification:
+- [ ] /verify run and returned SHIP_READY
+
 Execution State:
 - [ ] Active packets verified
 - [ ] Beads task state updated
-- [ ] /verify run if deeper audit was needed
 
 Pre-PR:
 - [ ] Self-review completed
@@ -82,10 +82,12 @@ Post-Ship:
 
 ## Rules
 
-- ✅ ALWAYS require verified execution state before shipping
+- ✅ ALWAYS run `/verify` before shipping — do not skip
+- ✅ ALWAYS require SHIP_READY verdict before proceeding
 - ✅ ALWAYS stage explicit files only
 - ✅ ALWAYS include verification artifacts in PR
 - ❌ NEVER ship with failing gates
+- ❌ NEVER ship without /verify SHIP_READY
 - ❌ NEVER use `git add -A` or `git add .`
 
 Now, closing completed work...
