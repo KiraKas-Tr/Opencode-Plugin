@@ -123,19 +123,14 @@ beads-village_add(
 
 ---
 
-### 1.2 beads-village — Execution loop (claim and enter)
+### 1.2 beads-village — Execution loop (read → claim → enter)
 
-Join the workspace and claim the issue:
+Join the workspace, read context first, then claim:
 
 ```
 beads-village_init(team="project")   # always first — every session
-beads-village_claim()                # claim next ready task for your role
-```
-
-Verify what you claimed:
-
-```
-beads-village_show(<issue-id>)       # read full context before starting
+beads-village_show(<issue-id>)       # read full context BEFORE claiming
+beads-village_claim()                # claim only after understanding the task
 ```
 
 ### 1.3 Worktree — create isolated branch
