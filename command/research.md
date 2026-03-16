@@ -93,11 +93,9 @@ bead_id: [optional]
 ```
 
 ## Tools to Use
-- `web_search` — General web search
-- `read_web_page` — Read specific URLs
-- `mcp__context7__*` — Library documentation
-- `mcp__exa__*` — Code examples, recent content
-- `mcp__gh_grep__searchGitHub` — Real-world code patterns
-- `web_search` + source links — Cross-check and evidence gathering
+- `websearch` — general web search
+- `webfetch` — fetch and read specific URLs
+- `context7_resolve-library-id` + `context7_query-docs` — official library documentation
+- `grep_searchGitHub` — real-world code patterns from public repos
 
 Identify the research questions from the user's request or the active spec, then begin research immediately.

@@ -49,12 +49,12 @@ Run systematic checks across:
 For each finding, create a bead:
 
 ```
-mcp__beads_village__add(
-  title: "[Category] Brief description",
-  desc: "What: [issue]\nWhere: [location]\nWhy: [impact]\nHow: [suggested fix]",
-  typ: "bug" | "chore" | "task",
-  pri: 0-4,
-  tags: ["security" | "performance" | "quality" | "debt"]
+beads-village_add(
+  title="[Category] Brief description",
+  desc="What: [issue]\nWhere: [location]\nWhy: [impact]\nHow: [suggested fix]",
+  typ="bug" | "chore" | "task",
+  pri=0-4,
+  tags=["security" | "performance" | "quality" | "debt"]
 )
 ```
 
@@ -207,12 +207,11 @@ Save to `.opencode/memory/reviews/YYYY-MM-DD-codebase-audit.md`
 
 ## Tools to Use
 
-- `finder` — Semantic code search
-- `Grep` — Pattern matching (TODOs, console.log, etc.)
+- `grep` — Pattern matching (TODOs, console.log, hardcoded secrets, etc.)
 - `glob` — File discovery
-- `Read` — File inspection
-- `Bash` — Run npm audit, dependency checks
-- `mcp__beads_village__add` — Create issue beads
+- `read` — File inspection
+- `bash` — Run `npm audit`, dependency checks, `git log`
+- `beads-village_add` — Create issue beads for each finding
 
 ## Rules
 
