@@ -1,7 +1,7 @@
 {
   "name": "clikit-plugin",
-  "version": "0.2.45",
-  "description": "OpenCode plugin — 7 agents, 15 commands, 48 skills, 11 hooks",
+  "version": "0.2.46",
+  "description": "OpenCode plugin — 7 agents, 15 commands, 22 skills, 10 hooks",
   "type": "module",
   "main": "./dist/index.js",
   "types": "./dist/index.d.ts",
