@@ -1,68 +1,79 @@
 ---
 name: writing-skills
-description: Use when creating new skills. Follow TDD approach for skill development.
+description: Use when creating a new skill. Produces a well-structured skill package with SKILL.md, optional references/, and optional mcp.json following the Agent Skills standard.
 ---
 
-# Writing Skills Skill
+# Writing Skills
 
-You are running the **writing-skills** skill. Test-driven skill creation.
+## Skill Anatomy
 
-## Skill File Structure
+```
+skill-name/
+├── SKILL.md              ← required: frontmatter + workflow
+├── mcp.json              ← if skill calls MCP tools
+└── references/
+    └── *.md              ← knowledge details, loaded on-demand
+```
+
+## SKILL.md Format
 
 ```markdown
 ---
-name: skill-name
-description: Use when [specific trigger condition]. Brief purpose.
+name: skill-name          # lowercase, hyphens only, matches directory name
+description: …            # max 200 chars — trigger condition + what it does
 ---
 
 # Skill Title
 
-[Content]
+## Workflow / Process
+[core steps — what the agent should do]
+
+## Rules / Checklist
+[hard rules, decision tables]
+
+## Red Flags
+[what to watch for]
+
+## References       ← only if references/ exist
+- [name](references/file.md) — one-line description
+- MCP: server-name — see [mcp.json](mcp.json)
 ```
 
-## TDD for Skills: RED-GREEN-REFACTOR
+## Decision: What Belongs Where
 
-### RED: Baseline Test
+| Content | Where |
+|---------|-------|
+| Trigger condition, workflow, rules | `SKILL.md` body |
+| Tool signatures, long examples, lookup tables | `references/*.md` |
+| MCP server connection + tool list | `mcp.json` |
+| Nothing extra needed | `SKILL.md` only |
 
-Before writing the skill:
-1. Identify the problem the skill solves
-2. Document expected behavior
-3. Note edge cases and failure modes
-4. This is your "test" — does the skill handle these?
+## When to Add references/
 
-### GREEN: Write the Skill
+Split into a reference file when:
+- Section exceeds ~20 lines and is reference-only (not workflow)
+- Content is only needed for specific sub-tasks, not always
+- Examples/tables that would bloat the main SKILL.md
 
-Write the minimum skill content that:
-- Solves the identified problem
-- Handles documented edge cases
-- Provides clear guidance
+Each reference file must be linked from SKILL.md so the agent knows it exists.
 
-### REFACTOR: Close Loopholes
+## When to Add mcp.json
 
-Review and improve:
-- Are there ambiguous instructions?
-- Could the skill be misinterpreted?
-- Does it handle the failure modes?
-- Is it concise and actionable?
-
-## Description Rules
-
-- Start with "Use when..." for trigger clarity
-- One clear purpose per skill
-- Avoid vague descriptions like "Helps with code"
+Add `mcp.json` when the skill calls MCP tools directly.  
+List only the tools the skill actually uses — not all tools the server exposes.
 
 ## Quality Checklist
 
-- [ ] Name is clear and action-oriented
-- [ ] Description starts with "Use when..."
-- [ ] Covers when to invoke the skill
-- [ ] Provides actionable steps
-- [ ] Handles edge cases
-- [ ] Lists red flags or anti-patterns
+- [ ] `name` matches directory name, lowercase-hyphen only
+- [ ] `description` states *when to invoke* + *what it does* (≤ 200 chars)
+- [ ] SKILL.md body has a clear workflow or process section
+- [ ] No "You are running the X skill." boilerplate
+- [ ] Long reference content split into `references/*.md`
+- [ ] Each reference file linked from SKILL.md
+- [ ] `mcp.json` present if and only if skill calls MCP tools
+- [ ] `mcp.json` lists only tools this skill actually uses
+- [ ] Red Flags section present
 
-## Red Flags
+## References
 
-- Skills that are too broad (multiple purposes)
-- Missing trigger conditions
-- No actionable guidance
-- Emotional language instead of technical
+- [Skill anatomy reference](references/skill-anatomy.md) — full format spec for all three files

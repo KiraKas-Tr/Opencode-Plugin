@@ -1,47 +1,43 @@
 ---
 name: requesting-code-review
-description: Use after completing a task. Dispatch @review subagent for quality gate.
+description: Use after completing a task. Dispatch @review subagent for quality gate before merging.
 ---
 
-# Requesting Code Review Skill
+# Requesting Code Review
 
-You are running the **requesting-code-review** skill. Never skip review.
+## Trigger
 
-## When to Request
+Request review after: major features, significant refactors, before merge, when unsure of approach.
 
-- After major features
-- Before merging
-- After significant refactors
-- When unsure about approach
-
-## Information to Provide
+## What to Provide to @review
 
 | Item | Example |
 |------|---------|
-| Git SHAs | "Changed: a1b2c3d..e4f5g6h" |
-| What was implemented | "Added user authentication with JWT" |
-| Plan/requirements | "Per spec in .opencode/memory/specs/auth.md" |
-| Known issues | "Edge case X not handled yet" |
+| Diff range | `a1b2c3d..e4f5g6h` |
+| What changed | "Added JWT auth with refresh tokens" |
+| Spec/plan ref | `.opencode/memory/specs/auth.md` |
+| Known gaps | "Edge case X not handled yet" |
 
-## Review Workflow
+## Dispatch
 
-1. Dispatch @review subagent
-2. Wait for review results
-3. Fix Critical issues immediately
-4. Address High issues before merge
-5. Medium/Low can be follow-up tickets
+```
+@review: review changes from <sha>..<sha>
+Context: <what was built>
+Spec: <path>
+Known issues: <list or none>
+```
 
-## Issue Severity Response
+## Severity Response
 
 | Severity | Action |
 |----------|--------|
-| Critical | Fix NOW, re-review |
+| Critical | Fix now, re-review |
 | High | Fix before merge |
-| Medium | Create ticket, fix soon |
-| Low | Document, fix later |
+| Medium | Create beads ticket |
+| Low | Document, defer |
 
 ## Red Flags
 
 - Skipping review "because it's small"
-- Merging without addressing Critical issues
-- Not providing context for reviewer
+- Merging with unresolved Critical issues
+- No context given to reviewer

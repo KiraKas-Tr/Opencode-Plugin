@@ -38,10 +38,6 @@ import {
   shouldTruncate,
   truncateOutput,
   formatTruncationLog,
-  // Swarm Enforcer
-  checkEditPermission,
-  extractFileFromToolInput,
-  formatEnforcementWarning,
   // Memory Digest
   generateMemoryDigest,
   formatDigestLog,
@@ -59,10 +55,7 @@ import {
   type OpenCodeTodo,
 } from "./hooks";
 import { cassMemoryContext, cassMemoryReflect } from "./tools/cass-memory";
-import { swarm } from "./tools/swarm";
-import { quickResearch } from "./tools/quick-research";
 import { contextSummary } from "./tools/context-summary";
-import { beadsMemorySync } from "./tools/beads-memory-sync";
 
 const CliKitPlugin: Plugin = async (ctx) => {
   const todosBySession = new Map<string, OpenCodeTodo[]>();
@@ -433,46 +426,6 @@ const CliKitPlugin: Plugin = async (ctx) => {
 
   return {
     tool: {
-      // swarm — multi-agent task planning and coordination
-      swarm: tool({
-        description: "Plan, monitor, delegate, and abort tasks in a multi-agent swarm. Use operation=plan to decompose work into parallel tasks, operation=monitor to check progress, operation=delegate to assign a task to an agent role, operation=abort to cancel a task.",
-        args: {
-          operation: tool.schema.enum(["plan", "monitor", "delegate", "abort"]).describe("The swarm operation to perform"),
-          tasks: tool.schema.array(tool.schema.object({
-            id: tool.schema.string(),
-            title: tool.schema.string(),
-            description: tool.schema.string(),
-            dependencies: tool.schema.array(tool.schema.string()).optional(),
-            agentRole: tool.schema.enum(["fe", "be", "mobile", "devops", "qa"]).optional(),
-            files: tool.schema.array(tool.schema.string()).optional(),
-            status: tool.schema.enum(["pending", "in_progress", "completed", "failed", "blocked"]),
-          })).optional().describe("Tasks for operation=plan"),
-          parallelism: tool.schema.number().optional().describe("Max parallel tasks (default 3)"),
-          taskId: tool.schema.string().optional().describe("Task ID for operation=monitor|delegate|abort"),
-          agentRole: tool.schema.enum(["fe", "be", "mobile", "devops", "qa"]).optional().describe("Role to delegate to for operation=delegate"),
-          reason: tool.schema.string().optional().describe("Abort reason for operation=abort"),
-        },
-        async execute(args) {
-          const result = swarm(args);
-          return JSON.stringify(result, null, 2);
-        },
-      }),
-
-      // quick_research — search memory + hints for context7/github
-      quick_research: tool({
-        description: "Search local memory observations and get hints for context7 and GitHub code search. Use this before starting research to check what's already known.",
-        args: {
-          query: tool.schema.string().describe("Search query"),
-          sources: tool.schema.array(tool.schema.enum(["memory", "context7", "github"])).optional().describe("Sources to search (default: all)"),
-          language: tool.schema.string().optional().describe("Language filter for GitHub search"),
-          limit: tool.schema.number().optional().describe("Max memory results (default 5)"),
-        },
-        async execute(args) {
-          const result = quickResearch(args);
-          return JSON.stringify(result, null, 2);
-        },
-      }),
-
       // context_summary — summarize memory observations into structured context
       context_summary: tool({
         description: "Summarize memory observations (decisions, learnings, blockers, progress) into a structured context digest. Useful for compaction or session handoff.",
@@ -483,20 +436,6 @@ const CliKitPlugin: Plugin = async (ctx) => {
         },
         async execute(args) {
           const result = contextSummary(args);
-          return JSON.stringify(result, null, 2);
-        },
-      }),
-
-      // beads_memory_sync — sync between Beads tasks and memory observations
-      beads_memory_sync: tool({
-        description: "Sync between Beads task database and memory observations. Use sync_to_memory to import completed tasks as progress observations, sync_from_memory to link observations back to tasks, link to associate an observation with a task, or status to check sync state.",
-        args: {
-          operation: tool.schema.enum(["sync_to_memory", "sync_from_memory", "link", "status"]).describe("Sync operation to perform"),
-          beadId: tool.schema.string().optional().describe("Bead/task ID for operation=link"),
-          observationId: tool.schema.number().optional().describe("Observation ID for operation=link"),
-        },
-        async execute(args) {
-          const result = beadsMemorySync(args);
           return JSON.stringify(result, null, 2);
         },
       }),
@@ -857,39 +796,6 @@ const CliKitPlugin: Plugin = async (ctx) => {
               throw error;
             }
             await hookErr("security-check", error, { tool: toolName, command });
-          }
-        }
-      }
-
-      // Swarm Enforcer: block edits outside task scope
-      if (pluginConfig.hooks?.swarm_enforcer?.enabled !== false) {
-        const editTools = ["edit", "write", "bash"];
-        if (editTools.some((name) => isToolNamed(toolName, name))) {
-          const targetFile = extractFileFromToolInput(toolName, toolInput);
-          try {
-            if (targetFile) {
-              const taskScope = (toolInput.taskScope as
-                | { taskId: string; agentId: string; reservedFiles: string[]; allowedPatterns?: string[] }
-                | undefined)
-                || ((input as Record<string, unknown>).__taskScope as
-                  | { taskId: string; agentId: string; reservedFiles: string[]; allowedPatterns?: string[] }
-                  | undefined);
-              const enforcement = checkEditPermission(targetFile, taskScope, pluginConfig.hooks?.swarm_enforcer);
-              if (!enforcement.allowed) {
-                await cliLog("warn", formatEnforcementWarning(enforcement));
-                if (pluginConfig.hooks?.swarm_enforcer?.block_unreserved_edits) {
-                  await showToast(enforcement.reason || "Edit blocked outside task scope", "warning", "CliKit Swarm");
-                  blockToolExecution(enforcement.reason || "Edit outside reserved task scope");
-                }
-              } else if (pluginConfig.hooks?.swarm_enforcer?.log === true) {
-                await cliLog("debug", `[CliKit:swarm-enforcer] Allowed edit: ${targetFile}`);
-              }
-            }
-          } catch (error) {
-            if (isBlockedToolExecutionError(error)) {
-              throw error;
-            }
-            await hookErr("swarm-enforcer", error, { tool: toolName, targetFile });
           }
         }
       }

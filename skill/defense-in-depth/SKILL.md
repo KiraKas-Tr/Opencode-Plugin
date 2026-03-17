@@ -1,89 +1,49 @@
 ---
 name: defense-in-depth
-description: Validate at every layer. Makes bugs structurally impossible through layered guards.
+description: Validate at every layer. Makes bugs structurally impossible through entry point, domain, and environment guards.
 ---
 
-# Defense in Depth Skill
-
-You are running the **defense-in-depth** skill. Trust nothing. Validate everything.
-
-## Core Principle
-
-Bugs slip through single validation. Multiple validation layers catch what one misses.
+# Defense in Depth
 
 ## Validation Layers
 
-### Layer 1: Entry Point Validation
-```javascript
-// API endpoint, CLI input, user form
-function handler(input) {
-  if (!input || typeof input !== 'object') {
-    throw new Error('Invalid input: expected object');
-  }
-  if (!input.id || typeof input.id !== 'string') {
-    throw new Error('Invalid input: id required');
-  }
-  // ... continue
-}
-```
+| Layer | Where | What to validate |
+|-------|-------|-----------------|
+| 1 — Entry point | API handler, CLI input, form | Input shape, required fields, types |
+| 2 — Business logic | Domain functions | Domain rules, invariants, state |
+| 3 — Environment | App startup | Required env vars, config in prod |
+| 4 — Debug | Dev only | State snapshots, stack traces |
 
-### Layer 2: Business Logic Validation
-```javascript
-// Domain rules, invariants
-function processOrder(order) {
-  if (order.items.length === 0) {
-    throw new Error('Order must have items');
-  }
-  if (order.total < 0) {
-    throw new Error('Order total cannot be negative');
-  }
-  // ... continue
-}
-```
+## Minimal Patterns
 
-### Layer 3: Environment Guards
-```javascript
-// Runtime environment checks
-if (process.env.NODE_ENV === 'production' && !process.env.DATABASE_URL) {
+```js
+// Layer 1 — entry
+if (!input?.id || typeof input.id !== 'string') throw new Error('id required');
+
+// Layer 2 — domain
+if (order.items.length === 0) throw new Error('Order must have items');
+
+// Layer 3 — environment
+if (process.env.NODE_ENV === 'production' && !process.env.DATABASE_URL)
   throw new Error('DATABASE_URL required in production');
-}
+
+// Layer 4 — debug (dev only)
+if (process.env.NODE_ENV !== 'production')
+  console.error('[DBG]', JSON.stringify(state));
 ```
-
-### Layer 4: Debug Instrumentation
-```javascript
-// Developer sanity checks (removed in production)
-if (process.env.NODE_ENV !== 'production') {
-  console.error('[DEBUG] State:', JSON.stringify(state));
-  console.error('[DEBUG] Stack:', new Error().stack);
-}
-```
-
-## Validation Checklist
-
-| Layer | Validated | Confidence |
-|-------|-----------|------------|
-| Entry point | Input shape, types | High |
-| Business logic | Domain rules | Higher |
-| Environment | Config, secrets | Highest |
-| Debug | State snapshots | Debug only |
 
 ## When to Add Each Layer
 
-| Scenario | Add Layer |
-|----------|-----------|
-| New API endpoint | Entry point + Business |
-| New function with external callers | Entry point |
-| Production deployment | Environment guards |
-| Debugging session | Debug instrumentation |
-| Test polluter suspected | Debug instrumentation |
+| Situation | Add |
+|-----------|-----|
+| New API endpoint | L1 + L2 |
+| New function with external callers | L1 |
+| Production deploy | L3 |
+| Debugging / test pollution | L4 |
 
 ## Red Flags
 
-- Assuming caller provides valid input
+- Assuming callers always provide valid input
 - Skipping validation "for performance"
-- Only validating at one layer
-- Removing validation to "fix" tests
-
-## Rule
-
-**Validate at every layer. Make bugs structurally impossible.**
+- Only one layer total
+- Removing validation to make tests pass

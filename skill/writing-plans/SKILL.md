@@ -1,55 +1,43 @@
 ---
 name: writing-plans
-description: Use when requirements are clear and you need to create an implementation plan with bite-sized tasks.
+description: Use when requirements are clear and you need to create an implementation plan with bite-sized tasks a junior engineer can execute with zero context.
 ---
 
-# Writing Plans Skill
-
-You are running the **writing-plans** skill. Create implementation plans that a junior engineer could follow with zero context.
+# Writing Plans
 
 ## Task Requirements
 
-Each task must be:
-- **2-5 minutes** to complete
-- Has **exact file paths**
-- Has **complete code** (no "...", no "implement this")
-- Has **verification steps**
+Every task must have:
+- **Exact file path** — no vague references
+- **Complete code** — no `...` or "implement this"
+- **Verification command + expected output**
+- Completable in **2–5 minutes**
 
 ## Task Format
 
 ```markdown
-### Task: [Action verb] [what]
+### Task: [Verb] [what]
 
-**File**: `path/to/file.ts`
-
-**Action**: [create|edit|delete]
+**File**: `src/foo/bar.ts`
+**Action**: create | edit | delete
 
 **Code**:
-[Complete, copy-pasteable code]
+[complete, copy-pasteable code]
 
 **Verification**:
-- [ ] Command: `npm test`
-- [ ] Expected: All tests pass
+- [ ] `npm test src/foo/bar.test.ts` → passes
 ```
-
-## Principles
-
-| Principle | Meaning |
-|-----------|---------|
-| YAGNI | Don't add "nice to have" features |
-| DRY | Extract shared logic immediately |
-| TDD | Write test before implementation |
 
 ## Plan Structure
 
-1. **Prerequisites** — Setup, dependencies, baseline tests
-2. **Core** — Main functionality, smallest working version
-3. **Edge Cases** — Error handling, validation
-4. **Polish** — Performance, documentation
+1. **Prerequisites** — deps, baseline tests
+2. **Core** — smallest working version
+3. **Edge Cases** — error handling, validation
+4. **Polish** — performance, docs
 
 ## Red Flags
 
-- Tasks longer than 5 minutes → Break down further
-- Vague file paths → Be specific
-- Missing verification → Add test commands
-- "Implement similar to" → Provide full code
+- Task > 5 min → break it down
+- Vague file path → make it exact
+- Missing verification → add test command
+- "Implement similar to X" → write the full code

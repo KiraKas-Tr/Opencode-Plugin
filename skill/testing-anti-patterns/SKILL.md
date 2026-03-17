@@ -1,100 +1,72 @@
 ---
 name: testing-anti-patterns
-description: Prevents testing mock behavior instead of real code, test-only methods in production classes, mocking without understanding dependencies.
+description: Prevents testing mock behavior instead of real code, test-only production methods, and mocking without understanding boundaries.
 ---
 
-# Testing Anti-Patterns Skill
+# Testing Anti-Patterns
 
-You are running the **testing-anti-patterns** skill. Tests should verify real behavior, not mock theater.
+## Anti-Pattern 1 — Testing the Mock
 
-## Anti-Pattern #1: Testing Mocks
-
-```javascript
-// BAD: Test verifies mock was called
-const mock = jest.fn();
-service.doThing(mock);
+```js
+// BAD: proves nothing about service.doThing
 expect(mock).toHaveBeenCalled();
 
-// This tests nothing about service.doThing
-// It only proves you called the mock
-```
-
-```javascript
-// GOOD: Test verifies actual behavior
-const result = service.doThing(realDependency);
+// GOOD: verify actual behavior
 expect(result.status).toBe('success');
 expect(sideEffectHappened).toBe(true);
 ```
 
-## Anti-Pattern #2: Test-Only Methods
+## Anti-Pattern 2 — Test-Only Production Methods
 
-```javascript
-// BAD: Method exists only for testing
+```js
+// BAD
 class UserService {
-  private validateEmail(email) { ... }  // private
-  _validateEmailForTesting(email) { ... }  // NEVER DO THIS
+  _validateEmailForTesting(email) { ... }  // NEVER
 }
 
-// This couples tests to implementation
-// Refactoring becomes impossible
-```
-
-```javascript
-// GOOD: Test through public API
-// If you need to test validation, test it through the method that uses it
+// GOOD: test through the public API
 const result = userService.register(email);
 expect(result.isValid).toBe(true);
 ```
 
-## Anti-Pattern #3: Mocking Without Understanding
+## Anti-Pattern 3 — Over-Mocking
 
-```javascript
-// BAD: Over-mocking without knowing why
+```js
+// BAD: mocking everything means testing nothing
 jest.mock('./database');
 jest.mock('./logger');
 jest.mock('./config');
-jest.mock('./everything');
 
-// Test now verifies nothing about integration
-// Any refactoring breaks tests
+// GOOD: mock only external boundaries
+// Mock: network calls, filesystem, external services, time/date
+// Keep real: domain logic, internal utilities, business rules
 ```
 
-```javascript
-// GOOD: Mock only external boundaries
-// Keep real implementations for:
-// - Domain logic
-// - Internal utilities
-// - Business rules
+## Mock Decision
 
-// Mock only:
-// - Network calls
-// - File system
-// - External services
-// - Time/date
-```
-
-## Decision Matrix
-
-| Mock It? | Yes If... | No If... |
-|----------|-----------|----------|
-| Database | Unit test | Integration test |
-| Logger | Never | Always use real |
-| Config | External file | In-memory defaults |
-| HTTP client | External API | Your own server |
-| Time | Tests time-sensitive logic | Tests pure functions |
+| Dependency | Mock? |
+|------------|-------|
+| Network / external API | Yes |
+| File system | Yes |
+| Time / date | Yes |
+| Logger | No — use real |
+| Domain logic | No |
+| Your own services | No |
 
 ## Rules
 
-1. **Test behavior, not implementation** - What does it do, not how
-2. **No test-only code in production** - If it's not used, delete it
-3. **Mock at boundaries** - External dependencies only
-4. **One assertion per test** - Or at least one concept
-5. **Test names describe behavior** - `shouldRejectInvalidEmail` not `testEmail`
+- Test behavior, not implementation
+- No test-only code in production classes
+- Mock at external boundaries only
+- Test names describe behavior: `rejectsInvalidEmail` not `testEmail`
 
 ## Red Flags
 
-- Test file has more mock setup than assertions
+- More mock setup than assertions in test file
 - Private methods exposed for testing
 - Tests break on harmless refactors
-- `toHaveBeenCalled` without verifying the result
-- Mocking modules you own
+- `toHaveBeenCalled` without asserting the result
+
+## References
+
+- [Decision matrix](references/decision-matrix.md) — full mock decision table, naming conventions, AAA structure, smell → fix guide

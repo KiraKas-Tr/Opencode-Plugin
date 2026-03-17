@@ -1,98 +1,42 @@
 ---
 name: source-code-research
-description: Use when API documentation is insufficient. Research library implementation details by fetching package source.
+description: Use when API docs are insufficient. Go directly to package source to understand edge cases, error behavior, and internal patterns.
 ---
 
-# Source Code Research Skill
-
-You are running the **source-code-research** skill. Go beyond API docs to understand internals.
+# Source Code Research
 
 ## When to Use
 
-- API docs don't explain behavior
-- Need to understand edge cases
+- API docs don't explain the behavior you're seeing
+- Need to understand edge cases or error handling
 - Debugging library interactions
-- Learning implementation patterns
-- Verifying documented behavior
+- Verifying that documented behavior is actually implemented
 
-## Research Protocol
+## Protocol
 
-### 1. Identify Package
 ```bash
-# Find package location
-which <package>
-npm list <package>
+# 1. Locate source
+cat node_modules/<pkg>/package.json | grep -E '"main"|"types"|"source"'
+ls node_modules/<pkg>/src/
 
-# Find source location
-ls -la node_modules/<package>/
+# 2. Read entry point
+cat node_modules/<pkg>/src/index.ts   # or index.js
+
+# 3. Read tests (best doc of real behavior)
+ls node_modules/<pkg>/test/  ||  ls node_modules/<pkg>/__tests__/
 ```
 
-### 2. Locate Source
-```
-Check for:
-- src/ directory
-- lib/ directory
-- dist/ with sourcemaps
-- TypeScript .ts files
-- Index entry point
-```
+## What to Look For
 
-### 3. Read Key Files
-Focus on:
-- Entry point (index.js/ts)
-- Main export file
-- Types/interfaces
-- Core implementation
-- Tests (for behavior)
+| Question | Where |
+|----------|-------|
+| What are the defaults? | Constructor / options merge |
+| What throws vs returns error? | Error handling paths |
+| What's async vs sync? | Promise.all vs sequential awaits |
+| What are the types? | Type definitions, interfaces |
+| What edge cases exist? | Conditional branches, null checks |
 
-### 4. Trace Execution
-- Follow function calls
-- Map data flow
-- Identify decision points
-- Note error handling
-
-## Key Questions to Answer
-
-| Question | Why |
-|----------|-----|
-| How is this implemented? | Understand behavior |
-| What edge cases exist? | Avoid surprises |
-| How are errors handled? | Proper error handling |
-| What are the types? | TypeScript integration |
-| What are the defaults? | Implicit behavior |
-
-## Finding Patterns
-
-### Constructor Pattern
-```javascript
-// Look for initialization logic
-class Example {
-  constructor(options) {
-    this.options = { ...defaults, ...options };
-  }
-}
-```
-
-### Error Handling Pattern
-```javascript
-// Identify what throws vs returns
-if (!valid) {
-  throw new Error('...');
-  // or
-  return { error: '...' };
-}
-```
-
-### Async Pattern
-```javascript
-// Understand async behavior
-async function process() {
-  // Is this parallel or sequential?
-  await Promise.all([...]);
-}
-```
-
-## Output Format
+## Output
 
 Save to `.opencode/memory/research/[package]-internals.md`:
 
@@ -104,35 +48,22 @@ Save to `.opencode/memory/research/[package]-internals.md`:
 - Types: [file]
 
 ## Key Findings
-
-### [Feature Name]
-- **Location**: file:line
-- **Behavior**: [description]
-- **Edge Cases**: [list]
-
-## Implementation Notes
-[Key patterns discovered]
+### [Feature]
+- Location: file:line
+- Behavior: …
+- Edge Cases: …
 
 ## Gotchas
-[Surprising behaviors]
 ```
 
-## Anti-Patterns
+## Red Flags
 
-- Relying only on TypeScript definitions
-- Not reading tests
-- Assuming behavior from name
+- Relying only on TypeScript type definitions (not the same as behavior)
+- Not reading the tests
+- Assuming behavior from the function name
 - Ignoring error paths
 
-## Quick Reference
+## References
 
-```bash
-# Find main entry
-cat node_modules/pkg/package.json | grep main
-
-# Find types
-cat node_modules/pkg/package.json | grep types
-
-# Check for source
-ls node_modules/pkg/src/
-```
+- [Quick reference](references/quick-ref.md) — locate source commands, grep patterns, Context7 MCP alternative
+- MCP: `context7` — see [mcp.json](mcp.json)

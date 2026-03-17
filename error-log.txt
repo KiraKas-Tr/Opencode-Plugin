@@ -194,3 +194,157 @@ SQLiteError: fts5: syntax error near "@"
     at memorySearch (C:\Users\Kira\.cache\opencode\node_modules\clikit-plugin\dist\index.js:17568:37)
     at embeddedContext (C:\Users\Kira\.cache\opencode\node_modules\clikit-plugin\dist\index.js:17691:28)
     at processTicksAndRejections (native:7:39)
+───────────────────────────────────────
+timestamp: 2026-03-16T09:04:41.349Z
+hook:      cass-memory
+error:     no such column: 2026
+context: {
+  "event": "session.created",
+  "phase": "session.created"
+}
+stack:
+SQLiteError: no such column: 2026
+    at all (unknown)
+    at memorySearch (C:\Users\Kira\.cache\opencode\node_modules\clikit-plugin\dist\index.js:17568:37)
+    at embeddedContext (C:\Users\Kira\.cache\opencode\node_modules\clikit-plugin\dist\index.js:17691:28)
+    at processTicksAndRejections (native:7:39)
+───────────────────────────────────────
+timestamp: 2026-03-16T11:26:08.490Z
+hook:      cass-memory
+error:     no such column: 2026
+context: {
+  "event": "session.created",
+  "phase": "session.created"
+}
+stack:
+SQLiteError: no such column: 2026
+    at all (unknown)
+    at memorySearch (C:\Users\Kira\.cache\opencode\node_modules\clikit-plugin\dist\index.js:17568:37)
+    at embeddedContext (C:\Users\Kira\.cache\opencode\node_modules\clikit-plugin\dist\index.js:17691:28)
+    at processTicksAndRejections (native:7:39)
+───────────────────────────────────────
+timestamp: 2026-03-16T11:26:28.929Z
+hook:      cass-memory
+error:     fts5: syntax error near "@"
+context: {
+  "event": "session.created",
+  "phase": "session.created"
+}
+stack:
+SQLiteError: fts5: syntax error near "@"
+    at all (unknown)
+    at memorySearch (C:\Users\Kira\.cache\opencode\node_modules\clikit-plugin\dist\index.js:17568:37)
+    at embeddedContext (C:\Users\Kira\.cache\opencode\node_modules\clikit-plugin\dist\index.js:17691:28)
+    at processTicksAndRejections (native:7:39)
+───────────────────────────────────────
+timestamp: 2026-03-16T12:43:41.047Z
+hook:      cass-memory
+error:     fts5: syntax error near "@"
+context: {
+  "event": "session.created",
+  "phase": "session.created"
+}
+stack:
+SQLiteError: fts5: syntax error near "@"
+    at all (unknown)
+    at memorySearch (C:\Users\Kira\.cache\opencode\node_modules\clikit-plugin\dist\index.js:17568:37)
+    at embeddedContext (C:\Users\Kira\.cache\opencode\node_modules\clikit-plugin\dist\index.js:17691:28)
+    at processTicksAndRejections (native:7:39)
+───────────────────────────────────────
+timestamp: 2026-03-16T13:40:41.116Z
+hook:      cass-memory
+error:     no such column: 2026
+context: {
+  "event": "session.created",
+  "phase": "session.created"
+}
+stack:
+SQLiteError: no such column: 2026
+    at all (unknown)
+    at memorySearch (C:\Users\Kira\.cache\opencode\node_modules\clikit-plugin\dist\index.js:17568:37)
+    at embeddedContext (C:\Users\Kira\.cache\opencode\node_modules\clikit-plugin\dist\index.js:17691:28)
+    at processTicksAndRejections (native:7:39)
+───────────────────────────────────────
+timestamp: 2026-03-16T13:41:27.554Z
+hook:      cass-memory
+error:     fts5: syntax error near "@"
+context: {
+  "event": "session.created",
+  "phase": "session.created"
+}
+stack:
+SQLiteError: fts5: syntax error near "@"
+    at all (unknown)
+    at memorySearch (C:\Users\Kira\.cache\opencode\node_modules\clikit-plugin\dist\index.js:17568:37)
+    at embeddedContext (C:\Users\Kira\.cache\opencode\node_modules\clikit-plugin\dist\index.js:17691:28)
+    at processTicksAndRejections (native:7:39)
+───────────────────────────────────────
+timestamp: 2026-03-16T13:41:27.616Z
+hook:      cass-memory
+error:     fts5: syntax error near "@"
+context: {
+  "event": "session.created",
+  "phase": "session.created"
+}
+stack:
+SQLiteError: fts5: syntax error near "@"
+    at all (unknown)
+    at memorySearch (C:\Users\Kira\.cache\opencode\node_modules\clikit-plugin\dist\index.js:17568:37)
+    at embeddedContext (C:\Users\Kira\.cache\opencode\node_modules\clikit-plugin\dist\index.js:17691:28)
+    at processTicksAndRejections (native:7:39)
+───────────────────────────────────────
+timestamp: 2026-03-16T13:44:07.046Z
+hook:      cass-memory
+error:     fts5: syntax error near "@"
+context: {
+  "event": "session.created",
+  "phase": "session.created"
+}
+stack:
+SQLiteError: fts5: syntax error near "@"
+    at all (unknown)
+    at memorySearch (C:\Users\Kira\.cache\opencode\node_modules\clikit-plugin\dist\index.js:17568:37)
+    at embeddedContext (C:\Users\Kira\.cache\opencode\node_modules\clikit-plugin\dist\index.js:17691:28)
+    at processTicksAndRejections (native:7:39)
+───────────────────────────────────────
+timestamp: 2026-03-16T15:09:59.684Z
+hook:      cass-memory
+error:     no such column: 2026
+context: {
+  "event": "session.created",
+  "phase": "session.created"
+}
+stack:
+SQLiteError: no such column: 2026
+    at all (unknown)
+    at memorySearch (C:\Users\Kira\.cache\opencode\node_modules\clikit-plugin\dist\index.js:17568:37)
+    at embeddedContext (C:\Users\Kira\.cache\opencode\node_modules\clikit-plugin\dist\index.js:17691:28)
+    at processTicksAndRejections (native:7:39)
+───────────────────────────────────────
+timestamp: 2026-03-17T07:28:55.261Z
+hook:      cass-memory
+error:     no such column: 2026
+context: {
+  "event": "session.created",
+  "phase": "session.created"
+}
+stack:
+SQLiteError: no such column: 2026
+    at all (unknown)
+    at memorySearch (C:\Users\Kira\.cache\opencode\node_modules\clikit-plugin\dist\index.js:17568:37)
+    at embeddedContext (C:\Users\Kira\.cache\opencode\node_modules\clikit-plugin\dist\index.js:17691:28)
+    at processTicksAndRejections (native:7:39)
+───────────────────────────────────────
+timestamp: 2026-03-17T07:47:37.400Z
+hook:      cass-memory
+error:     no such column: 2026
+context: {
+  "event": "session.created",
+  "phase": "session.created"
+}
+stack:
+SQLiteError: no such column: 2026
+    at all (unknown)
+    at memorySearch (C:\Users\Kira\.cache\opencode\node_modules\clikit-plugin\dist\index.js:17568:37)
+    at embeddedContext (C:\Users\Kira\.cache\opencode\node_modules\clikit-plugin\dist\index.js:17691:28)
+    at processTicksAndRejections (native:7:39)

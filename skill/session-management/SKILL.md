@@ -3,51 +3,32 @@ name: session-management
 description: Use for managing context growth, task switching, and session continuity in long-running work.
 ---
 
-# Session Management Skill
-
-You are running the **session-management** skill. Context and continuity management.
+# Session Management
 
 ## Context Thresholds
 
 | State | Context % | Action |
 |-------|-----------|--------|
-| Green | < 50% | Normal operation |
-| Yellow | 50-75% | Start summarizing, offload to memory |
-| Orange | 75-90% | Aggressive context pruning, handoff prep |
-| Red | > 90% | Initiate session handoff |
+| Green | < 50% | Normal |
+| Yellow | 50–75% | Offload findings to `memory/` |
+| Orange | 75–90% | Prep handoff doc |
+| Red | > 90% | Run `/handoff`, end session |
 
-## Session Tools
+## Session Start
 
-| Tool | Purpose |
-|------|---------|
-| Memory artifacts | Save state to `.opencode/memory/` |
-| Handoff docs | Session state for next agent |
-| Beads sync | Persist tasks to `.beads/` |
-| Git commits | Checkpoint progress |
+1. `beads-village_init` → join workspace
+2. `beads-village_inbox(unread=true)` → check blockers
+3. Read `memory/_digest.md` + latest handoff if continuing
 
-## Workflow Patterns
+## Session End
 
-### Starting a Session
-1. Check Beads for in-progress tasks
-2. Read handoff if continuing previous session
-3. Claim ready tasks
-4. Begin work
-
-### During Session
-1. Monitor context usage
-2. Write specs/plans to memory as created
-3. Commit incremental progress
-4. Sync Beads regularly
-
-### Ending a Session
 1. Complete or checkpoint current task
-2. Write handoff document
-3. Sync all state to git/Beads
-4. Release file reservations
+2. Run `/handoff` → write handoff doc
+3. `beads-village_sync` → push state
+4. Release all file reservations via `beads-village_done`
 
-## Best Practices
+## Red Flags
 
-- Check context percentage periodically
-- Write to memory before hitting thresholds
-- Use handoff documents for continuity
-- Keep session state in version control
+- Crossing 90% without writing a handoff
+- Not reading the handoff when resuming
+- Losing task state between sessions

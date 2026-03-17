@@ -1,92 +1,54 @@
 ---
 name: condition-based-waiting
-description: Replace arbitrary timeouts with condition polling. Wait for actual state changes. Eliminates flaky tests from race conditions.
+description: Replace arbitrary timeouts with condition polling. Eliminates flaky tests from race conditions — wait for actual state, not clock time.
 ---
 
-# Condition-Based Waiting Skill
+# Condition-Based Waiting
 
-You are running the **condition-based-waiting** skill. Never use arbitrary sleeps. Always wait for conditions.
+## Rule
 
-## The Problem
-
-```javascript
-// BAD: Arbitrary timeout
-await sleep(2000);
-expect(element.isVisible).toBe(true);
-
-// Why it fails:
-// - Too short: Flaky on slow CI
-// - Too long: Wastes time on fast machines
-// - Never correct: Race condition waiting to happen
 ```
-
-## The Solution
-
-```javascript
-// GOOD: Wait for condition
-await waitFor(() => expect(element.isVisible).toBe(true), { timeout: 5000 });
-
-// Why it works:
-// - Passes immediately when ready
-// - Fails fast with clear error
-// - No wasted time
+NEVER: await sleep(2000)
+ALWAYS: await waitFor(() => condition, { timeout: 5000 })
 ```
 
 ## Patterns
 
-### UI Waiting
-```javascript
-// Wait for element
+```js
+// UI element
 await page.waitForSelector('.loaded');
 
-// Wait for text
-await waitFor(() => page.textContent('.status') === 'Ready');
-
-// Wait for visibility
+// Custom condition
 await waitFor(() => element.isVisible());
-```
 
-### API Waiting
-```javascript
-// Wait for response
+// API state
 await waitFor(async () => {
-  const res = await fetch('/status');
-  const data = await res.json();
-  return data.ready === true;
+  const { ready } = await fetch('/status').then(r => r.json());
+  return ready === true;
 });
 
-// Wait for state
-await waitFor(() => store.getState().loaded === true);
+// DB record
+await waitFor(async () => (await db.find(id)) !== null);
 ```
-
-### Database Waiting
-```javascript
-// Wait for record
-await waitFor(async () => {
-  const record = await db.find(id);
-  return record !== null;
-});
-```
-
-## Rules
-
-| Pattern | Verdict |
-|---------|---------|
-| `sleep(n)` or `wait(n)` | DELETE. Replace with condition. |
-| `setTimeout` in tests | DELETE. Use polling. |
-| "It works on my machine" | Race condition. Fix with condition. |
-| Fixed delay "to be safe" | Not safe. Use condition. |
 
 ## Timeout Strategy
 
-1. Set reasonable timeout (default: 5000ms)
-2. Poll frequently (default: 50ms intervals)
-3. Include state in error message
-4. Consider exponential backoff for external services
+- Default timeout: **5000ms**
+- Poll interval: **50ms**
+- Include current state in error message
+- External services: use exponential backoff
+
+## Verdict Table
+
+| Pattern | Action |
+|---------|--------|
+| `sleep(n)` / `wait(n)` | DELETE — replace with condition |
+| `setTimeout` in tests | DELETE — use polling |
+| Fixed delay "to be safe" | DELETE — not safe |
+| "Flaky in CI" | Race condition — apply condition wait |
 
 ## Red Flags
 
-- Any hardcoded delay in test code
-- Comments explaining why timeout is needed
-- Tests that pass locally but fail in CI
-- "Flaky" test label without investigation
+- Hardcoded delay in test code
+- Comment explaining why the delay is needed
+- Test passes locally but flakes in CI

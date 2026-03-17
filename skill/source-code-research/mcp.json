@@ -1,0 +1,13 @@
+{
+  "mcpServers": {
+    "context7": {
+      "type": "remote",
+      "url": "https://mcp.context7.com/mcp",
+      "description": "Fetch library docs and source when npm package internals are unclear",
+      "tools": [
+        "resolve-library-id",
+        "get-library-docs"
+      ]
+    }
+  }
+}

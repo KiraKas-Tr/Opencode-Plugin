@@ -1,130 +1,61 @@
 ---
 name: deep-research
-description: Use when exploring unfamiliar code or implementing complex features. Structured LSP exploration with memory-first protocol.
+description: Use when exploring unfamiliar code or implementing complex features. Structured LSP exploration with confidence-scored findings saved to memory.
 ---
 
-# Deep Research Skill
+# Deep Research
 
-You are running the **deep-research** skill. Systematic codebase exploration with confidence-scored findings.
-
-## When to Use
-
-- Exploring unfamiliar code
-- Implementing complex features
-- Understanding architecture before changes
-- Debugging across multiple files
-
-## Memory-First Protocol
-
-Always save findings to `.opencode/memory/research/`:
+## Workflow
 
 ```
-memory/research/
-  ├── [topic]-findings.md
-  ├── [topic]-architecture.md
-  └── [topic]-decisions.md
-```
-
-## LSP Operations
-
-Use all 9 LSP operations systematically:
-
-### 1. Go to Definition
-- Trace symbol origins
-- Understand type definitions
-- Find implementation details
-
-### 2. Find References
-- Locate all usages
-- Understand impact of changes
-- Identify consumers
-
-### 3. Go to Type Definition
-- Understand data structures
-- Trace interface contracts
-- Find source types
-
-### 4. Find Implementations
-- Locate concrete implementations
-- Understand polymorphism
-- Find all variants
-
-### 5. Document Symbol
-- Get file overview
-- Understand exports
-- Quick navigation
-
-### 6. Workspace Symbol
-- Find symbols across project
-- Locate related code
-- Cross-file navigation
-
-### 7. Call Hierarchy (Incoming)
-- Find callers
-- Understand entry points
-- Trace data flow up
-
-### 8. Call Hierarchy (Outgoing)
-- Find callees
-- Understand dependencies
-- Trace data flow down
-
-### 9. Rename
-- Preview changes
-- Understand scope
-- Safe refactoring
-
-## Research Workflow
-
-```
-1. Define research question
-2. Start with workspace symbol search
-3. Navigate via go to definition
-4. Trace references for coverage
-5. Map call hierarchy for flow
-6. Document findings with confidence score
-7. Save to memory
+1. Define question
+2. lsp_workspace_symbols → find entry points
+3. lsp_goto_definition → trace origins
+4. lsp_find_references → map all usages
+5. lsp_document_symbols → understand exports
+6. Incoming/outgoing call hierarchy → trace data flow
+7. Score each finding 1–10
+8. Save to memory/research/[topic]-findings.md
 ```
 
 ## Confidence Scoring
 
-Score each finding 1-10:
-
 | Score | Meaning |
 |-------|---------|
-| 1-3 | Speculation, needs verification |
-| 4-6 | Probable, partial evidence |
-| 7-9 | Confident, strong evidence |
-| 10 | Certain, verified in code |
+| 1–3 | Speculation — needs verification |
+| 4–6 | Probable — partial evidence |
+| 7–9 | Confident — strong evidence |
+| 10 | Certain — verified in code |
+
+Never assert anything below 4 without flagging uncertainty.
 
 ## Output Format
 
+Save to `.opencode/memory/research/[topic]-findings.md`:
+
 ```markdown
-# [Topic] Research Findings
+# [Topic] Research
 
 ## Summary
-[Brief overview]
+[1–2 sentences]
 
 ## Key Findings
-
-### Finding 1: [Title]
-- **Confidence**: 8/10
-- **Evidence**: [Code references]
-- **Notes**: [Additional context]
-
-## Architecture
-[Diagram or description]
+### [Finding]
+- Confidence: N/10
+- Evidence: file:line
+- Notes: …
 
 ## Open Questions
-[What needs more investigation]
-
 ## Recommendations
-[Based on findings]
 ```
 
-## Anti-Patterns
+## Red Flags
 
-- Skipping LSP operations
-- Not saving to memory
-- Low confidence assertions
-- Missing evidence for claims
+- Skipping LSP — guessing structure instead of tracing it
+- Not saving findings to memory (lost between sessions)
+- Asserting with confidence < 4 without flagging it
+
+## References
+
+- [LSP tool reference](references/lsp-ops.md) — all LSP tools, when to use each, research sequence
+- MCP: `context7` (library docs) + `grep` (GitHub patterns) — see [mcp.json](mcp.json)

@@ -174,16 +174,6 @@
           },
           "additionalProperties": false
         },
-        "swarm_enforcer": {
-          "type": "object",
-          "properties": {
-            "enabled": { "type": "boolean" },
-            "strict_file_locking": { "type": "boolean" },
-            "block_unreserved_edits": { "type": "boolean" },
-            "log": { "type": "boolean" }
-          },
-          "additionalProperties": false
-        },
         "memory_digest": {
           "type": "object",
           "properties": {

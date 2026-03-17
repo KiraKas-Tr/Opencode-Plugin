@@ -6,9 +6,9 @@ Curated agents, commands, skills, and memory system for OpenCode.
 
 - **7 Specialized Agents**: build, plan, explore, review, vision, oracle, research
 - **15 Slash Commands**: /create, /start, /ship, /verify, /debug, /design, /research, /commit, /pr, and more
-- **48 Workflow Skills**: TDD, debugging, design, UI/UX, integrations, ritual-workflow, and more
-- **7 Internal Utilities**: memory (read/search/get/timeline/update/admin), observation, swarm, beads-memory-sync, quick-research, context-summary, cass-memory (used by hooks, not directly registered as agent tools)
-- **11 Runtime Hooks**: todo enforcer, empty output sanitizer, git guard, security check, subagent blocker, truncator, swarm enforcer, memory digest, todo→beads sync, beads-context, and cass-memory
+- **22 Workflow Skills**: TDD, debugging, research, integrations, ritual-workflow, and more
+- **7 Internal Utilities**: memory (read/search/get/timeline/update/admin), observation, context-summary, cass-memory (used by hooks, not directly registered as agent tools)
+- **10 Runtime Hooks**: todo enforcer, empty output sanitizer, git guard, security check, subagent blocker, truncator, memory digest, todo→beads sync, beads-context, and cass-memory
 - **Memory System**: Templates, specs, plans, research artifacts with FTS5 search
 - **Extended Permissions**: doom_loop, external_directory controls
 - **Configurable**: Enable/disable agents, override models, customize behavior
@@ -150,7 +150,6 @@ Project config overrides user config.
     "security_check": { "enabled": true },
     "subagent_question_blocker": { "enabled": true },
     "truncator": { "enabled": true, "packet_friendly": true },
-    "swarm_enforcer": { "enabled": true },
     "memory_digest": { "enabled": true, "compact_mode": true },
     "todo_beads_sync": { "enabled": false, "mode": "disabled" },
     "cass_memory": { "enabled": true },
@@ -191,7 +190,6 @@ Project config overrides user config.
 | `security_check` | on | Scans for secrets/credentials before git commits |
 | `subagent_question_blocker` | on | Prevents subagents from asking clarifying questions |
 | `truncator` | on | Truncates large outputs to prevent context overflow |
-| `swarm_enforcer` | on | Enforces task isolation in multi-agent swarms |
 | `memory_digest` | on | Generates `memory/_digest.md` index + topic files (`decision.md`, `learning.md`, etc.) from SQLite observations |
 | `todo_beads_sync` | off | Legacy todo→Beads mirror; disabled in compressed workflow |
 | `beads_context` | on | Injects active Beads task state into prompts |
@@ -240,85 +238,48 @@ Run with `/command-name` in OpenCode. **All 15 commands work standalone** — th
 
 ## Skills
 
-48 workflow skills organized into 8 categories:
+22 workflow skills organized into 5 categories:
 
-### Design & Planning (4)
+### Planning & Workflow (4)
 | Skill | Use When |
 |-------|----------|
-| `brainstorming` | Starting without clear requirements |
 | `writing-plans` | Requirements clear, need implementation plan |
 | `executing-plans` | Plan exists, need to execute tasks |
-| `development-lifecycle` | Building complete feature from scratch |
+| `ritual-workflow` | Starting any task — DISCOVER→PLAN→IMPLEMENT→VERIFY |
+| `session-management` | Managing context growth or switching tasks |
 
-### UI/UX & Frontend (7)
+### Development (4)
 | Skill | Use When |
 |-------|----------|
-| `frontend-aesthetics` | Building UI, avoid "AI slop" |
-| `gemini-large-context` | Analyzing 100KB+ files |
-| `ui-ux-research` | Multimodal UI/UX analysis |
-| `mockup-to-code` | Converting mockups to code |
-| `visual-analysis` | Analyzing images/screenshots |
-| `accessibility-audit` | WCAG compliance check |
-| `design-system-audit` | Design system consistency |
-
-### Development (8)
-| Skill | Use When |
-|-------|----------|
-| `subagent-driven-development` | Fast iteration with quality gates |
-| `dispatching-parallel-agents` | 3+ independent failures |
-| `deep-research` | LSP exploration with confidence scores |
-| `source-code-research` | Library internals research |
+| `deep-research` | Exploring unfamiliar code or complex features |
+| `source-code-research` | API docs insufficient, need library internals |
 | `using-git-worktrees` | Isolated workspace on new branch |
-| `finishing-a-development-branch` | Complete branch workflow |
-| `vercel-react-best-practices` | React/Next.js optimization |
-| `supabase-postgres-best-practices` | Postgres optimization |
+| `finishing-a-development-branch` | Completing work on a branch |
 
-### Testing (4)
+### Testing & Quality (5)
 | Skill | Use When |
 |-------|----------|
 | `test-driven-development` | Implementing any feature |
 | `condition-based-waiting` | Flaky tests from race conditions |
 | `testing-anti-patterns` | Avoiding testing mistakes |
-| `testing-skills-with-subagents` | TDD for process docs |
+| `verification-before-completion` | Marking any task complete |
+| `vercel-react-best-practices` | React/Next.js code review or refactor |
 
-### Debugging (4)
+### Debugging (3)
 | Skill | Use When |
 |-------|----------|
 | `systematic-debugging` | Encountering a bug |
 | `root-cause-tracing` | Finding original trigger |
 | `defense-in-depth` | Multi-layer validation |
-| `verification-before-completion` | Marking task complete |
 
-### Integration (16)
+### Integration & Collaboration (6)
 | Skill | Use When |
 |-------|----------|
-| `figma` | Access Figma design data |
-| `playwright` | Browser automation |
-| `chrome-devtools` | Browser debugging |
-| `polar` | Payment integration |
-| `beads` | Multi-agent task coordination |
-| `beads-bridge` | Bridge Beads with todo system |
-| `swarm-coordination` | Parallel task execution |
-| `session-management` | Context growth management |
-| `playwriter` | Chrome extension browser automation |
-| `mqdh` | Meta Quest VR/AR development |
-| `v0` | AI-powered UI generation |
-| `resend` | Transactional emails |
-| `notebooklm` | Query NotebookLM |
-| `supabase` | Supabase platform |
-| `cloudflare` | Cloudflare Workers/Pages |
-| `v1-run` | npm package intelligence |
-
-### Collaboration (3)
-| Skill | Use When |
-|-------|----------|
+| `beads` | Multi-agent task coordination via beads-village |
+| `playwright` | Browser automation and E2E testing |
+| `chrome-devtools` | Web debugging and performance analysis |
 | `requesting-code-review` | After completing a task |
 | `receiving-code-review` | Handling review feedback |
-| `sharing-skills` | Contributing skills via PR |
-
-### Meta (1)
-| Skill | Use When |
-|-------|----------|
 | `writing-skills` | Creating new skills |
 
 ## Development
@@ -353,8 +314,8 @@ bun run dev
 │   ├── types.ts      # Type definitions
 │   ├── agents/       # Agent loaders
 │   ├── skills/       # Skill loaders
-│   ├── tools/        # Internal utilities (memory, swarm, etc.)
-│   └── hooks/        # Runtime hooks (10 modules)
+│   ├── tools/        # Internal utilities (memory, context-summary, cass-memory)
+│   └── hooks/        # Runtime hooks (9 modules)
 ├── skill/            # Skill definitions (*.md)
 ├── command/          # Command definitions (*.md)
 ├── memory/           # Memory system

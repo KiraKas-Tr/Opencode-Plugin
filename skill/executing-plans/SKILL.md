@@ -1,54 +1,45 @@
 ---
 name: executing-plans
-description: Use when a plan exists and you need to execute tasks with checkpoints and review.
+description: Use when a plan exists and you need to execute tasks with checkpoints and review after each batch.
 ---
 
-# Executing Plans Skill
+# Executing Plans
 
-You are running the **executing-plans** skill. Execute implementation plans systematically with checkpoints.
-
-## Batch Execution
-
-Default: **3 tasks per batch**
-
-After each batch:
-1. Run verification commands
-2. Summarize changes made
-3. Ask for confirmation to continue
-
-## Execution Flow
+## Flow
 
 ```
-Read plan → Select next batch → Execute → Verify → Checkpoint → Continue/Adjust
+Read plan → batch 3 tasks → execute each → verify → checkpoint → continue/adjust
 ```
 
-## Checkpoint Questions
+## Per-Task Steps
 
-After each batch, ask:
-- "Continuing with next 3 tasks. Proceed? (yes/skip/stop/adjust)"
-- If "skip": Skip current batch, move to next
-- If "stop": Halt execution, summarize progress
-- If "adjust": Modify batch size or plan
+1. Read the task fully
+2. Verify file exists (or create it)
+3. Apply exactly what is specified
+4. Run the verification command
+5. Confirm expected result before moving on
 
-## Per-Task Execution
+## Checkpoints (every 3 tasks)
 
-1. **Read** the task completely
-2. **Verify** the file exists (or will be created)
-3. **Apply** the exact change specified
-4. **Run** the verification command
-5. **Confirm** expected result
+Ask: `"Continuing with next batch. Proceed? (yes / skip / stop / adjust)"`
+
+| Response | Action |
+|----------|--------|
+| `yes` | Continue |
+| `skip` | Skip batch, move to next |
+| `stop` | Halt, summarize progress |
+| `adjust` | Modify batch size or plan |
 
 ## Error Handling
 
-| Error Type | Action |
-|------------|--------|
-| File not found | Create it or ask for clarification |
-| Test fails | Debug, fix, re-run before continuing |
-| Unexpected state | Stop, report, ask for guidance |
+| Error | Action |
+|-------|--------|
+| File not found | Create it or ask |
+| Test fails | Debug and fix before continuing |
+| Unexpected state | Stop, report, ask |
 
 ## Red Flags
 
 - Skipping verification
-- Making changes not in the plan
+- Changes not in the plan
 - Continuing after failure without fixing
-- Modifying batch size without asking

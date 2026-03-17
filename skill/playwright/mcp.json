@@ -1,0 +1,20 @@
+{
+  "mcpServers": {
+    "playwright": {
+      "type": "local",
+      "command": ["npx", "-y", "@playwright/mcp@latest"],
+      "description": "Browser automation — navigate, click, fill, screenshot, assert",
+      "tools": [
+        "playwright_navigate",
+        "playwright_click",
+        "playwright_fill",
+        "playwright_select",
+        "playwright_screenshot",
+        "playwright_evaluate",
+        "playwright_wait_for_selector",
+        "playwright_get_text",
+        "playwright_close"
+      ]
+    }
+  }
+}

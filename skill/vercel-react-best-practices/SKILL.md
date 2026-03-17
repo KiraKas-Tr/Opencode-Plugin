@@ -1,174 +1,85 @@
 ---
 name: vercel-react-best-practices
-description: Use when writing, reviewing, or refactoring React/Next.js code. Performance optimization patterns from Vercel Engineering.
+description: Use when writing, reviewing, or refactoring React/Next.js code. Enforces Server Components first, parallel fetching, and bundle optimization.
 ---
 
-# Vercel React Best Practices Skill
+# Vercel React Best Practices
 
-You are running the **vercel-react-best-practices** skill. Optimize React and Next.js applications.
+## Component Rules
 
-## Core Principles
+**Default to Server Components.** Use `'use client'` only when you need interactivity, browser APIs, or hooks.
 
-From Vercel Engineering team's production experience.
-
-## Component Patterns
-
-### 1. Composition Over Inheritance
+**Composition over prop explosion:**
 ```jsx
-// Good: Composition
-function Card({ header, children, footer }) {
-  return (
-    <div className="card">
-      {header}
-      <div className="content">{children}</div>
-      {footer}
-    </div>
-  );
-}
+// Good
+function Card({ header, children, footer }) { … }
 
-// Avoid: Prop explosion
-function Card({ headerTitle, headerSubtitle, footerText, ... }) {}
+// Bad
+function Card({ headerTitle, headerSubtitle, footerText, … }) { … }
 ```
 
-### 2. Colocate Components
+**Colocate files:**
 ```
-/components/
-  Card/
-    index.tsx      # Export
-    Card.tsx       # Component
-    Card.test.tsx  # Test
-    styles.ts      # Styles
+Card/
+  index.tsx       Card.tsx       Card.test.tsx       styles.ts
 ```
 
-### 3. Server Components First
+## Performance
+
 ```jsx
-// Default to Server Component
-async function UserProfile({ id }) {
-  const user = await fetchUser(id); // Direct DB access
-  return <div>{user.name}</div>;
-}
+// Dynamic import for heavy components
+const HeavyChart = dynamic(() => import('./Chart'), { loading: () => <Skeleton />, ssr: false });
 
-// Use 'use client' only when needed
-'use client';
-function InteractiveButton() {
-  const [count, setCount] = useState(0);
-  // ...
-}
-```
+// next/image — always, no raw <img>
+<Image src="/hero.jpg" width={1200} height={600} priority />
 
-## Performance Patterns
-
-### 1. Dynamic Imports
-```jsx
-// Lazy load heavy components
-const HeavyChart = dynamic(() => import('./Chart'), {
-  loading: () => <Skeleton />,
-  ssr: false
-});
-```
-
-### 2. Image Optimization
-```jsx
-import Image from 'next/image';
-
-// Automatic optimization
-<Image
-  src="/hero.jpg"
-  alt="Hero"
-  width={1200}
-  height={600}
-  priority // Above fold
-/>
-```
-
-### 3. Font Optimization
-```jsx
-import { Inter } from 'next/font/google';
-
-const inter = Inter({ 
-  subsets: ['latin'],
-  display: 'swap'
-});
+// next/font — always
+const inter = Inter({ subsets: ['latin'], display: 'swap' });
 ```
 
 ## Data Fetching
 
-### 1. Parallel Requests
 ```jsx
-// Good: Parallel
-async function Page() {
-  const [user, posts] = await Promise.all([
-    fetchUser(),
-    fetchPosts()
-  ]);
-  // ...
-}
+// Parallel — always
+const [user, posts] = await Promise.all([fetchUser(), fetchPosts()]);
 
-// Avoid: Waterfall
-async function Page() {
-  const user = await fetchUser();
-  const posts = await fetchPosts(); // Waits for user
-}
+// Cache strategies
+fetch(url, { next: { revalidate: 60 } });   // ISR
+fetch(url, { cache: 'no-store' });           // SSR
+fetch(url, { cache: 'force-cache' });        // static
 ```
 
-### 2. Cache Strategies
-```jsx
-// Revalidate periodically
-fetch(url, { next: { revalidate: 60 } });
+## Rendering Strategy
 
-// Skip cache
-fetch(url, { cache: 'no-store' });
-
-// Force cache
-fetch(url, { cache: 'force-cache' });
-```
-
-## Rendering Strategies
-
-| Strategy | Use When |
+| Use When | Strategy |
 |----------|----------|
-| Static (SSG) | Content doesn't change often |
-| Dynamic (SSR) | Per-request data needed |
-| ISR | Periodic updates needed |
-| Edge | Low latency globally |
+| Content rarely changes | SSG (static) |
+| Per-request data | SSR (dynamic) |
+| Periodic updates | ISR |
+| Global low-latency | Edge |
 
-## State Management
+## State
 
-### 1. Start Local
-```jsx
-// Keep state as local as possible
-function FilterableList({ items }) {
-  const [filter, setFilter] = useState('');
-  // Not in global store
-}
-```
+- Keep state as **local as possible** — no global store until proven necessary
+- Use URL state (`useSearchParams`) for shareable/filterable state
 
-### 2. URL State
-```jsx
-// For shareable state
-import { useSearchParams } from 'next/navigation';
+## Anti-Patterns
 
-function Search() {
-  const searchParams = useSearchParams();
-  const query = searchParams.get('q');
-}
-```
+| Pattern | Fix |
+|---------|-----|
+| `'use client'` on static content | Remove — use Server Component |
+| `import { everything } from 'lib'` | Use tree-shaking or dynamic import |
+| Raw `<img>` | `next/image` |
+| Sequential `await` for independent data | `Promise.all` |
+| Prop drilling 3+ levels | Composition or context |
 
-## Common Anti-Patterns
+## Pre-ship Checklist
 
-| Anti-Pattern | Fix |
-|--------------|-----|
-| Client components for static content | Use Server Components |
-| Large bundle imports | Use tree-shaking or dynamic imports |
-| Unoptimized images | Use next/image |
-| Blocking requests | Use Promise.all |
-| Prop drilling | Use composition or context |
-
-## Checklist
-
-- [ ] Default to Server Components
-- [ ] Images use next/image
-- [ ] Fonts are optimized
+- [ ] Server Components by default
+- [ ] `next/image` for all images
+- [ ] `next/font` for all fonts
 - [ ] Parallel data fetching
 - [ ] Dynamic imports for heavy code
-- [ ] Proper caching strategy
+- [ ] Correct caching strategy per route
+
+See [references/patterns.md](references/patterns.md) for extended examples.

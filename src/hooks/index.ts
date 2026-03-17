@@ -8,7 +8,6 @@
  * - Security Check — scans for secrets before commits
  * - Subagent Question Blocker — prevents subagents from asking questions
  * - Truncator — dynamic output truncation
- * - Swarm Enforcer — enforces task isolation in multi-agent swarms
  * - Memory Digest — generates _digest.md from SQLite observations for agent access
  */
 
@@ -57,17 +56,6 @@ export {
   type TruncatorConfig,
   type TruncateResult,
 } from "./truncator";
-
-// Swarm Enforcer
-export {
-  isFileInScope,
-  checkEditPermission,
-  extractFileFromToolInput,
-  formatEnforcementWarning,
-  type SwarmEnforcerConfig,
-  type TaskScope,
-  type EnforcementResult,
-} from "./swarm-enforcer";
 
 // Memory Digest
 export {

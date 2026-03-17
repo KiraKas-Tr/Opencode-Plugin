@@ -1,37 +1,42 @@
 ---
 name: playwright
-description: Use for browser automation, E2E testing, form filling, screenshots, and responsive design validation.
+description: Use for browser automation, E2E testing, form filling, screenshots, and responsive design validation via Playwright MCP.
 ---
 
-# Playwright Skill
-
-You are running the **playwright** skill. Browser automation via Playwright MCP.
+# Playwright
 
 ## Capabilities
 
-| Action | Description |
-|--------|-------------|
-| Navigate pages | Load URLs, handle redirects, wait for content |
+| Task | Action |
+|------|--------|
+| Navigate | Load URLs, handle redirects, wait for content |
 | Fill forms | Input text, select options, upload files |
-| Take screenshots | Full page, element-specific, mobile viewports |
-| Test responsive | Switch viewports, validate breakpoints |
-| Validate UX | Check interactions, accessibility, flows |
-| Test auth flows | Login sequences, session persistence |
+| Screenshots | Full page, element-specific, mobile viewport |
+| Responsive testing | Switch viewports, validate breakpoints |
+| Auth flows | Login sequences, session persistence |
+| Assertions | Text content, visibility, element state |
 
-## Usage
+## Workflow
 
-1. Specify the URL or local dev server
-2. Define actions (navigate, click, fill, assert)
-3. Set viewport if testing responsive design
-4. Capture screenshots for verification
-
-## MCP Loading
-
-This skill loads the Playwright MCP server **only when used**. Clean browser context per session.
+1. Specify URL or local dev server
+2. Define action sequence (navigate → interact → assert)
+3. Set viewport for responsive tests
+4. Capture before/after screenshots as evidence
 
 ## Best Practices
 
-- Use `await page.waitForLoadState('networkidle')` for dynamic content
+- `waitForLoadState('networkidle')` before interacting with dynamic content
 - Take before/after screenshots for visual diffs
-- Test both happy and error paths
+- Test both happy path and error path
 - Clean up sessions to prevent resource leaks
+
+## Red Flags
+
+- Assertions before content has loaded
+- Only testing happy path
+- No cleanup after session
+
+## References
+
+- [Tool reference](references/tool-reference.md) — full tool signatures and common patterns
+- MCP: `playwright` — see [mcp.json](mcp.json)

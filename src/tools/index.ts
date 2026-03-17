@@ -25,37 +25,14 @@ export {
   type ObservationResult,
 } from "./observation";
 
-// Swarm Tool
-export {
-  swarm,
-  type SwarmParams,
-  type SwarmTask,
-  type SwarmResult,
-  type SwarmPlanResult,
-  type SwarmMonitorResult,
-  type SwarmDelegateResult,
-  type SwarmAbortResult,
-} from "./swarm";
-
-// Custom Tools (wrappers/optimizations for agents/commands)
-export {
-  beadsMemorySync,
-  type BeadsMemorySyncParams,
-  type BeadsMemorySyncResult,
-} from "./beads-memory-sync";
-
-export {
-  quickResearch,
-  type QuickResearchParams,
-  type QuickResearchResult,
-} from "./quick-research";
-
+// Context Summary Tool
 export {
   contextSummary,
   type ContextSummaryParams,
   type ContextSummaryResult,
 } from "./context-summary";
 
+// Cass Memory Tools
 export {
   cassMemoryContext,
   cassMemoryMark,

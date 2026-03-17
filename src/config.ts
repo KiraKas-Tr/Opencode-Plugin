@@ -59,13 +59,6 @@ export interface TruncatorHookConfig {
   log?: boolean;
 }
 
-export interface SwarmEnforcerHookConfig {
-  enabled?: boolean;
-  strict_file_locking?: boolean;
-  block_unreserved_edits?: boolean;
-  log?: boolean;
-}
-
 export interface MemoryDigestHookConfig {
   enabled?: boolean;
   max_per_type?: number;
@@ -120,7 +113,6 @@ export interface HooksConfig {
   security_check?: SecurityCheckHookConfig;
   subagent_question_blocker?: SubagentQuestionBlockerHookConfig;
   truncator?: TruncatorHookConfig;
-  swarm_enforcer?: SwarmEnforcerHookConfig;
   memory_digest?: MemoryDigestHookConfig;
   todo_beads_sync?: TodoBeadsSyncHookConfig;
   cass_memory?: CassMemoryHookConfig;
@@ -210,12 +202,6 @@ const DEFAULT_CONFIG: CliKitConfig = {
       preserve_head_lines: 50,
       preserve_tail_lines: 50,
       packet_friendly: true,
-      log: false,
-    },
-    swarm_enforcer: {
-      enabled: true,
-      strict_file_locking: true,
-      block_unreserved_edits: false,
       log: false,
     },
     memory_digest: {

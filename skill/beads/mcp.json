@@ -1,0 +1,26 @@
+{
+  "mcpServers": {
+    "beads-village": {
+      "type": "local",
+      "command": ["npx", "-y", "beads-village"],
+      "description": "Multi-agent task coordination, file locking, issue tracking",
+      "tools": [
+        "beads-village_init",
+        "beads-village_add",
+        "beads-village_claim",
+        "beads-village_done",
+        "beads-village_ls",
+        "beads-village_show",
+        "beads-village_reserve",
+        "beads-village_release",
+        "beads-village_reservations",
+        "beads-village_msg",
+        "beads-village_inbox",
+        "beads-village_status",
+        "beads-village_sync",
+        "beads-village_cleanup",
+        "beads-village_doctor"
+      ]
+    }
+  }
+}
