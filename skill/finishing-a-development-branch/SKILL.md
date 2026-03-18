@@ -1,9 +1,11 @@
 ---
 name: finishing-a-development-branch
-description: Use when completing development work on a branch. Verify tests, present 4 options, execute choice with cleanup.
+description: Legacy compatibility skill. Finish work from the shared default-branch workspace: verify, sync, and land without worktrees or task branches.
 ---
 
-# Finishing a Development Branch
+# Finishing a Shared Workspace Session
+
+> Legacy skill name: `finishing-a-development-branch`
 
 ## Step 1 — Verify
 
@@ -13,41 +15,41 @@ npm test    # or project test command
 
 **If tests fail: STOP. Fix first. Never proceed with failing tests.**
 
-## Step 2 — Present Options
+## Step 2 — Confirm shared-workspace state
 
-```
-Branch [branch-name] ready. Choose:
-  1. MERGE    — merge to main, clean up
-  2. PR       — create pull request, keep branch
-  3. KEEP     — push branch, continue later
-  4. DISCARD  — delete branch and all changes
-```
-
-## Step 3 — Execute
-
-**MERGE**
 ```bash
-git checkout main && git pull origin main
-git merge <branch> && git push origin main
-git branch -d <branch> && git worktree remove <path>
+git branch --show-current     # expect: repo default branch (main/master/etc.)
+git status --short --branch   # confirm only intended changes are present
 ```
 
-**PR**
-```bash
-git push origin <branch>
-gh pr create --title "<title>" --body "<body>"
+If the branch is not the repo default branch, stop unless the user explicitly approved that branch.
+
+## Step 3 — Present Options
+
+```
+Shared workspace on the default branch is ready. Choose:
+  1. LAND     — sync default branch, push, keep working from shared checkout
+  2. PAUSE    — leave local state in place and hand off
+  3. DISCARD  — revert local changes and return to a clean checkout
 ```
 
-**KEEP**
+## Step 4 — Execute
+
+**LAND**
 ```bash
-git push origin <branch>
-# leave worktree intact
+git pull --rebase
+git push
+```
+
+**PAUSE**
+```bash
+/handoff
+# leave shared workspace state intact for the next session
 ```
 
 **DISCARD** — require typed confirmation: `"discard"`
 ```bash
-git checkout main
-git branch -D <branch> && git worktree remove <path>
+git restore --worktree --staged .
 ```
 
 ## Safety Rules
@@ -56,11 +58,11 @@ git branch -D <branch> && git worktree remove <path>
 |------|-------------|
 | Tests must pass | Block on failure |
 | DISCARD | Require typed `"discard"` to confirm |
-| Force push to main | Never |
-| Stale worktrees | Always clean up after merge/discard |
+| Force push to default branch | Never |
+| Shared workspace drift | Sync and inspect before landing |
 
 ## Red Flags
 
-- Merging without test verification
+- Landing without test verification
 - Discarding without confirmation
-- Leaving stale worktrees after merge
+- Creating a worktree or task branch just to finish the task

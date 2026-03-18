@@ -10,16 +10,16 @@ The plugin (`src/index.ts`) loads agents from `src/agents/*.md`, commands from `
 
 **Quick mode** (simple features):
 ```
-/create → /start → /ship → /verify
+/create → /start → /verify → /ship
 ```
 
 **Deep mode** (complex features, research, UI):
 ```
-/create → /research → /design → /start → /ship → /verify
+/create → /research → /design → /start → /verify → /ship
 ```
 
 - `/create` produces both spec and plan — `/start` works directly from this output
-- `/verify` is the pre-ship gate — run before `/ship` finalizes
+- `/verify` is the pre-ship gate — run before `/ship` finalizes and lands shared-checkout changes
 - `/research` = external docs, API comparison, library research
 - `/design` = UI/UX design and implementation (uses Vision agent)
 
@@ -68,7 +68,7 @@ bun run dev        # watch mode
 ### Agent Core Cycle
 
 ```
-beads-village_init → beads-village_add → beads-village_claim → reserve → work → done
+beads-village_init → inspect shared git state → beads-village_add → beads-village_claim → reserve → work → done
 ```
 
 In compressed workflow, the execution unit is a **Task Packet**:
@@ -106,5 +106,8 @@ In compressed workflow, the execution unit is a **Task Packet**:
 - Trivial (< 2 min, 1-line fix): skip Beads, just do it
 - Non-trivial: create issue first → claim → work → done
 - `todowrite` = in-session UI display only — Beads is the persistent and authoritative execution state
+- Work in the shared checkout on the repo default branch — no git worktrees or per-task branches unless the user explicitly requests them
+- Check `git status --short --branch` before editing; if overlapping local changes already exist in your scope, stop and coordinate instead of isolating the work
+- Use `beads-village_reserve` to surface conflicts early in the shared workspace
 - Always `reserve` files before editing in multi-agent contexts
-- Always `done` before ending session (releases file locks)
+- Call `done` before ending a completed session; for mid-task handoff, leave the issue open and hand off without `done`

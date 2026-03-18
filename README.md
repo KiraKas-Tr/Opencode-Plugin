@@ -8,7 +8,7 @@ Curated agents, commands, skills, and memory system for OpenCode.
 - **15 Slash Commands**: /create, /start, /ship, /verify, /debug, /design, /research, /commit, /pr, and more
 - **22 Workflow Skills**: TDD, debugging, research, integrations, ritual-workflow, and more
 - **7 Internal Utilities**: memory (read/search/get/timeline/update/admin), observation, context-summary, cass-memory (used by hooks, not directly registered as agent tools)
-- **10 Runtime Hooks**: todo enforcer, empty output sanitizer, git guard, security check, subagent blocker, truncator, memory digest, todo→beads sync, beads-context, and cass-memory
+- **10 Runtime Hooks/Modules**: todo enforcer, empty output sanitizer, git guard, security check, subagent blocker, truncator, memory digest, todo→beads sync, beads-context, and cass-memory
 - **Memory System**: Templates, specs, plans, research artifacts with FTS5 search
 - **Extended Permissions**: doom_loop, external_directory controls
 - **Configurable**: Enable/disable agents, override models, customize behavior
@@ -84,12 +84,12 @@ After installation, use these commands:
 
 **Quick mode** (simple features):
 ```
-/create → /start → /ship → /verify
+/create → /start → /verify → /ship
 ```
 
 **Deep mode** (complex features, research, UI):
 ```
-/create → /research → /design → /start → /ship → /verify
+/create → /research → /design → /start → /verify → /ship
 ```
 
 Workflow notes:
@@ -97,7 +97,7 @@ Workflow notes:
 - `/create` explores codebase first, then produces both spec and plan
 - `/start` executes the plan, one Task Packet at a time — creates a minimal inline plan if none exists
 - `/verify` runs all 4 gates (typecheck, tests, lint, build) + deep review — use anytime, not just pre-ship
-- `/ship` finalized work and creates PR — runs self-review standalone, recommended to run `/verify` first
+- `/ship` finalizes work in the shared checkout — commit, sync, and land on the repo default branch; `/pr` is optional and only for explicit PR-based exceptions
 - `/research` conducts external research — use standalone before any complex implementation
 - `/design` implements UI/UX with variant exploration and a11y — uses Vision agent
 - Beads is the live execution source of truth
@@ -220,7 +220,7 @@ Run with `/command-name` in OpenCode. **All 15 commands work standalone** — th
 | `/research` | ✅ | Deep-dive any library, API, or pattern with saved report |
 | `/design` | ✅ | UI/UX design + implementation — variant exploration, a11y, responsive (Vision agent) |
 | `/start` | ✅ | Execute plan packets — creates minimal inline plan if none exists |
-| `/ship` | ✅ | Commit + create PR — self-review built in, `/verify` recommended |
+| `/ship` | ✅ | Commit + land shared-checkout changes on the default branch — self-review built in, `/verify` recommended |
 | `/verify` | ✅ | Full 4-gate check (typecheck, tests, lint, build) + deep code review |
 
 ### Utilities (all standalone)
@@ -233,12 +233,14 @@ Run with `/command-name` in OpenCode. **All 15 commands work standalone** — th
 | `/handoff` | Auto-capture session state for graceful pause |
 | `/resume` | Pick up cold from latest handoff, no warm-up questions |
 | `/commit` | Auto-detect type/scope → perfect Conventional Commit message |
-| `/pr` | Full PR description from git diff, linked to spec/plan/bead |
+| `/pr` | Optional PR flow for explicit branch-based review exceptions |
 | `/import-plan` | Import Jira/Notion/Linear tasks → Beads issues + plan |
 
 ## Skills
 
 22 workflow skills organized into 5 categories:
+
+> `using-git-worktrees` and `finishing-a-development-branch` are legacy skill names kept for compatibility. Their current guidance follows the shared-workspace, direct-to-default-branch workflow.
 
 ### Planning & Workflow (4)
 | Skill | Use When |
@@ -253,8 +255,8 @@ Run with `/command-name` in OpenCode. **All 15 commands work standalone** — th
 |-------|----------|
 | `deep-research` | Exploring unfamiliar code or complex features |
 | `source-code-research` | API docs insufficient, need library internals |
-| `using-git-worktrees` | Isolated workspace on new branch |
-| `finishing-a-development-branch` | Completing work on a branch |
+| `using-git-worktrees` | Legacy alias — shared checkout on the default branch, no worktrees |
+| `finishing-a-development-branch` | Legacy alias — finish and land from the shared default-branch workspace |
 
 ### Testing & Quality (5)
 | Skill | Use When |
@@ -315,7 +317,7 @@ bun run dev
 │   ├── agents/       # Agent loaders
 │   ├── skills/       # Skill loaders
 │   ├── tools/        # Internal utilities (memory, context-summary, cass-memory)
-│   └── hooks/        # Runtime hooks (9 modules)
+│   └── hooks/        # Runtime hooks (10 modules)
 ├── skill/            # Skill definitions (*.md)
 ├── command/          # Command definitions (*.md)
 ├── memory/           # Memory system

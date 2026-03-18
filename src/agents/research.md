@@ -1,7 +1,7 @@
 ---
 description: External research specialist. Docs, APIs, GitHub evidence, web sources. Read-only output.
 mode: subagent
-model: proxypal/gpt-5.3-codex
+model: proxypal/gpt-5.4
 temperature: 0.3
 tools:
   write: false

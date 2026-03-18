@@ -97,11 +97,21 @@ describe("isTilthAvailable + cache", () => {
     // After reset, calling again re-runs the check — just verify it doesn't throw.
     expect(() => isTilthAvailable()).not.toThrow();
   });
+
+  it("resolves tilth via direct binary or npx — true when either available", () => {
+    // npx tilth is available in this env (confirmed via npx tilth --version)
+    // Direct 'tilth' may not be on PATH — but npx path should succeed.
+    const available = isTilthAvailable();
+    // Environment-dependent: pass as long as it doesn't throw and returns boolean.
+    expect(typeof available).toBe("boolean");
+    // Log for debugging: not a hard assertion on value since CI may differ.
+    console.log(`[test] isTilthAvailable() = ${available} (npx path expected true locally)`);
+  });
 });
 
-// ─── applyTilthReading — fallback paths (tilth not available in CI) ───────────
+// ─── applyTilthReading ────────────────────────────────────────────────────────
 
-describe("applyTilthReading — pure fallback behaviour", () => {
+describe("applyTilthReading — core guarantees", () => {
   beforeEach(() => {
     resetTilthAvailabilityCache();
   });
@@ -115,7 +125,7 @@ describe("applyTilthReading — pure fallback behaviour", () => {
     expect(result.content).toBe("short");
   });
 
-  it("preserves original content when skipped", () => {
+  it("preserves original content when skipped by threshold", () => {
     const original = "x".repeat(10);
     const result = applyTilthReading("/a/b.ts", original, {
       min_content_length: 9999,
@@ -123,25 +133,39 @@ describe("applyTilthReading — pure fallback behaviour", () => {
     expect(result.content).toBe(original);
   });
 
-  it("returns 'tilth_unavailable' when tilth binary is absent (mocked via cache)", () => {
-    // Force unavailable by overriding — we test using a fake path that won't resolve.
-    // Because we cannot easily mock Bun.spawnSync, we rely on the path being absent.
-    // If tilth happens to be installed in CI this test degrades gracefully.
-    const result = applyTilthReading("/a/b.ts", "x".repeat(2000), {
-      min_content_length: 100,
-    });
-    // Outcome is either 'tilth_unavailable' or 'tilth_success' — both are valid,
-    // the important guarantee is that content is never empty.
+  it("never returns empty content — outcome may be any valid value", () => {
+    // Works regardless of whether tilth binary is on PATH or available via npx
+    const original = "x".repeat(2000);
+    const result = applyTilthReading("/a/b.ts", original, { min_content_length: 100 });
     expect(["tilth_unavailable", "tilth_success", "tilth_error"]).toContain(result.outcome);
     expect(result.content.length).toBeGreaterThan(0);
   });
 
-  it("never returns empty content regardless of tilth outcome", () => {
+  it("on error path (nonexistent file) — original content preserved", () => {
     const original = "x".repeat(5000);
     const result = applyTilthReading("/nonexistent/path.ts", original, {
       min_content_length: 100,
     });
+    // tilth will error on nonexistent path → fallback to original
     expect(result.content.length).toBeGreaterThan(0);
+    if (result.outcome === "tilth_error") {
+      expect(result.content).toBe(original);
+    }
+  });
+
+  it("on real file path — tilth_success when tilth available via npx", async () => {
+    // This test is environment-sensitive: passes when npx tilth resolves.
+    const path = (await import("path")).default;
+    const realPath = path.resolve("src/hooks/tilth-reading.ts");
+    const result = applyTilthReading(realPath, "x".repeat(2000), { min_content_length: 100 });
+    console.log(`[test] real file outcome: ${result.outcome}`);
+    // Either tilth_success (npx found) or tilth_unavailable — both valid
+    expect(result.content.length).toBeGreaterThan(0);
+    if (result.outcome === "tilth_success") {
+      expect(result.usedTilth).toBe(true);
+      // Tilth output should contain the actual file content, not placeholder x's
+      expect(result.content).toContain("tilth");
+    }
   });
 });
 

@@ -116,12 +116,13 @@ Use this template when creating implementation plans.
 
 ## Execution Model
 
-- Workflow quick mode: `/create → /start → /ship → /verify`
-- Workflow deep mode: `/create → /research → /design → /start → /ship → /verify`
+- Workflow quick mode: `/create → /start → /verify → /ship`
+- Workflow deep mode: `/create → /research → /design → /start → /verify → /ship`
 - Execution unit: **Task Packet**
 - Source of truth: **Beads**
 - `/start`: execute + per-packet verify loop
 - `/verify`: pre-ship gate (all 4 checks, SHIP_READY verdict required before `/ship`)
+- `/ship`: commit + sync/push landed changes in the shared checkout; `/pr` is an explicit exception path
 
 ---
 

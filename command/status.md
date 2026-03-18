@@ -95,7 +95,7 @@ Look for:
 | Start new feature | `/create` |
 | Begin implementing | `/start` |
 | Resume paused work | `/resume` |
-| Ship & merge | `/ship` |
+| Ship & land | `/ship` |
 | Commit changes | `/commit` |
 
 ---

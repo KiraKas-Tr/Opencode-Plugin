@@ -17,7 +17,7 @@ DISCOVER → PLAN → IMPLEMENT → VERIFY → COMPLETE
 | PLAN | User approves spec + plan |
 | IMPLEMENT | All planned tasks checked off |
 | VERIFY | typecheck + tests + lint + build all pass |
-| COMPLETE | PR merged / deployed |
+| COMPLETE | Changes landed on default branch / deployed |
 
 ## Command Map
 

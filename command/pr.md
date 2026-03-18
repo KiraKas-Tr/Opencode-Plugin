@@ -1,13 +1,15 @@
 ---
-description: Generate a complete PR description from git diff — summary, file changes, test evidence, linked spec/plan — then create it via gh.
+description: Optional branch-based utility. Generate a complete PR description from git diff — summary, file changes, test evidence, linked spec/plan — then create it via gh when the user or repo policy explicitly requires a PR.
 agent: build
 ---
 
 You are creating a **pull request** with comprehensive description.
 
+This is an **exception flow**. The default shared-workspace policy lands changes directly on the repo default branch without creating a PR.
+
 ## Your Task
 
-Generate a well-structured PR with context, changes, and testing info.
+Generate a well-structured PR with context, changes, and testing info — but only when the user explicitly asks for a PR or the repo policy requires one.
 
 ## Process
 
@@ -17,15 +19,21 @@ Generate a well-structured PR with context, changes, and testing info.
 # Current branch
 git branch --show-current
 
-# Commits to include
-git log main..HEAD --oneline
+# Shared workspace state
+git status --short --branch
 
-# Files changed
-git diff main --stat
+# Remote / default branch info (if configured)
+git remote show origin
 
-# Target branch
-git remote show origin | grep "HEAD branch"
+# Commits to include (replace <default-branch> after detection)
+git log <default-branch>..HEAD --oneline
+
+# Files changed against default branch
+git diff <default-branch> --stat
+
 ```
+
+If you are still on the shared default branch, stop and ask before proceeding — PR flow requires a dedicated branch and explicit user approval.
 
 ### 2. Load Artifacts
 
@@ -42,7 +50,7 @@ git remote show origin | grep "HEAD branch"
 gh pr create \
   --title "[type]: [description]" \
   --body "[generated body]" \
-  --base main \
+  --base <default-branch> \
   --head [current-branch]
 ```
 
@@ -154,7 +162,7 @@ pnpm lint
 ### Next Steps
 1. Request review from team
 2. Address feedback
-3. Merge when approved
+3. Merge only after approval and successful checks
 
 ### Commands
 - View: `gh pr view`
@@ -168,7 +176,9 @@ pnpm lint
 - ✅ ALWAYS include testing info
 - ✅ ALWAYS run checks before PR
 - ✅ ALWAYS self-review first
+- ✅ ALWAYS confirm the repo/user explicitly wants PR flow before creating one
 - ❌ NEVER create PR with failing tests
+- ❌ NEVER run `/pr` from the shared default branch
 - ❌ NEVER skip description
 
 Now gathering info for PR...

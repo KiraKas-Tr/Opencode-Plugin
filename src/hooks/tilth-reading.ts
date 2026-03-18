@@ -40,23 +40,47 @@ const DEFAULT_MIN_CONTENT_LENGTH = 1000;
 
 // Cache availability per process lifetime to avoid repeated PATH lookups.
 let tilthAvailabilityCache: boolean | null = null;
+// Cache the resolved command so we don't re-probe on every call.
+let tilthCmd: string[] | null = null;
 
 /**
- * Check if the `tilth` binary is available on PATH.
+ * Probe candidates in order and return the first that exits 0.
+ * Returns null if none found.
+ */
+function probeTilthCmd(): string[] | null {
+  const candidates: string[][] = [
+    ["tilth", "--version"],
+    ["npx", "tilth", "--version"],
+  ];
+
+  for (const cmd of candidates) {
+    try {
+      const result = Bun.spawnSync(cmd, {
+        stdout: "pipe",
+        stderr: "pipe",
+        // 2s per candidate — keeps total probe under 5s (fits bun test default timeout)
+        timeout: 2_000,
+      });
+      if (result.exitCode === 0) {
+        // Return the prefix (without --version) as the runnable command base.
+        return cmd.slice(0, -1);
+      }
+    } catch {
+      // not found, try next
+    }
+  }
+  return null;
+}
+
+/**
+ * Check if the `tilth` binary is available (direct or via npx).
  * Result is cached for the process lifetime.
  */
 export function isTilthAvailable(): boolean {
   if (tilthAvailabilityCache !== null) return tilthAvailabilityCache;
 
-  try {
-    const result = Bun.spawnSync(["tilth", "--version"], {
-      stdout: "pipe",
-      stderr: "pipe",
-    });
-    tilthAvailabilityCache = result.exitCode === 0;
-  } catch {
-    tilthAvailabilityCache = false;
-  }
+  tilthCmd = probeTilthCmd();
+  tilthAvailabilityCache = tilthCmd !== null;
 
   return tilthAvailabilityCache;
 }
@@ -66,6 +90,7 @@ export function isTilthAvailable(): boolean {
  */
 export function resetTilthAvailabilityCache(): void {
   tilthAvailabilityCache = null;
+  tilthCmd = null;
 }
 
 /**
@@ -98,9 +123,11 @@ export function extractFilePath(toolInput: Record<string, unknown>): string | nu
 
 /**
  * Run tilth on a file path and return its stdout, or throw on error.
+ * Uses the resolved command (tilth or npx tilth).
  */
 function runTilth(filePath: string): string {
-  const result = Bun.spawnSync(["tilth", filePath], {
+  const cmd = tilthCmd ?? ["tilth"];
+  const result = Bun.spawnSync([...cmd, filePath], {
     stdout: "pipe",
     stderr: "pipe",
   });
