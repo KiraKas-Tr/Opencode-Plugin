@@ -348,3 +348,75 @@ SQLiteError: no such column: 2026
     at memorySearch (C:\Users\Kira\.cache\opencode\node_modules\clikit-plugin\dist\index.js:17568:37)
     at embeddedContext (C:\Users\Kira\.cache\opencode\node_modules\clikit-plugin\dist\index.js:17691:28)
     at processTicksAndRejections (native:7:39)
+───────────────────────────────────────
+timestamp: 2026-03-18T07:23:48.429Z
+source:    agents [warn]
+error:     [build] Missing 'model' — will use default model
+context: {
+  "file": "C:\\Users\\Kira\\.cache\\opencode\\node_modules\\clikit-plugin\\src\\agents\\build.md"
+}
+───────────────────────────────────────
+timestamp: 2026-03-18T07:23:48.437Z
+source:    skills [error]
+error:     Failed to parse skill systematic-debugging
+context: {
+  "skillPath": "C:\\Users\\Kira\\.cache\\opencode\\node_modules\\clikit-plugin\\skill\\systematic-debugging",
+  "error": "incomplete explicit mapping pair; a key node is missed; or followed by a non-tabulated empty line at line 3, column 82:\n     ... s evidence-based 4-phase process: Reproduce → Isolate → Identify ... \n                                         ^"
+}
+───────────────────────────────────────
+timestamp: 2026-03-18T07:23:48.458Z
+hook:      cass-memory
+error:     no such column: 2026
+context: {
+  "event": "session.created",
+  "phase": "session.created"
+}
+stack:
+SQLiteError: no such column: 2026
+    at all (unknown)
+    at memorySearch (C:\Users\Kira\.cache\opencode\node_modules\clikit-plugin\dist\index.js:17530:37)
+    at embeddedContext (C:\Users\Kira\.cache\opencode\node_modules\clikit-plugin\dist\index.js:17653:28)
+    at processTicksAndRejections (native:7:39)
+───────────────────────────────────────
+timestamp: 2026-03-18T07:24:10.520Z
+hook:      cass-memory
+error:     fts5: syntax error near "@"
+context: {
+  "event": "session.created",
+  "phase": "session.created"
+}
+stack:
+SQLiteError: fts5: syntax error near "@"
+    at all (unknown)
+    at memorySearch (C:\Users\Kira\.cache\opencode\node_modules\clikit-plugin\dist\index.js:17530:37)
+    at embeddedContext (C:\Users\Kira\.cache\opencode\node_modules\clikit-plugin\dist\index.js:17653:28)
+    at processTicksAndRejections (native:7:39)
+───────────────────────────────────────
+timestamp: 2026-03-18T07:46:45.346Z
+source:    agents [warn]
+error:     [build] Missing 'model' — will use default model
+context: {
+  "file": "C:\\Users\\Kira\\.cache\\opencode\\node_modules\\clikit-plugin\\src\\agents\\build.md"
+}
+───────────────────────────────────────
+timestamp: 2026-03-18T07:46:45.350Z
+source:    skills [error]
+error:     Failed to parse skill systematic-debugging
+context: {
+  "skillPath": "C:\\Users\\Kira\\.cache\\opencode\\node_modules\\clikit-plugin\\skill\\systematic-debugging",
+  "error": "incomplete explicit mapping pair; a key node is missed; or followed by a non-tabulated empty line at line 3, column 82:\n     ... s evidence-based 4-phase process: Reproduce → Isolate → Identify ... \n                                         ^"
+}
+───────────────────────────────────────
+timestamp: 2026-03-18T07:46:45.364Z
+hook:      cass-memory
+error:     no such column: 2026
+context: {
+  "event": "session.created",
+  "phase": "session.created"
+}
+stack:
+SQLiteError: no such column: 2026
+    at all (unknown)
+    at memorySearch (C:\Users\Kira\.cache\opencode\node_modules\clikit-plugin\dist\index.js:17530:37)
+    at embeddedContext (C:\Users\Kira\.cache\opencode\node_modules\clikit-plugin\dist\index.js:17653:28)
+    at processTicksAndRejections (native:7:39)

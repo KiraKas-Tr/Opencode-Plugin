@@ -1,6 +1,6 @@
 ---
 name: systematic-debugging
-description: Use when encountering a bug. Enforces evidence-based 4-phase process: Reproduce → Isolate → Identify → Verify. No guessing.
+description: "Use when encountering a bug. Enforces evidence-based 4-phase process: Reproduce → Isolate → Identify → Verify. No guessing."
 ---
 
 # Systematic Debugging

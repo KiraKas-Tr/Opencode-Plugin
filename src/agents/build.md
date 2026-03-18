@@ -1,5 +1,6 @@
 ---
 description: Primary orchestrator and code executor. Understands intent, delegates, implements, verifies. Default agent for all work.
+model: pikaai/claude-sonnet-4.6
 mode: primary
 temperature: 0.3
 thinking:
