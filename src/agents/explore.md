@@ -19,6 +19,8 @@ tools:
 permission:
   edit: deny
   bash:
+    "tilth*": allow
+    "npx tilth*": allow
     "git log*": allow
     "git blame*": allow
     "git show*": allow
@@ -56,17 +58,24 @@ Work from precise to broad. **Stop when the answer is found** — do not over-ex
 
 ### Reading priority (load `tilth-reading` skill before heavy file work)
 
-When reading files, follow the tilth-first chain:
+When reading files, use `bash: tilth` first — it is now allowed in your bash permissions.
+
+```bash
+# 1st choice — bash tool (allowed: tilth* and npx tilth*)
+bash: tilth <path>
+bash: tilth <path> --section "## Heading"
+bash: tilth <path> --section 45-89
+```
 
 ```
-1. tilth <path>                          — smart read (full or outline)
-2. tilth <path> --section "## Heading"  — section-targeted
-3. read <path>                           — fallback: full raw content
-4. glob + grep                           — fallback: discovery + pattern search
+# Fallback tools (when tilth unavailable or bash fails)
+read <path>        — full raw content (hook auto-enhances via tilth when available)
+glob <pattern>     — file discovery
+grep <pattern>     — content search
 ```
 
-> The runtime hook automatically enhances `read` output via tilth when available.
-> For large files (>500 lines), prefer `tilth` directly to get an outline before committing to full read.
+> `tilth` is permitted via `bash` in your frontmatter (`tilth*: allow`).
+> Use it for any file that may be large (>200 lines) or where section targeting helps.
 
 ### Search priority table
 
@@ -75,9 +84,10 @@ When reading files, follow the tilth-first chain:
 | 1 | Symbol definitions, type signatures | `lsp_workspace_symbols`, `lsp_goto_definition`, `lsp_hover` |
 | 2 | File structure, file listing | `glob` (pattern), `read` (directory listing) |
 | 3 | All call sites / usages | `lsp_find_references` |
-| 4 | File content — known path | `tilth <path>` → `read <path>` (fallback) |
-| 5 | Text pattern across files | `grep` (dedicated tool, not bash) |
-| 6 | Recent changes, authorship | `bash: git log`, `git blame`, `git show`, `git diff` |
+| 4 | File content — known path | `bash: tilth <path>` → `read <path>` (fallback) |
+| 5 | File section — known heading/range | `bash: tilth <path> --section "…"` |
+| 6 | Text pattern across files | `grep` (dedicated tool, not bash) |
+| 7 | Recent changes, authorship | `bash: git log`, `git blame`, `git show`, `git diff` |
 
 **Prefer LSP over text search for symbols.** `lsp_find_references` returns all usages with zero false positives; text grep may miss renamed or aliased identifiers.
 

@@ -21,6 +21,8 @@ tools:
 permission:
   edit: deny
   bash:
+    "tilth*": allow
+    "npx tilth*": allow
     "git log*": allow
     "git blame*": allow
     "git show*": allow
@@ -95,20 +97,29 @@ If the request is ambiguous, state your interpretation assumption at the top —
 
 ## Phase 2 — Gather Local Evidence
 
-Use **LSP tools first**, then `tilth`/`read`/`glob`/`grep`, then git history last.
+Use **LSP tools first**, then `bash: tilth`/`read`/`glob`/`grep`, then git history last.
 
-> Load the `tilth-reading` skill for file reading. Priority: `tilth <path>` → `read` (fallback) → `glob` + `grep` (fallback).
-> The runtime hook enhances `read` output via tilth automatically when tilth is available.
+> Load the `tilth-reading` skill for file reading.
+> `tilth` is permitted via bash (`tilth*: allow` in your frontmatter).
+> Priority: `bash: tilth <path>` → `read` (auto-enhanced fallback) → `glob` + `grep`.
+
+```bash
+# Explicit tilth for outline or section (allowed via bash permissions)
+bash: tilth <path>
+bash: tilth <path> --section "## SectionName"
+bash: tilth <path> --section 45-89
+```
 
 | Priority | What to find | Tools |
 |----------|-------------|-------|
 | 1 | Symbol definitions, type signatures, current design | `lsp_workspace_symbols`, `lsp_goto_definition`, `lsp_hover` |
 | 2 | All callers / consumers of affected code | `lsp_find_references` |
 | 3 | Structural patterns, coupling, duplication | `ast_grep_search`, `grep` |
-| 4 | File content — smart read (outline or full) | `tilth <path>` → `read <path>` (fallback) |
-| 5 | File structure, scope of change | `glob`, directory listing via `read` |
-| 6 | Recent changes, authorship, regression risk | `bash: git log`, `git blame`, `git diff` |
-| 7 | Type errors, lint issues in affected scope | `lsp_diagnostics` |
+| 4 | File content — smart read (outline or full) | `bash: tilth <path>` → `read <path>` (fallback) |
+| 5 | File section — targeted by heading or range | `bash: tilth <path> --section "…"` |
+| 6 | File structure, scope of change | `glob`, directory listing via `read` |
+| 7 | Recent changes, authorship, regression risk | `bash: git log`, `git blame`, `git diff` |
+| 8 | Type errors, lint issues in affected scope | `lsp_diagnostics` |
 
 **Stop when you have enough evidence to make a well-grounded recommendation.** Do not over-read beyond what the decision requires.
 

@@ -201,15 +201,24 @@ The `files_in_scope` field is the execution boundary — read it first.
 
 **File reading: load `tilth-reading` skill — tilth first, fallback to read/glob/grep.**
 
-```
-tilth <path>                         # 1st choice: smart outline-aware read
-tilth <path> --section "## Heading"  # section-targeted read
-read <path>                          # fallback: full raw content
-glob + grep                          # fallback: discovery + pattern search
+```bash
+# 1st choice: smart outline-aware read (bash tool)
+tilth <path>
+tilth <path> --section "## Heading"   # section by heading
+tilth <path> --section 45-89          # section by line range
 ```
 
-> The runtime hook already enhances `read` output via tilth automatically.
-> For large files (>500 lines), call `tilth` directly before `read` to get the outline first.
+```
+# Fallback: use these tools when tilth unavailable or fails
+read <path>                           # full raw content
+glob + grep                           # discovery + pattern search
+```
+
+> **Two paths available:**
+> - **Automatic:** `read` tool output is already enhanced by the tilth runtime hook when tilth is available.
+> - **Explicit:** call `bash: tilth <path>` for section-targeted reads or outline-only mode.
+>
+> For large files (>500 lines), prefer explicit `tilth` via bash to get an outline first.
 
 Use LSP tools to understand the code before touching it:
 
