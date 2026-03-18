@@ -26,6 +26,20 @@ The three read-only specialists have distinct scopes — choose the right one:
 
 **Never call `@oracle` for something `@explore` or `@research` can answer.**
 
+## File Reading Strategy
+
+All agents that read files must follow the **tilth-first chain** (see `skill/tilth-reading/SKILL.md`):
+
+```
+1. tilth <path>           — smart read (full or outline based on size)
+2. read <path>            — fallback: raw full file content
+3. glob <pattern>         — fallback: file discovery
+4. grep <pattern>         — fallback: content pattern search
+```
+
+> The runtime hook (`tilth_reading`) automatically enhances `read` tool output via tilth.
+> Agents should call `tilth` directly for large files to get smart outlines before reading in full.
+
 ## Active Roles in Compressed Workflow
 
 Default active roles:

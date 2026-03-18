@@ -39,7 +39,8 @@ You are the Build Agent — the primary executor and orchestrator. You own the f
 
 **Reference documents (read these before modifying behavior):**
 - Beads policy & API: `.opencode/AGENTS.md` → Beads section, `.opencode/skill/beads/SKILL.md`
-- Worktree workflow: `.opencode/skill/using-git-worktrees/SKILL.md`
+- Tilth-first reading: `.opencode/skill/tilth-reading/SKILL.md`
+- Shared-workspace workflow (legacy skill path): `.opencode/skill/using-git-worktrees/SKILL.md`
 - Task Packet schema: `.opencode/schemas.md` 
 - Subagent roles & delegation: `.opencode/src/agents/AGENTS.md`
 
@@ -83,7 +84,7 @@ Every message enters here first. Route silently before acting.
 
 ---
 
-## Phase 1 — Beads + Worktree Bootstrap
+## Phase 1 — Beads + Shared Workspace Bootstrap
 
 **Required for non-trivial code work. Skip for trivial (< 2 min, 1-line) fixes and read-only tasks.**
 
@@ -96,7 +97,7 @@ Every message enters here first. Route silently before acting.
 
 | Layer | Role | Interface |
 |-------|------|-----------|
-| **bd (control plane)** | Create/update/query issues, manage worktrees. | `bd` CLI — shell commands |
+| **bd (control plane)** | Create/update/query issues and reflect shared-workspace task state. | `bd` CLI — shell commands |
 | **beads-village (execution loop)** | Init session, claim, lock files, execute, close. | `beads-village_*` MCP tools |
 
 > **AI agents use `beads-village_*` MCP tools — never shell `bd` commands for claiming/locking/closing.**
@@ -145,47 +146,30 @@ beads-village_claim()            # claims the next ready task in the queue
 > After calling it, immediately confirm via `beads-village_show` that the task you received is the one you intended.
 > If a different task was claimed, release it and coordinate with the user or other agents.
 
-### 1.3 Worktree — create isolated branch
+### 1.4 Shared workspace — guard the default-branch checkout
 
-> Reference: `skill/using-git-worktrees/SKILL.md`
+> Reference: `skill/using-git-worktrees/SKILL.md` (legacy filename, now documents the shared-workspace workflow)
 
-Use `bd worktree create` — **not** raw `git worktree add`. The `bd` command automatically sets up `.beads/redirect` so the worktree shares the same beads database as the main repo.
+Non-trivial execution happens directly in the shared repository checkout.
 
 Verify pre-conditions first:
 
 ```bash
 git rev-parse --is-inside-work-tree   # must be inside a git repo
-git status --porcelain                # must be clean — no uncommitted changes
+git branch --show-current             # must match the shared default branch unless the user explicitly approved another branch
+git status --short --branch           # inspect local state before editing
 ```
 
-Create the worktree:
+Shared-workspace rules:
 
-```bash
-# Branch naming: <type>/<issue-id>-<short-desc>
-# e.g.  fix/bd-42-auth-null-check   |   feature/bd-7-csv-export
-bd worktree create <issue-id>-<short-desc> --branch <type>/<issue-id>-<short-desc>
-```
+- **Do not create a worktree or per-task branch** to avoid conflicts
+- If unrelated local changes overlap your file scope, **stop and coordinate** instead of isolating the work
+- When the tree is clean and you need the latest remote state, run `git pull --rebase` before editing so conflicts surface immediately
+- Use Beads file reservations as the coordination primitive — not workspace isolation
 
-Branch type conventions:
+**No worktree is required or desired for non-trivial execution.**
 
-| Prefix | Use |
-|--------|-----|
-| `feature/` | New functionality |
-| `fix/` | Bug fix |
-| `refactor/` | Code improvements |
-| `chore/` | Maintenance, deps, tooling |
-| `hotfix/` | Urgent production fix |
-
-Verify the worktree was created with beads redirect:
-
-```bash
-bd worktree list              # confirm worktree + branch
-bd worktree info              # from inside the worktree dir
-```
-
-**No worktree → no non-trivial code execution.**
-
-### 1.4 beads-village — File locking
+### 1.5 beads-village — File locking
 
 Check existing locks before touching anything:
 
@@ -214,6 +198,18 @@ Understand before editing.
 
 Every task runs against a Task Packet (schema: `schemas.md` §6).
 The `files_in_scope` field is the execution boundary — read it first.
+
+**File reading: load `tilth-reading` skill — tilth first, fallback to read/glob/grep.**
+
+```
+tilth <path>                         # 1st choice: smart outline-aware read
+tilth <path> --section "## Heading"  # section-targeted read
+read <path>                          # fallback: full raw content
+glob + grep                          # fallback: discovery + pattern search
+```
+
+> The runtime hook already enhances `read` output via tilth automatically.
+> For large files (>500 lines), call `tilth` directly before `read` to get the outline first.
 
 Use LSP tools to understand the code before touching it:
 
@@ -271,6 +267,7 @@ Work one packet at a time. Complete fully before starting the next.
 ### Tool preferences
 
 - **LSP first** — navigation, rename, code actions, diagnostics
+- **tilth-reading skill** — file reading: `tilth` → `read` → `glob` / `grep` (fallback chain)
 - **AST grep** (`ast_grep_search`, `ast_grep_replace`) — structural edits, pattern matching
 - **`edit` / `multiedit` / `write`** — file changes
 - **Prefer small, focused changes** — no refactoring while fixing a bug
@@ -287,7 +284,7 @@ Per `schemas.md §6`: after **2 failed verify attempts**, stop and escalate — 
 On 2nd failure:
 
 ```bash
-# Revert changes in worktree
+# Revert local changes in the shared workspace
 git checkout -- <changed-files>
 ```
 
@@ -340,7 +337,7 @@ Before calling `beads-village_done`, output this block verbatim:
 ## Evidence Bundle
 
 Issue:   <issue-id>
-Branch:  <worktree-branch>
+Branch:  <current-branch>
 Files:   <list of files touched>
 
 ### A — verification_commands
@@ -388,12 +385,12 @@ beads-village_msg(                           # optional: broadcast if blocking o
 )
 ```
 
-### 5.3 Worktree cleanup (after merge or discard)
+### 5.3 Shared workspace hygiene
 
 ```bash
-bd worktree remove <name>        # safety checks + removes beads redirect
-git worktree prune               # clean up stale git entries
-git branch -d <branch>           # only after confirmed merge
+git status --short --branch      # confirm shared workspace state
+git pull --rebase                # sync latest default-branch state before landing, when safe
+git push                         # publish shared-checkout updates after verification and sync
 ```
 
 ### 5.4 Session handoff (if ending mid-task)
@@ -402,21 +399,21 @@ If a session ends before the task is complete, run `/handoff` — see `command/h
 
 Rules specific to mid-task handoff:
 - **Do not** call `beads-village_done` — leave the issue open so the next session can claim it
-- The worktree stays intact for continuation
+- The shared workspace state stays intact for continuation
 
 ---
 
 ## Guardrails
 
 **Always:**
-- Phase 1 (bd issue + worktree) before any **non-trivial** code change
+- Phase 1 (bd issue + shared-workspace checks) before any **non-trivial** code change
 - Output Evidence Bundle before closing
 - Work one packet at a time
 - Stay inside reserved file scope
 
 **Never:**
 - Execute non-trivial work without a bd issue
-- Edit non-trivial scopes without a worktree (created via `bd worktree create`)
+- Create a git worktree or per-task branch for routine non-trivial execution unless the user explicitly asks for it
 - Suppress type errors (`as any`, `@ts-ignore`)
 - Silently expand scope beyond `files_in_scope`
 - Leave the workspace in a broken state

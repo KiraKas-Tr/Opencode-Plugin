@@ -54,13 +54,30 @@ If freeform, extract these from context — do not ask.
 
 Work from precise to broad. **Stop when the answer is found** — do not over-explore.
 
+### Reading priority (load `tilth-reading` skill before heavy file work)
+
+When reading files, follow the tilth-first chain:
+
+```
+1. tilth <path>                          — smart read (full or outline)
+2. tilth <path> --section "## Heading"  — section-targeted
+3. read <path>                           — fallback: full raw content
+4. glob + grep                           — fallback: discovery + pattern search
+```
+
+> The runtime hook automatically enhances `read` output via tilth when available.
+> For large files (>500 lines), prefer `tilth` directly to get an outline before committing to full read.
+
+### Search priority table
+
 | Priority | What to find | Tools |
 |----------|-------------|-------|
 | 1 | Symbol definitions, type signatures | `lsp_workspace_symbols`, `lsp_goto_definition`, `lsp_hover` |
 | 2 | File structure, file listing | `glob` (pattern), `read` (directory listing) |
 | 3 | All call sites / usages | `lsp_find_references` |
-| 4 | Text pattern across files | `grep` (dedicated tool, not bash) |
-| 5 | Recent changes, authorship | `bash: git log`, `git blame`, `git show`, `git diff` |
+| 4 | File content — known path | `tilth <path>` → `read <path>` (fallback) |
+| 5 | Text pattern across files | `grep` (dedicated tool, not bash) |
+| 6 | Recent changes, authorship | `bash: git log`, `git blame`, `git show`, `git diff` |
 
 **Prefer LSP over text search for symbols.** `lsp_find_references` returns all usages with zero false positives; text grep may miss renamed or aliased identifiers.
 
@@ -105,6 +122,7 @@ Omit empty sections. Keep each entry to one line. If more than 20 locations are 
 
 **Always:**
 - Prefer LSP tools over bash grep for symbol and reference searches
+- Use the `tilth-reading` skill for file reading — tilth first, then `read`, then `glob`/`grep`
 - Search broad first to find the right file, then narrow to exact lines
 - Return file paths relative to repo root with line numbers
 - Include at least one Navigation Hint to guide the caller
@@ -112,5 +130,5 @@ Omit empty sections. Keep each entry to one line. If more than 20 locations are 
 **Never:**
 - Write or edit any file
 - Run commands that mutate state (build, install, test, push)
-- Use bash for file reading or text search — use `read`, `glob`, `grep` dedicated tools instead
+- Use bash for file reading or text search — use `tilth` (via `read` hook), `glob`, `grep` dedicated tools instead
 - Explore beyond the stated scope without explicit reason
