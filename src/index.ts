@@ -47,6 +47,11 @@ import {
   // Beads Context
   getBeadsSnapshot,
   getBeadsCompactionContext,
+  // Tilth Reading
+  shouldAttemptTilthForTool,
+  extractFilePath,
+  applyTilthReading,
+  formatTilthLog,
   isBlockedToolExecutionError,
   formatHookErrorLog,
   writeErrorLog,
@@ -848,6 +853,29 @@ const CliKitPlugin: Plugin = async (ctx) => {
           }
         } catch (error) {
           await hookErr("empty-message-sanitizer", error, { tool: toolName });
+        }
+      }
+
+      // Tilth Reading: enhance read output with tilth (smart outline-aware) before truncation
+      if (pluginConfig.hooks?.tilth_reading?.enabled !== false) {
+        try {
+          const tilthConfig = pluginConfig.hooks?.tilth_reading;
+          const toolInput = getToolInput(input.args);
+          if (shouldAttemptTilthForTool(toolName, toolInput as Record<string, unknown>)) {
+            const filePath = extractFilePath(toolInput as Record<string, unknown>);
+            if (filePath) {
+              const result = applyTilthReading(filePath, toolOutputContent, tilthConfig);
+              if (result.usedTilth) {
+                toolOutputContent = result.content;
+                output.output = result.content;
+              }
+              if (tilthConfig?.log === true) {
+                await cliLog("info", formatTilthLog(result, filePath));
+              }
+            }
+          }
+        } catch (error) {
+          await hookErr("tilth-reading", error, { tool: toolName });
         }
       }
 

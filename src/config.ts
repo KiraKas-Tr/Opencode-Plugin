@@ -95,6 +95,13 @@ export interface BeadsContextHookConfig {
   log?: boolean;
 }
 
+export interface TilthReadingHookConfig {
+  enabled?: boolean;
+  /** Minimum read output length (chars) before attempting tilth. Default: 1000 */
+  min_content_length?: number;
+  log?: boolean;
+}
+
 export interface WorkflowConfig {
   mode?: "classic" | "compressed";
   active_roles?: string[];
@@ -117,6 +124,7 @@ export interface HooksConfig {
   todo_beads_sync?: TodoBeadsSyncHookConfig;
   cass_memory?: CassMemoryHookConfig;
   beads_context?: BeadsContextHookConfig;
+  tilth_reading?: TilthReadingHookConfig;
 }
 
 export interface SkillOverride {
@@ -233,6 +241,11 @@ const DEFAULT_CONFIG: CliKitConfig = {
       include_closed: false,
       active_only: true,
       ready_limit: 3,
+      log: false,
+    },
+    tilth_reading: {
+      enabled: true,
+      min_content_length: 1000,
       log: false,
     },
   },

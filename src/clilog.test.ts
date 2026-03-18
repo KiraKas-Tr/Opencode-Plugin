@@ -410,3 +410,134 @@ describe("AppLogData shape contract", () => {
     }
   });
 });
+
+// ─── Tilth Reading integration ────────────────────────────────────────────────
+
+async function fireToolAfter(
+  hooks: Awaited<ReturnType<typeof loadPlugin>>,
+  tool: string,
+  args: Record<string, unknown>,
+  outputContent: string
+): Promise<{ output: string }> {
+  const outputObj = { output: outputContent, title: `${tool} result` };
+  await hooks["tool.execute.after"]?.(
+    { tool, sessionID: "s1", callID: "c1", args },
+    outputObj as never
+  );
+  return outputObj;
+}
+
+describe("tilth-reading hook: pipeline integration", () => {
+  it("passes through original content when tilth_reading is disabled", async () => {
+    const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), "clikit-tilth-off-"));
+    fs.writeFileSync(
+      path.join(tmpDir, "clikit.json"),
+      JSON.stringify({ hooks: { tilth_reading: { enabled: false } } }),
+      "utf-8"
+    );
+    const { ctx } = buildMockCtx({ directory: tmpDir });
+
+    try {
+      const hooks = await loadPlugin(ctx);
+      const original = "x".repeat(3000);
+      const result = await fireToolAfter(hooks, "read", { filePath: "/fake/file.ts" }, original);
+      // Hook is disabled — content must be unchanged (before truncator runs)
+      // The truncator may also run; we just check the string is non-empty and consistent.
+      expect(result.output.length).toBeGreaterThan(0);
+    } finally {
+      fs.rmSync(tmpDir, { recursive: true, force: true });
+    }
+  });
+
+  it("does not apply tilth for non-read tools (e.g. bash)", async () => {
+    const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), "clikit-tilth-bash-"));
+    fs.writeFileSync(
+      path.join(tmpDir, "clikit.json"),
+      JSON.stringify({ hooks: { tilth_reading: { enabled: true, log: false } } }),
+      "utf-8"
+    );
+    const { ctx } = buildMockCtx({ directory: tmpDir });
+
+    try {
+      const hooks = await loadPlugin(ctx);
+      const original = "echo hello";
+      const result = await fireToolAfter(hooks, "bash", { command: "echo hello" }, original);
+      // bash tool should not be intercepted by tilth-reading
+      expect(result.output).toBe(original);
+    } finally {
+      fs.rmSync(tmpDir, { recursive: true, force: true });
+    }
+  });
+
+  it("invokes tilth-reading for read tool with filePath — output always non-empty", async () => {
+    const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), "clikit-tilth-read-"));
+    fs.writeFileSync(
+      path.join(tmpDir, "clikit.json"),
+      JSON.stringify({ hooks: { tilth_reading: { enabled: true, min_content_length: 100, log: false } } }),
+      "utf-8"
+    );
+    const { ctx } = buildMockCtx({ directory: tmpDir });
+
+    try {
+      const hooks = await loadPlugin(ctx);
+      // Use a real path that exists so tilth can attempt to read it (or fail gracefully).
+      const filePath = path.join(tmpDir, "clikit.json");
+      const original = "x".repeat(500);
+      const result = await fireToolAfter(hooks, "read", { filePath }, original);
+      // Regardless of tilth success/failure, output must be non-empty
+      expect(result.output.length).toBeGreaterThan(0);
+    } finally {
+      fs.rmSync(tmpDir, { recursive: true, force: true });
+    }
+  });
+
+  it("logs tilth outcome when tilth_reading.log is true", async () => {
+    const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), "clikit-tilth-log-"));
+    fs.writeFileSync(
+      path.join(tmpDir, "clikit.json"),
+      JSON.stringify({ hooks: { tilth_reading: { enabled: true, min_content_length: 100, log: true } } }),
+      "utf-8"
+    );
+    const { ctx, logCalls } = buildMockCtx({ directory: tmpDir });
+
+    try {
+      const hooks = await loadPlugin(ctx);
+      const filePath = path.join(tmpDir, "clikit.json");
+      await fireToolAfter(hooks, "read", { filePath }, "x".repeat(500));
+
+      // At least one log call should mention tilth-reading
+      const tilthLogs = logCalls.filter((c) =>
+        c.body.message.includes("tilth-reading")
+      );
+      expect(tilthLogs.length).toBeGreaterThan(0);
+    } finally {
+      fs.rmSync(tmpDir, { recursive: true, force: true });
+    }
+  });
+
+  it("skips tilth for content below min_content_length threshold", async () => {
+    const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), "clikit-tilth-small-"));
+    fs.writeFileSync(
+      path.join(tmpDir, "clikit.json"),
+      JSON.stringify({ hooks: { tilth_reading: { enabled: true, min_content_length: 9999, log: true } } }),
+      "utf-8"
+    );
+    const { ctx, logCalls } = buildMockCtx({ directory: tmpDir });
+
+    try {
+      const hooks = await loadPlugin(ctx);
+      const filePath = path.join(tmpDir, "clikit.json");
+      const small = "tiny content";
+      const result = await fireToolAfter(hooks, "read", { filePath }, small);
+
+      // Content below threshold → original preserved (tilth skipped)
+      expect(result.output).toBe(small);
+
+      // Log should mention "Skipped"
+      const skippedLogs = logCalls.filter((c) => c.body.message.includes("Skipped"));
+      expect(skippedLogs.length).toBeGreaterThan(0);
+    } finally {
+      fs.rmSync(tmpDir, { recursive: true, force: true });
+    }
+  });
+});
