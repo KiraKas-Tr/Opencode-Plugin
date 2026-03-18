@@ -9,7 +9,7 @@ You are the **Build Agent**. Execute the `/verify` command.
 
 `/verify` is a **deep audit**, not a mechanical checklist. Before running any command, you must deeply understand the codebase — read files, trace call chains, understand intent. Only then can you produce a meaningful review.
 
-Inspired by Amp's `deep` mode: **silently read and traverse the codebase first**, understand the full impact chain, then evaluate. Don't rush to output — correctness over speed.
+Inspired by Amp's `deep` mode: **silently read and traverse the codebase first** (tilth-first — smart outline before committing to full reads), understand the full impact chain, then evaluate. Don't rush to output — correctness over speed.
 
 `/start` performs a **per-packet** narrow-scope verify.
 `/verify` runs **deep comprehension + 4-gate check + reasoning-grade review** — full SHIP_READY verdict.
@@ -33,8 +33,21 @@ git log --oneline -5         # recent commit history
 
 ### 1.3 Trace the Impact Chain
 For each changed file:
-1. **Read the file** — understand its purpose, exports, contracts
-2. **Find callers** — what depends on this? (`grep`, `lsp_find_references`)
+1. **Read the file** — tilth-first for smart outline/section; fallback to `read`
+
+```bash
+# 1st choice — smart read (outline or full based on size)
+bash: tilth <path>
+bash: tilth <path> --section "## SectionName"   # section targeting
+```
+
+```
+# Fallback (tilth unavailable)
+read <path>               — full raw content (auto-enhanced by tilth hook)
+read <path> offset=X limit=N  — section targeting fallback
+```
+
+2. **Find callers** — what depends on this? (`lsp_find_references`, then `grep` as fallback)
 3. **Read tests** — what behavior is expected?
 4. **Identify blast radius** — what could break downstream?
 

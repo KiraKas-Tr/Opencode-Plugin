@@ -11,6 +11,8 @@ tools:
 permission:
   edit: allow
   bash:
+    "tilth*": allow
+    "npx tilth*": allow
     "npm run dev*": allow
     "pnpm dev*": allow
     "bun run dev*": allow
@@ -41,7 +43,22 @@ You are the Vision Agent — a design architect who turns prompts, sketches, and
 
 Build will provide design context when delegating to you (existing design system, CSS framework, component patterns). Use this context — do not delegate to other agents.
 
-If context is insufficient, use your own tools (glob, grep, read) to find:
+If context is insufficient, read existing code — **tilth-first**:
+
+```bash
+# 1st choice — smart read (outline or full)
+bash: tilth <path>
+bash: tilth <path> --section "## SectionName"
+```
+
+```
+# Fallback
+glob pattern="…"   — discover files
+read <path>        — full content (auto-enhanced by tilth hook)
+grep pattern="…"   — content search
+```
+
+Use to find:
 - CSS variables, theme config, design tokens
 - Existing component naming and prop patterns
 - package.json for CSS framework, component library, icons

@@ -30,8 +30,15 @@ Document:
 git log --oneline -10
 git diff HEAD~5
 
-# Search for related code
-Grep: [error pattern]
+# Read suspicious files — tilth-first
+bash: tilth <path>
+bash: tilth <path> --section "## SectionName"
+```
+
+```
+# Fallback reading
+read <path>     — full content (auto-enhanced by tilth hook)
+grep pattern="<error pattern>" include="*.ts"
 ```
 
 ### 3. Investigate
@@ -42,7 +49,7 @@ Hypothesis → Evidence → Verify → Repeat
 
 1. Form hypothesis about cause
 2. Predict what evidence would confirm/deny
-3. Gather evidence (grep, read, run, LSP)
+3. Gather evidence — **tilth-first**: `bash: tilth <path>` → `read` → `grep` → LSP
 4. If wrong, form new hypothesis
 
 ### 4. Root Cause Analysis (5 Whys)
@@ -78,14 +85,15 @@ pnpm typecheck
 
 ## Debugging Tools
 
-| Tool | Use For |
-|------|---------|
-| `Grep` | Find error patterns, related code |
-| `Read` | Examine suspicious files |
-| `Bash` | Run tests, check logs, git bisect |
-| `LSP` | Trace definitions, find references |
-| `ast_grep_search` | Find structural code patterns |
-| Oracle | Complex multi-layer analysis (escalation) |
+| Tool | Priority | Use For |
+|------|----------|---------|
+| `bash: tilth <path>` | **1st** | Smart read — outline or full, section targeting |
+| `Read` | 2nd (fallback) | Full file content (auto-enhanced by tilth hook) |
+| `LSP` | **1st for symbols** | Trace definitions, find references, diagnostics |
+| `Grep` | Fallback | Find patterns when tilth section can't isolate |
+| `Bash` | As needed | Run tests, check logs, git bisect |
+| `ast_grep_search` | As needed | Find structural code patterns |
+| Oracle | Escalation | Complex multi-layer analysis |
 
 ## Common Patterns
 

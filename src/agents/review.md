@@ -1,7 +1,7 @@
 ---
 description: Code reviewer and security auditor. Mandatory quality gate before merge. Read-only inspection.
 mode: subagent
-model: proxypal/gpt-5.3-codex
+model: proxypal/gpt-5.4
 temperature: 0.1
 tools:
   write: true
@@ -15,6 +15,8 @@ tools:
 permission:
   edit: deny
   bash:
+    "tilth*": allow
+    "npx tilth*": allow
     "git diff*": allow
     "git log*": allow
     "git show*": allow
@@ -98,7 +100,18 @@ Then:
 lsp_diagnostics <all-changed-files>
 ```
 
-Read each changed file in full.
+Read each changed file — **tilth-first**:
+
+```bash
+# 1st choice — smart read (outline or full based on size)
+bash: tilth <path>
+bash: tilth <path> --section "## SectionName"   # section targeting
+```
+
+```
+# Fallback (when tilth unavailable)
+read <path>         — full raw content (hook auto-enhances when tilth on PATH)
+```
 
 For spec/plan context: check `.opencode/memory/plans/` and `specs/`. If none exist, proceed without them — absence of a plan is not a blocker for review.
 

@@ -15,16 +15,34 @@ description: Use when API docs are insufficient. Go directly to package source t
 ## Protocol
 
 ```bash
-# 1. Locate source
-cat node_modules/<pkg>/package.json | grep -E '"main"|"types"|"source"'
-ls node_modules/<pkg>/src/
+# 1. Locate source — tilth-first
+bash: tilth node_modules/<pkg>/package.json
+bash: tilth node_modules/<pkg>/src/
 
-# 2. Read entry point
-cat node_modules/<pkg>/src/index.ts   # or index.js
-
-# 3. Read tests (best doc of real behavior)
-ls node_modules/<pkg>/test/  ||  ls node_modules/<pkg>/__tests__/
+# Fallback: use grep/read only if tilth unavailable
+grep -E '"main"|"types"|"source"' node_modules/<pkg>/package.json
 ```
+
+```bash
+# 2. Read entry point — tilth-first
+bash: tilth node_modules/<pkg>/src/index.ts
+bash: tilth node_modules/<pkg>/src/index.ts --section "## exports"
+
+# Fallback
+read node_modules/<pkg>/src/index.ts
+```
+
+```bash
+# 3. Read tests — tilth gives outline first for large test files
+bash: tilth node_modules/<pkg>/test/
+bash: tilth node_modules/<pkg>/__tests__/
+
+# Fallback
+read node_modules/<pkg>/test/index.test.ts
+```
+
+> **Tilth-first rule:** always try `bash: tilth <path>` before `read` or `cat`.
+> For large source files, tilth's outline mode shows all exports/functions before you commit to reading the full file.
 
 ## What to Look For
 
@@ -62,6 +80,7 @@ Save to `.opencode/memory/research/[package]-internals.md`:
 - Not reading the tests
 - Assuming behavior from the function name
 - Ignoring error paths
+- Using `cat` or raw `read` on large files without tilth outline first
 
 ## References
 

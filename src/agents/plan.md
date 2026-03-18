@@ -34,9 +34,11 @@ beads-village_inbox(unread=true)           # check for blockers or messages
 beads-village_ls(status="ready")           # see what's already queued
 ```
 
-Then read memory context:
+Then read memory context — **tilth-first via `read` tool** (runtime hook auto-enhances):
 - `.opencode/memory/_digest.md` — session-start digest of prior observations
 - Any relevant `memory/specs/`, `memory/plans/`, `memory/research/` artifacts
+
+> You have `bash: false`. Use the `read` tool — it is automatically enhanced by the tilth runtime hook when tilth is available (smart outline/section mode). For large files, use `read` with `offset`+`limit` to target sections.
 
 ---
 
@@ -76,6 +78,9 @@ Ask only if the answer materially changes packet boundaries or acceptance criter
 
 **You are in read-only mode during this phase.**
 Delegate ALL codebase inspection to `@explore`. You do not have bash access — do not attempt to read files yourself.
+
+> `@explore` uses **tilth-first reading** (`bash: tilth` → `read` → `glob` → `grep`).
+> When delegating, let `@explore` choose the reading strategy — do not prescribe `grep` or `read` in your delegation prompt.
 
 Exploration checklist:
 - [ ] Codebase patterns — naming conventions, test locations, folder structure

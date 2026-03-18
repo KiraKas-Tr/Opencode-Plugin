@@ -13,10 +13,14 @@ description: Use when exploring unfamiliar code or implementing complex features
 3. lsp_goto_definition → trace origins
 4. lsp_find_references → map all usages
 5. lsp_document_symbols → understand exports
-6. Incoming/outgoing call hierarchy → trace data flow
-7. Score each finding 1–10
-8. Save to memory/research/[topic]-findings.md
+6. bash: tilth <path>  → smart read (outline first, then section drill)
+   Fallback: read <path> (auto-enhanced) → grep (pattern search)
+7. Incoming/outgoing call hierarchy → trace data flow
+8. Score each finding 1–10
+9. Save to memory/research/[topic]-findings.md
 ```
+
+> **Step 6 — tilth-first reading:** for any file surfaced by LSP, use `bash: tilth <path>` to get a smart outline before reading in full. Use `--section` to drill into specific functions. Fall back to `read` + `grep` only when tilth is unavailable.
 
 ## Confidence Scoring
 
@@ -52,6 +56,7 @@ Save to `.opencode/memory/research/[topic]-findings.md`:
 ## Red Flags
 
 - Skipping LSP — guessing structure instead of tracing it
+- Reading large files with `read` without trying `tilth` outline first
 - Not saving findings to memory (lost between sessions)
 - Asserting with confidence < 4 without flagging it
 
