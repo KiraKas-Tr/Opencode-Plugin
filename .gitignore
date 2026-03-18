@@ -1,0 +1,27 @@
+node_modules/
+dist/
+*.log
+.DS_Store
+.env
+.env.*
+!.env.example
+
+# Runtime state (do not version)
+.beads/
+.beads-village/
+.mail/
+
+# Auto-generated memory digest
+.opencode/memory/_digest.md
+.opencode/memory/memory.db
+.opencode/memory/checkpoint-*.db
+
+# OpenCode memory runtime artifacts
+.opencode/memory/**
+!.opencode/memory/_templates/
+!.opencode/memory/_templates/**
+!.opencode/memory/**/.gitkeep
+
+# Dolt database files (added by bd init)
+.dolt/
+*.db

@@ -101,6 +101,16 @@ bd close bd-42 --reason "Completed" --json
    - `bd create "Found bug" --description="Details about what was found" -p 1 --deps discovered-from:<parent-id>`
 5. **Complete**: `bd close <id> --reason "Done"`
 
+### Shared Workspace Policy
+
+This repo now uses a **shared checkout** workflow for agents.
+
+- ✅ Work in the existing repository checkout
+- ✅ Coordinate with Beads and file reservations, then land changes directly on the repo's shared default branch
+- ✅ Pull/rebase frequently so conflicts surface immediately instead of being hidden in isolated workspaces
+- ❌ Do NOT create git worktrees for routine agent execution
+- ❌ Do NOT create per-task branches unless the user explicitly asks for an exception
+
 ### Auto-Sync
 
 bd automatically syncs with git:
@@ -123,28 +133,29 @@ For more details, see README.md and docs/QUICKSTART.md.
 
 ## Landing the Plane (Session Completion)
 
-**When ending a work session**, you MUST complete ALL steps below. Work is NOT complete until `git push` succeeds.
+**When ending a work session with landed code**, you MUST complete ALL steps below. If you are pausing without landing, create/update the issue state and hand off clearly instead of pushing partial work.
 
 **MANDATORY WORKFLOW:**
 
 1. **File issues for remaining work** - Create issues for anything that needs follow-up
 2. **Run quality gates** (if code changed) - Tests, linters, builds
 3. **Update issue status** - Close finished work, update in-progress items
-4. **PUSH TO REMOTE** - This is MANDATORY:
+4. **PUSH TO REMOTE** - Mandatory only when you are landing completed work:
    ```bash
    git pull --rebase
    bd dolt push
    git push
    git status  # MUST show "up to date with origin"
    ```
-5. **Clean up** - Clear stashes, prune remote branches
+5. **Clean up** - Clear stashes, prune remote branches if applicable
 6. **Verify** - All changes committed AND pushed
 7. **Hand off** - Provide context for next session
 
 **CRITICAL RULES:**
-- Work is NOT complete until `git push` succeeds
-- NEVER stop before pushing - that leaves work stranded locally
-- NEVER say "ready to push when you are" - YOU must push
-- If push fails, resolve and retry until it succeeds
+- If you are landing completed work, it is NOT complete until `git push` succeeds
+- Do not stop before pushing when the task is in a landed/ship state — that leaves completed work stranded locally
+- NEVER say "ready to push when you are" for completed work — YOU must push it
+- If push fails during landing, resolve and retry until it succeeds
+- If you are pausing mid-task, do **not** pretend the work is complete — leave the issue open and hand off explicitly
 
 <!-- END BEADS INTEGRATION -->
