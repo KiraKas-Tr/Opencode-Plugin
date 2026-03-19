@@ -34,6 +34,40 @@ The plugin (`src/index.ts`) loads agents from `src/agents/*.md`, commands from `
 - **Config**: `clikit.config.json` — enable/disable agents, hooks, override models.
 - **Full docs**: `@.opencode/README.md` — complete reference for all agents, commands, skills, hooks, and config options.
 
+## Context Management (DCP Beta)
+
+CliKit installs [`@tarquinen/opencode-dcp@beta`](https://github.com/Opencode-DCP/opencode-dynamic-context-pruning) alongside itself. DCP beta uses a **single `compress` tool** — the old 3-tool system (`distill`, `compress`, `prune`) is gone.
+
+### Token Budget
+
+| Level | Context % | Action |
+|-------|-----------|--------|
+| 🟢 Green | < 40% | Normal operation |
+| 🟡 Yellow | 40–65% | Offload findings to `memory/`; run `/dcp stats` to inspect |
+| 🟠 Orange | 65–80% | Run `/dcp compress` to consolidate; prep handoff if work is complex |
+| 🔴 Red | > 80% | Run `/dcp sweep` immediately, then `/handoff`; end session |
+
+### DCP Commands
+
+| Command | When to use |
+|---------|-------------|
+| `/dcp stats` | Check token breakdown and savings at any time |
+| `/dcp context` | Full breakdown of what is consuming context |
+| `/dcp compress` | Trigger context compression (will ask permission by default) |
+| `/dcp sweep` | Aggressive sweep before session end when context is critical |
+
+### Rules
+
+- Do **not** reference `/dcp prune` or `/dcp distill` — not supported in beta.
+- DCP config lives at `.opencode/dcp.jsonc` (project-level, highest priority).
+- Auto-protected tools whose output DCP will never prune: `task`, `skill`, `todowrite`, `todoread`, `compress`, `batch`, `plan_enter`, `plan_exit`.
+- `nudgeForce: "soft"` — DCP will suggest but not force compression.
+- Reduced cache invalidation is on by default in beta for better performance.
+
+### Integration with session-management skill
+
+Load `session-management` skill for full threshold handling (including handoff triggers). DCP compress is a *complement* to handoffs — it compresses context in-session, while `/handoff` writes state to disk across sessions.
+
 ## Development
 
 ```bash

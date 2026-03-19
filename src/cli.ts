@@ -5,6 +5,8 @@ import * as os from "os";
 import { fileURLToPath } from "url";
 
 const PLUGIN_NAME = "clikit-plugin";
+const DCP_PLUGIN_ENTRY = "@tarquinen/opencode-dcp@beta";
+const DCP_PLUGIN_BASE = "@tarquinen/opencode-dcp";
 const VERSION = "0.0.0";
 
 interface ScaffoldStats {
@@ -64,7 +66,15 @@ export function resolveProjectDir(
 }
 
 export function upsertPluginEntry(existingPlugins: string[], pluginEntry: string): string[] {
-  const pluginName = pluginEntry.split("@")[0] || pluginEntry;
+  // Handle scoped packages (@scope/name[@version]) vs unscoped (name[@version])
+  let pluginName: string;
+  if (pluginEntry.startsWith("@")) {
+    // Find the second "@" that marks the version separator
+    const versionAt = pluginEntry.indexOf("@", 1);
+    pluginName = versionAt === -1 ? pluginEntry : pluginEntry.slice(0, versionAt);
+  } else {
+    pluginName = pluginEntry.split("@")[0] || pluginEntry;
+  }
   const filteredPlugins = existingPlugins.filter(
     (p) => p !== pluginName && !p.startsWith(`${pluginName}@`)
   );
@@ -368,7 +378,9 @@ async function install(options: InstallOptions): Promise<number> {
       ? config.plugin.filter((p): p is string => typeof p === "string")
       : [];
     const filteredPlugins = upsertPluginEntry(existingPlugins, pluginEntry);
-    const pluginMergedConfig = { ...config, plugin: filteredPlugins };
+    // Also add DCP beta alongside clikit so both are installed together
+    const finalPlugins = upsertPluginEntry(filteredPlugins, DCP_PLUGIN_ENTRY);
+    const pluginMergedConfig = { ...config, plugin: finalPlugins };
     writeConfig(configPath, pluginMergedConfig);
 
     if (options.includeProjectScaffold) {
@@ -409,6 +421,7 @@ async function install(options: InstallOptions): Promise<number> {
     }
 
     console.log(`✓ CliKit installed (${pluginEntry})`);
+    console.log(`✓ DCP installed (${DCP_PLUGIN_ENTRY})`);
     console.log(`✓ Config: ${configPath}`);
     console.log("✓ Restart OpenCode");
     return 0;

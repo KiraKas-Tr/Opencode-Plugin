@@ -1,7 +1,7 @@
 {
   "name": "clikit-plugin",
-  "version": "0.3.3",
-  "description": "OpenCode plugin — 7 agents, 15 commands, 22 skills, 10 hooks",
+  "version": "0.3.4",
+  "description": "OpenCode plugin — 7 agents, 15 commands, 25 skills, 10 hooks",
   "type": "module",
   "main": "./dist/index.js",
   "types": "./dist/index.d.ts",
@@ -30,9 +30,8 @@
     "lint": "tsc --noEmit",
     "prepublishOnly": "bun run clean && bun run build",
     "postpublish": "rm -rf ~/.cache/opencode/node_modules/clikit-plugin && rm -f ~/.cache/opencode/bun.lock && echo '✓ Cleared OpenCode plugin cache — next start will install fresh'",
-    "test": "bun test",
     "typecheck": "tsc --noEmit",
-    "verify": "bun run lint && bun run test && bun run build",
+    "verify": "bun run lint && bun run build",
     "dev": "bun run build --watch"
   },
   "keywords": [

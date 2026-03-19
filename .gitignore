@@ -10,3 +10,5 @@ memory/**
 !memory/_templates/
 !memory/_templates/**
 !memory/**/.gitkeep
+!memory/project/
+!memory/project/**
