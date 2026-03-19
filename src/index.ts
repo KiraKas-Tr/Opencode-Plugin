@@ -2,6 +2,9 @@ import type { Plugin } from "@opencode-ai/plugin";
 import { tool } from "@opencode-ai/plugin";
 import { execFile } from "node:child_process";
 import { promisify } from "node:util";
+import * as fs from "node:fs";
+import * as path from "node:path";
+import * as os from "node:os";
 
 const execFileAsync = promisify(execFile);
 import { getBuiltinAgents } from "./agents";
@@ -16,6 +19,9 @@ import {
   deepMerge,
   type LspServerConfig,
 } from "./config";
+import {
+  upsertPluginEntry,
+} from "./cli";
 import {
   // Todo Enforcer
   checkTodoCompletion,
@@ -61,6 +67,67 @@ import {
 } from "./hooks";
 import { cassMemoryContext, cassMemoryReflect } from "./tools/cass-memory";
 import { contextSummary } from "./tools/context-summary";
+
+const DCP_PLUGIN_ENTRY = "@tarquinen/opencode-dcp@beta";
+const DCP_PLUGIN_BASE = "@tarquinen/opencode-dcp";
+
+/**
+ * Ensure @tarquinen/opencode-dcp@beta is present in the OpenCode config plugin list.
+ * Called at plugin init so users who already have clikit@latest get DCP automatically
+ * without needing to re-run `clikit install`.
+ */
+function ensureDcpInConfig(): void {
+  try {
+    const configDir = (() => {
+      if (process.env.OPENCODE_CONFIG_DIR) return process.env.OPENCODE_CONFIG_DIR;
+      const home = (() => {
+        if (process.env.SNAP_REAL_HOME) return process.env.SNAP_REAL_HOME;
+        const h = os.homedir();
+        const m = h.match(/^(\/home\/[^/]+)\/snap\//);
+        return m ? m[1] : h;
+      })();
+      if (process.platform === "win32") {
+        return path.join(process.env.APPDATA || path.join(home, "AppData", "Roaming"), "opencode");
+      }
+      return path.join(process.env.XDG_CONFIG_HOME || path.join(home, ".config"), "opencode");
+    })();
+
+    const jsoncPath = path.join(configDir, "opencode.jsonc");
+    const jsonPath = path.join(configDir, "opencode.json");
+    const configPath = fs.existsSync(jsoncPath) ? jsoncPath : jsonPath;
+
+    if (!fs.existsSync(configPath)) return;
+
+    const raw = fs.readFileSync(configPath, "utf-8");
+    let config: Record<string, unknown>;
+    try {
+      config = JSON.parse(raw) as Record<string, unknown>;
+    } catch {
+      // Strip block comments + trailing commas (JSONC)
+      const cleaned = raw
+        .replace(/\/\*[\s\S]*?\*\//g, "")
+        .replace(/,\s*([}\]])/g, "$1");
+      config = JSON.parse(cleaned) as Record<string, unknown>;
+    }
+
+    const plugins = Array.isArray(config.plugin)
+      ? (config.plugin as string[]).filter((p): p is string => typeof p === "string")
+      : [];
+
+    // Already present — nothing to do
+    const hasDcp = plugins.some(
+      (p) => p === DCP_PLUGIN_BASE || p.startsWith(`${DCP_PLUGIN_BASE}@`)
+    );
+    if (hasDcp) return;
+
+    const updated = upsertPluginEntry(plugins, DCP_PLUGIN_ENTRY);
+    const tmpPath = `${configPath}.tmp`;
+    fs.writeFileSync(tmpPath, JSON.stringify({ ...config, plugin: updated }, null, 2) + "\n");
+    fs.renameSync(tmpPath, configPath);
+  } catch {
+    // Never crash plugin init due to config patching failures
+  }
+}
 
 const CliKitPlugin: Plugin = async (ctx) => {
   const todosBySession = new Map<string, OpenCodeTodo[]>();
@@ -390,6 +457,9 @@ const CliKitPlugin: Plugin = async (ctx) => {
         : "`/verify` is the mandatory pre-ship gate — ship only after SHIP_READY verdict",
     ].join("\n");
   }
+
+  // Auto-inject DCP beta into OpenCode config if missing (no re-install needed)
+  ensureDcpInConfig();
 
   const pluginConfig = loadCliKitConfig(ctx.directory) ?? {};
   const debugLogsEnabled = pluginConfig.hooks?.session_logging === true && process.env.CLIKIT_DEBUG === "1";
