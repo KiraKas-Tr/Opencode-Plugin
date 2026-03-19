@@ -10,16 +10,26 @@
   "enabled": true,
   "pruneNotification": "minimal",
 
-  /* ── Nudge configuration ──────────────────────────────────────────────── */
-  "nudgeFrequency": 5,
-  "iterationNudgeThreshold": 15,
-  "nudgeForce": "soft",
-
   /* ── Compress ─────────────────────────────────────────────────────────── */
   "compress": {
     "permission": "ask",
     "maxContextLimit": 150000,
-    "minContextLimit": 50000
+    "minContextLimit": 50000,
+    "nudgeFrequency": 5,
+    "iterationNudgeThreshold": 15,
+    "nudgeForce": "soft",
+
+    /* Auto-protected tools (DCP will never prune their output) */
+    "protectedTools": [
+      "task",
+      "skill",
+      "todowrite",
+      "todoread",
+      "compress",
+      "batch",
+      "plan_enter",
+      "plan_exit"
+    ]
   },
 
   /* ── Strategies ───────────────────────────────────────────────────────── */
@@ -27,17 +37,5 @@
     "deduplication": { "enabled": true },
     "supersedeWrites": { "enabled": true },
     "purgeErrors": { "enabled": true, "turns": 4 }
-  },
-
-  /* ── Auto-protected tools (DCP will never prune their output) ─────────── */
-  "protectedToolNames": [
-    "task",
-    "skill",
-    "todowrite",
-    "todoread",
-    "compress",
-    "batch",
-    "plan_enter",
-    "plan_exit"
-  ]
+  }
 }
