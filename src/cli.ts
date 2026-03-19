@@ -285,9 +285,7 @@ function getConfigDir(): string {
   }
 
   const home = getRealHome();
-  if (process.platform === "win32") {
-    return path.join(process.env.APPDATA || path.join(home, "AppData", "Roaming"), "opencode");
-  }
+  // OpenCode uses XDG-style ~/.config/opencode on ALL platforms (including Windows)
   return path.join(process.env.XDG_CONFIG_HOME || path.join(home, ".config"), "opencode");
 }
 
