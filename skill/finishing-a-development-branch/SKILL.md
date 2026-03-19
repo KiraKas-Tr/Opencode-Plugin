@@ -1,6 +1,6 @@
 ---
 name: finishing-a-development-branch
-description: Legacy compatibility skill. Finish work from the shared default-branch workspace: verify, sync, and land without worktrees or task branches.
+description: "Legacy compatibility skill. Finish work from the shared default-branch workspace: verify, sync, and land without worktrees or task branches."
 ---
 
 # Finishing a Shared Workspace Session

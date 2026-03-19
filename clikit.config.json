@@ -2,29 +2,7 @@
   "$schema": "./src/clikit.schema.json",
   "disabled_agents": [],
   "disabled_commands": [],
-  "agents": {
-    "build": {
-      "model": "proxypal/claude-opus-4.6"
-    },
-    "plan": {
-      "model": "proxypal/gpt-5.3-codex"
-    },
-    "explore": {
-      "model": "proxypal/gemini-3-flash"
-    },
-    "oracle": {
-      "model": "proxypal/gpt-5.1-codex-max"
-    },
-    "research": {
-      "model": "proxypal/gpt-5.3-codex"
-    },
-    "review": {
-      "model": "proxypal/gpt-5.3-codex"
-    },
-    "vision": {
-      "model": "proxypal/gemini-3.1-flash-image"
-    }
-  },
+  "agents": {},
   "commands": {},
   "hooks": {
     "session_logging": false,
