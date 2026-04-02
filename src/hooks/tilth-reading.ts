@@ -1,12 +1,13 @@
 /**
  * Tilth Reading Hook
  *
- * Enhances file read output using the `tilth` binary when available.
+ * Enhances file read output using `tilth` when available.
  * Tilth provides smart outline-aware reading (full vs outline based on token threshold).
  *
  * Priority:
- *   1. tilth <path>           — smart read (full or outline)
- *   2. tilth <path> --section — section-targeted read
+ *   1. tilth <path>           — direct CLI (fast path)
+ *   2. npx tilth <path>       — fallback when CLI is not installed globally
+ *   3. tilth <path> --section — section-targeted read
  *   Fallback → original read output (unchanged)
  *
  * Runs on tool.execute.after for the `read` tool only.
@@ -26,44 +27,83 @@ export interface TilthReadingConfig {
 export interface TilthReadResult {
   /** Whether tilth was used (false = fallback to original) */
   usedTilth: boolean;
-  /** Whether tilth binary was found on PATH */
+  /** Whether tilth is available for execution (direct CLI or npx fallback) */
   tilthAvailable: boolean;
   /** Final content after enhancement or fallback */
   content: string;
   /** Human-readable outcome for logging */
   outcome: "tilth_success" | "tilth_unavailable" | "tilth_error" | "skipped";
+  /** Command used to invoke tilth (e.g. `tilth` or `npx tilth`) */
+  commandUsed?: string;
   /** Error message when outcome === "tilth_error" */
   error?: string;
 }
 
 const DEFAULT_MIN_CONTENT_LENGTH = 1000;
+const DIRECT_TILTH_PROBE_TIMEOUT_MS = 1_500;
+const NPX_TILTH_PROBE_TIMEOUT_MS = 15_000;
+const NEGATIVE_CACHE_TTL_MS = 30_000;
 
-// Cache availability per process lifetime to avoid repeated PATH lookups.
-let tilthAvailabilityCache: boolean | null = null;
-// Cache the resolved command so we don't re-probe on every call.
+interface TilthAvailabilityCache {
+  available: boolean;
+  checkedAt: number;
+}
+
+// Cache negative availability briefly so a newly installed/warmed CLI can be picked up.
+let tilthAvailabilityCache: TilthAvailabilityCache | null = null;
+// Cache the resolved command so we keep using the fast path once found.
 let tilthCmd: string[] | null = null;
+
+function formatTilthCommand(cmd: string[] | null): string | undefined {
+  return cmd ? cmd.join(" ") : undefined;
+}
+
+function resolveTilthCmd(now = Date.now()): string[] | null {
+  if (tilthCmd) return tilthCmd;
+
+  if (
+    tilthAvailabilityCache?.available === false &&
+    now - tilthAvailabilityCache.checkedAt < NEGATIVE_CACHE_TTL_MS
+  ) {
+    return null;
+  }
+
+  tilthCmd = probeTilthCmd();
+  tilthAvailabilityCache = {
+    available: tilthCmd !== null,
+    checkedAt: now,
+  };
+
+  return tilthCmd;
+}
 
 /**
  * Probe candidates in order and return the first that exits 0.
  * Returns null if none found.
  */
 function probeTilthCmd(): string[] | null {
-  const candidates: string[][] = [
-    ["tilth", "--version"],
-    ["npx", "tilth", "--version"],
+  const candidates: Array<{ command: string[]; probe: string[]; timeout: number }> = [
+    {
+      command: ["tilth"],
+      probe: ["tilth", "--version"],
+      timeout: DIRECT_TILTH_PROBE_TIMEOUT_MS,
+    },
+    {
+      command: ["npx", "tilth"],
+      probe: ["npx", "tilth", "--version"],
+      timeout: NPX_TILTH_PROBE_TIMEOUT_MS,
+    },
   ];
 
-  for (const cmd of candidates) {
+  for (const candidate of candidates) {
     try {
-      const result = Bun.spawnSync(cmd, {
+      const result = Bun.spawnSync(candidate.probe, {
         stdout: "pipe",
         stderr: "pipe",
-        // 2s per candidate — keeps total probe under 5s (fits bun test default timeout)
-        timeout: 2_000,
+        timeout: candidate.timeout,
       });
       if (result.exitCode === 0) {
-        // Return the prefix (without --version) as the runnable command base.
-        return cmd.slice(0, -1);
+        return candidate.command;
       }
     } catch {
       // not found, try next
@@ -73,20 +113,15 @@ function probeTilthCmd(): string[] | null {
 }
 
 /**
- * Check if the `tilth` binary is available (direct or via npx).
- * Result is cached for the process lifetime.
+ * Check if `tilth` is available (direct CLI first, then `npx tilth`).
+ * Positive results stay cached; negative probes expire so newly installed CLIs are picked up.
  */
 export function isTilthAvailable(): boolean {
-  if (tilthAvailabilityCache !== null) return tilthAvailabilityCache;
-
-  tilthCmd = probeTilthCmd();
-  tilthAvailabilityCache = tilthCmd !== null;
-
-  return tilthAvailabilityCache;
+  return resolveTilthCmd() !== null;
 }
 
 /**
- * Reset availability cache (useful in tests or after installing tilth).
+ * Reset availability cache (useful in tests or immediately after installing tilth).
  */
 export function resetTilthAvailabilityCache(): void {
   tilthAvailabilityCache = null;
@@ -123,10 +158,9 @@ export function extractFilePath(toolInput: Record<string, unknown>): string | nu
 
 /**
  * Run tilth on a file path and return its stdout, or throw on error.
- * Uses the resolved command (tilth or npx tilth).
+ * Uses the resolved command (direct CLI preferred, `npx tilth` fallback).
  */
-function runTilth(filePath: string): string {
-  const cmd = tilthCmd ?? ["tilth"];
+function runTilth(filePath: string, cmd: string[]): string {
   const result = Bun.spawnSync([...cmd, filePath], {
     stdout: "pipe",
     stderr: "pipe",
@@ -165,7 +199,9 @@ export function applyTilthReading(
     };
   }
 
-  if (!isTilthAvailable()) {
+  const cmd = resolveTilthCmd();
+
+  if (!cmd) {
     return {
       usedTilth: false,
       tilthAvailable: false,
@@ -175,7 +211,7 @@ export function applyTilthReading(
   }
 
   try {
-    const enhanced = runTilth(filePath);
+    const enhanced = runTilth(filePath, cmd);
     // Sanity: if tilth returns empty output, keep the original.
     if (!enhanced || enhanced.trim().length === 0) {
       return {
@@ -183,6 +219,7 @@ export function applyTilthReading(
         tilthAvailable: true,
         content: original,
         outcome: "tilth_error",
+        commandUsed: formatTilthCommand(cmd),
         error: "tilth returned empty output",
       };
     }
@@ -192,6 +229,7 @@ export function applyTilthReading(
       tilthAvailable: true,
       content: enhanced,
       outcome: "tilth_success",
+      commandUsed: formatTilthCommand(cmd),
     };
   } catch (err) {
     return {
@@ -199,6 +237,7 @@ export function applyTilthReading(
       tilthAvailable: true,
       content: original,
       outcome: "tilth_error",
+      commandUsed: formatTilthCommand(cmd),
       error: err instanceof Error ? err.message : String(err),
     };
   }
@@ -208,13 +247,15 @@ export function applyTilthReading(
  * Format a log line for tilth hook outcome.
  */
 export function formatTilthLog(result: TilthReadResult, filePath: string): string {
+  const commandSuffix = result.commandUsed ? ` via ${result.commandUsed}` : "";
+
   switch (result.outcome) {
     case "tilth_success":
-      return `[CliKit:tilth-reading] Enhanced read via tilth: ${filePath}`;
+      return `[CliKit:tilth-reading] Enhanced read via tilth${commandSuffix}: ${filePath}`;
     case "tilth_unavailable":
       return `[CliKit:tilth-reading] tilth not available, using read output: ${filePath}`;
     case "tilth_error":
-      return `[CliKit:tilth-reading] tilth error (fallback to read): ${filePath} — ${result.error ?? "unknown error"}`;
+      return `[CliKit:tilth-reading] tilth error${commandSuffix} (fallback to read): ${filePath} — ${result.error ?? "unknown error"}`;
     case "skipped":
       return `[CliKit:tilth-reading] Skipped (content below threshold): ${filePath}`;
     default:

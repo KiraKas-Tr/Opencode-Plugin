@@ -31,14 +31,14 @@ The three read-only specialists have distinct scopes — choose the right one:
 All agents that read files must follow the **tilth-first chain** (see `skill/tilth-reading/SKILL.md`):
 
 ```
-1. tilth <path>           — smart read (full or outline based on size)
-2. read <path>            — fallback: raw full file content
-3. glob <pattern>         — fallback: file discovery
-4. grep <pattern>         — fallback: content pattern search
+1. tilth <path> / tilth <symbol> --scope <dir>   — direct CLI first for read/search/navigation
+2. grep <pattern>                                  — fallback: text pattern search when tilth did not answer
+3. read <path>                                     — fallback: raw full file content
+4. glob <pattern>                                  — fallback: explicit path discovery only
 ```
 
-> The runtime hook (`tilth_reading`) automatically enhances `read` tool output via tilth.
-> Agents should call `tilth` directly for large files to get smart outlines before reading in full.
+> Prefer direct `tilth` CLI first. Use `npx tilth` only when the CLI is not installed globally.
+> The runtime hook (`tilth_reading`) automatically enhances `read` tool output via tilth, but it does **not** replace `grep`/`glob`, so agents must call `tilth` explicitly for search and navigation.
 
 ## Active Roles in Compressed Workflow
 

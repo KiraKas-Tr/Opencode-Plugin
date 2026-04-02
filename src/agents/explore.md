@@ -67,6 +67,7 @@ Bash access is enabled for **read-only navigation only** and is restricted by fr
 Never use mutating shell commands. In particular: `rm`, `git push`, `git commit`, `git reset`, and `sudo` are forbidden.
 
 Use **tilth CLI as the default navigation/search tool**.
+You must make a relevant tilth attempt before using `read`, `grep`, or `glob` unless bash tilth execution is unavailable.
 For codebase exploration, follow this fallback order exactly:
 
 ```text
@@ -75,22 +76,27 @@ tilth → grep → LSP → read
 
 Use `glob` only when you specifically need raw path enumeration and the main navigation chain is not enough.
 
-Start with explicit `bash: tilth` CLI whenever you are locating symbols, sections, or likely integration points:
+Start with explicit `bash: tilth` CLI whenever you are locating symbols, sections, files, callers, or likely integration points:
 
 ```bash
 # Default navigation/search CLI
 bash: tilth <path>
 bash: tilth <path> --section "## Heading"
 bash: tilth <path> --section 45-89
+bash: tilth <symbol> --scope <dir>
+bash: tilth "*.test.ts" --scope <dir>
+bash: tilth "<text-or-regex>" --scope <dir>
+bash: tilth <symbol> --kind callers --scope <dir>
 ```
 
 If `tilth` does not answer the question or is unavailable, fall back to `grep`, then LSP tools, then `read`.
+Only use `glob` after a tilth attempt when you explicitly need raw path enumeration.
 
 ### Search priority table
 
 | Priority | What to find | Tools |
 |----------|-------------|-------|
-| 1 | Symbol navigation, sections, likely integration points | `bash: tilth <path>` / `bash: tilth --section ...` |
+| 1 | Symbol navigation, sections, likely integration points, callers, file discovery, content search | `bash: tilth <path>` / `bash: tilth --section ...` / `bash: tilth <symbol> --scope ...` |
 | 2 | Text pattern fallback across files | `grep` |
 | 3 | Semantic confirmation: definitions, refs, types | `lsp_workspace_symbols`, `lsp_goto_definition`, `lsp_find_references`, `lsp_hover` |
 | 4 | Raw file content once narrowed | `read <path>` |
@@ -141,6 +147,7 @@ Omit empty sections. Keep each entry to one line. If more than 20 locations are 
 **Always:**
 - Use bash only within the read-only restrictions defined in frontmatter
 - Start navigation with `tilth` CLI; use `grep` second, LSP third, and `read` last
+- Use direct `tilth` CLI patterns for symbol lookup, content search, callers, and path discovery before reaching for `grep` or `glob`
 - Use `glob` only for explicit path enumeration, not as the default navigator
 - Search broad first to find the right file, then narrow to exact lines
 - Return file paths relative to repo root with line numbers
@@ -150,5 +157,6 @@ Omit empty sections. Keep each entry to one line. If more than 20 locations are 
 - Write or edit any file
 - Run commands that mutate state (build, install, test, push)
 - Run `rm`, `git push`, `git commit`, `git reset`, or `sudo`
-- Skip the fallback order unless a later tool is clearly required by the task
+- Skip the tilth-first fallback order unless bash tilth execution is unavailable or a later tool is clearly required by the task
+- Start with `read`, `grep`, or `glob` when a relevant `tilth` query can answer the request
 - Explore beyond the stated scope without explicit reason
