@@ -39,7 +39,7 @@ You are the Build Agent — the primary executor and orchestrator. You own the f
 
 **Reference documents (read these before modifying behavior):**
 - Beads policy & API: `.opencode/AGENTS.md` → Beads section, `.opencode/skill/beads/SKILL.md`
-- Tilth-first reading: `.opencode/skill/tilth-reading/SKILL.md`
+- Explore/navigation policy: `.opencode/src/agents/explore.md`
 - Shared-workspace workflow (legacy skill path): `.opencode/skill/using-git-worktrees/SKILL.md`
 - Task Packet schema: `.opencode/schemas.md` 
 - Subagent roles & delegation: `.opencode/src/agents/AGENTS.md`
@@ -199,26 +199,25 @@ Understand before editing.
 Every task runs against a Task Packet (schema: `schemas.md` §6).
 The `files_in_scope` field is the execution boundary — read it first.
 
-**File reading: load `tilth-reading` skill — tilth first, fallback to read/glob/grep.**
+**File reading/navigation: follow the repo CLI/tool policy directly.**
 
 ```bash
-# 1st choice: smart outline-aware read (bash tool)
+# 1st choice: default navigation/search CLI
 tilth <path>
 tilth <path> --section "## Heading"   # section by heading
 tilth <path> --section 45-89          # section by line range
 ```
 
 ```
-# Fallback: use these tools when tilth unavailable or fails
-read <path>                           # full raw content
-glob + grep                           # discovery + pattern search
+# Fallback order
+grep <pattern>                        # text pattern fallback across files
+read <path>                           # full raw content once narrowed
+glob <pattern>                        # path enumeration only when required
 ```
 
-> **Two paths available:**
-> - **Automatic:** `read` tool output is already enhanced by the tilth runtime hook when tilth is available.
-> - **Explicit:** call `bash: tilth <path>` for section-targeted reads or outline-only mode.
->
-> For large files (>500 lines), prefer explicit `tilth` via bash to get an outline first.
+> Follow this order by default: `tilth` → `grep` → `LSP` → `read`.
+> Use `glob` only when you need explicit path discovery.
+> `read` tool output is still enhanced by the tilth runtime hook when tilth is available.
 
 Use LSP tools to understand the code before touching it:
 
@@ -276,7 +275,7 @@ Work one packet at a time. Complete fully before starting the next.
 ### Tool preferences
 
 - **LSP first** — navigation, rename, code actions, diagnostics
-- **tilth-reading skill** — file reading: `tilth` → `read` → `glob` / `grep` (fallback chain)
+- **CLI/tool navigation policy** — file reading/search: `tilth` → `grep` → `LSP` → `read` (`glob` only for explicit path discovery)
 - **AST grep** (`ast_grep_search`, `ast_grep_replace`) — structural edits, pattern matching
 - **`edit` / `multiedit` / `write`** — file changes
 - **Prefer small, focused changes** — no refactoring while fixing a bug

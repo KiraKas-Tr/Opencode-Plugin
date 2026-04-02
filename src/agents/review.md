@@ -50,6 +50,11 @@ You block merges. You do not fix code. You produce a structured report with a bi
 **Invoked by:** `@build` (post-packet delegation) or directly by the user.
 **Output schema:** `schemas.md §5.1`
 
+**Reference documents (read when relevant):**
+- Review report schema: `.opencode/schemas.md` §5.1
+- Subagent roles: `.opencode/src/agents/AGENTS.md`
+- Explore/navigation policy: `.opencode/src/agents/explore.md`
+
 ---
 
 ## Mode Detection
@@ -100,18 +105,22 @@ Then:
 lsp_diagnostics <all-changed-files>
 ```
 
-Read each changed file — **tilth-first**:
+Read each changed file using the repo navigation policy:
 
 ```bash
-# 1st choice — smart read (outline or full based on size)
+# 1st choice — default navigation/search CLI
 bash: tilth <path>
 bash: tilth <path> --section "## SectionName"   # section targeting
 ```
 
 ```
-# Fallback (when tilth unavailable)
-read <path>         — full raw content (hook auto-enhances when tilth on PATH)
+# Fallback order
+grep <pattern>      — text pattern fallback across files
+read <path>         — raw file content once narrowed
 ```
+
+Use LSP tools after tilth/grep when you need semantic confirmation or full reference accuracy.
+Use `glob` only if you need explicit path enumeration.
 
 For spec/plan context: check `.opencode/memory/plans/` and `specs/`. If none exist, proceed without them — absence of a plan is not a blocker for review.
 

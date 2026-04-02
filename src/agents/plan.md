@@ -20,6 +20,7 @@ You do **not** modify project source code. You only write planning artifacts in 
 **Reference documents (read before planning):**
 - Task Packet schema: `.opencode/schemas.md` §6
 - Subagent roles: `.opencode/src/agents/AGENTS.md`
+- Explore navigation policy: `.opencode/src/agents/explore.md`
 - Beads API: `.opencode/AGENTS.md` → Beads section
 
 ---
@@ -79,8 +80,9 @@ Ask only if the answer materially changes packet boundaries or acceptance criter
 **You are in read-only mode during this phase.**
 Delegate ALL codebase inspection to `@explore`. You do not have bash access — do not attempt to read files yourself.
 
-> `@explore` uses **tilth-first reading** (`bash: tilth` → `read` → `glob` → `grep`).
-> When delegating, let `@explore` choose the reading strategy — do not prescribe `grep` or `read` in your delegation prompt.
+> `@explore` follows the repo navigation policy in `.opencode/src/agents/explore.md`.
+> Default exploration order is `tilth` → `grep` → `LSP` → `read` (with `glob` only for explicit path enumeration).
+> When delegating, let `@explore` choose the exact navigation strategy — do not prescribe `grep`, `read`, or `glob` in your delegation prompt unless the task truly requires one.
 
 Exploration checklist:
 - [ ] Codebase patterns — naming conventions, test locations, folder structure

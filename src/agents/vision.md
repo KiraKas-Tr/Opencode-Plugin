@@ -1,7 +1,7 @@
 ---
 description: Design architect and visual implementer. Prompt-to-UI, image-to-code, variant exploration. Frontend only.
 mode: subagent
-model: proxypal/gemini-3.1-flash-image
+model: proxypal/gpt-5.4
 temperature: 0.4
 tools:
   write: true
