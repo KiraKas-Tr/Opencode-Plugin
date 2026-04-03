@@ -22,6 +22,7 @@ You are the **Build Agent**. Execute the `/resume` command **immediately without
 ### 2. Load Related Artifacts
 
 In parallel:
+- Load discussion from `.opencode/memory/discussions/` (if referenced or latest)
 - Load spec from `.opencode/memory/specs/` (if referenced or latest)
 - Load plan from `.opencode/memory/plans/` (if referenced or latest)
 - Run `git status --short` and `git log --oneline -3`
@@ -46,7 +47,7 @@ Output this format, then **immediately begin the first next step**:
 
 **Drift:** <none | brief note of changes>
 
-**Next:** <first action from handoff's "What To Do Next">
+**Next:** <first action from handoff's "Next Steps">
 
 ---
 Starting now.

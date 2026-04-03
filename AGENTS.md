@@ -10,18 +10,19 @@ The plugin (`src/index.ts`) loads agents from `src/agents/*.md`, commands from `
 
 **Quick mode** (simple features):
 ```
-/create → /start → /verify → /ship
+/discuss → /create → /start → /verify → /ship
 ```
 
 **Deep mode** (complex features, research, UI):
 ```
-/create → /research → /design → /start → /verify → /ship
+/discuss → /create → /design → /start → /verify → /ship
 ```
 
-- `/create` produces both spec and plan — `/start` works directly from this output
+- `/discuss` captures user intent and writes a planning-ready discussion artifact
+- `/create` reads discussion context, runs a mandatory pre-plan research pass, then produces both spec and plan — `/start` works directly from this output
 - `/start` executes packet-by-packet and embeds the execute + verify loop in compressed mode
 - `/verify` is the deeper optional audit / pre-ship gate — run before `/ship` finalizes and lands shared-checkout changes
-- `/research` = external docs, API comparison, library research
+- `/research` = optional standalone research command — read discussion context, close decision gaps with external evidence, and write a planning-ready report
 - `/design` = UI/UX design and implementation (uses Vision agent)
 - Execution happens one **Task Packet** at a time (1 concern, 1–3 files, one verify bundle)
 
@@ -31,8 +32,8 @@ The plugin (`src/index.ts`) loads agents from `src/agents/*.md`, commands from `
 - **Commands**: `command/*.md` — each slash command's template and instructions.
 - **Skills**: `skill/*/SKILL.md` — load relevant skills before tasks. List available skills with `ls skill/`.
 - **Schemas**: `@.opencode/schemas.md` — canonical schemas for tasks, beads, delegation, artifacts, and Task Packets.
-- **Templates**: `memory/_templates/*.md` — templates for specs, plans, research, reviews, handoffs, PRDs.
-- **Memory**: `memory/_digest.md` (auto-generated from SQLite observations on session start), plus `memory/specs/`, `memory/plans/`, `memory/research/`, `memory/handoffs/`.
+- **Templates**: `memory/_templates/*.md` — templates for discussions, specs, plans, research, reviews, handoffs, PRDs.
+- **Memory**: `memory/_digest.md` (auto-generated from SQLite observations on session start), plus `memory/discussions/`, `memory/specs/`, `memory/plans/`, `memory/research/`, `memory/handoffs/`, `memory/reviews/`, `memory/prds/`.
 - **Config**: `.opencode/clikit.jsonc` or `.opencode/clikit.json` (preferred); `clikit.config.json` remains a legacy fallback.
 - **Full docs**: `@.opencode/README.md` — complete reference for all agents, commands, skills, hooks, and config options.
 
@@ -89,6 +90,23 @@ bun run dev        # watch mode
 - Hooks export from `src/hooks/index.ts`, wired in `src/index.ts` event handlers
 - Memory tools in `src/tools/` are library code used by hooks, not registered as agent tools
 - Never force push without `--force-with-lease`
+
+## Tilth Navigation Policy
+
+When agents navigate files or search the codebase, use **tilth CLI first**.
+
+Fallback order:
+
+```text
+tilth CLI → read → grep → glob
+```
+
+- Use `read` once the target file is narrowed and you need raw content
+- Use `grep` for text-pattern fallback when tilth did not answer the question
+- Use `glob` only for explicit path enumeration
+- Use LSP after navigation when semantic confirmation is required
+
+This is a documented agent rule, not a hard runtime block.
 
 ## Issue Tracking with bd (beads)
 

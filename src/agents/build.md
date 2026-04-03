@@ -50,10 +50,11 @@ You are the Build Agent — the primary executor and orchestrator. You own the f
 
 ### 0.1 Where Build fits in the workflow
 
-When Build is invoked, `@plan` has already produced artifacts on disk:
+When Build is invoked, `@plan` has already produced artifacts on disk, and `/discuss` or `/research` may already have written supporting context:
 
 | Artifact | Path | What it contains |
 |----------|------|-----------------|
+| **Discussion** | `.opencode/memory/discussions/YYYY-MM-DD-<topic>.md` | Locked intent, confirmed assumptions, deferred items |
 | **Plan** | `.opencode/memory/plans/YYYY-MM-DD-<feature>.md` | DAG, File Impact, Boundaries, all Task Packets |
 | **Spec** | `.opencode/memory/specs/YYYY-MM-DD-<feature>.md` | Requirements, user stories, acceptance criteria |
 | **Research** | `.opencode/memory/research/YYYY-MM-DD-<topic>.md` | External evidence, library findings |

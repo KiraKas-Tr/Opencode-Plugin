@@ -14,8 +14,10 @@ Show the current state of work: beads, tasks, files, and git status.
 ### 1. Check Beads Village
 
 ```
-mcp__beads_village__status()
+beads-village_status()
 ```
+
+Also inspect ready work, reservations, and inbox state using the matching `beads-village_*` tools.
 
 ### 2. Check Git State
 
@@ -28,6 +30,7 @@ git log --oneline -5
 ### 3. Check Artifacts
 
 Look for:
+- `.opencode/memory/discussions/` — Discussion artifacts
 - `.opencode/memory/specs/` — Active specifications
 - `.opencode/memory/plans/` — Implementation plans
 - `.opencode/memory/handoffs/` — Pending handoffs
@@ -66,6 +69,7 @@ Look for:
 
 | Type | File | Status |
 |------|------|--------|
+| Discussion | YYYY-MM-DD-topic.md | 🧭 Intent Locked |
 | Spec | YYYY-MM-DD-feature.md | ✅ Active |
 | Plan | YYYY-MM-DD-feature.md | ✅ Active |
 | Research | YYYY-MM-DD-topic.md | 📚 Reference |
@@ -92,7 +96,7 @@ Look for:
 
 | Need | Command |
 |------|---------|
-| Start new feature | `/create` |
+| Start new feature | `/discuss` |
 | Begin implementing | `/start` |
 | Resume paused work | `/resume` |
 | Ship & land | `/ship` |
@@ -111,11 +115,11 @@ Look for:
 
 | Area | Tool |
 |------|------|
-| Beads | `mcp__beads_village__status()` |
-| Tasks | `mcp__beads_village__ls()` |
-| Ready tasks | `mcp__beads_village__ls(status="ready")` |
-| Reservations | `mcp__beads_village__reservations()` |
-| Messages | `mcp__beads_village__inbox()` |
+| Beads | `beads-village_status()` |
+| Tasks | `beads-village_ls()` |
+| Ready tasks | `beads-village_ls(status="ready")` |
+| Reservations | `beads-village_reservations()` |
+| Messages | `beads-village_inbox()` |
 | Git | `git status`, `git log` |
 | Artifacts | `glob`, `Read` |
 

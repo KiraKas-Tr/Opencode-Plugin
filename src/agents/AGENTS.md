@@ -7,16 +7,17 @@ Each `.md` file in this directory defines an agent. The frontmatter sets model, 
 | Agent | Role | Mode | Modifies Code? |
 |---|---|---|---|
 | **@build** | Primary orchestrator and code executor. Delegates, implements, verifies. | primary | ✅ Yes |
+| **@discuss** | Primary intent-locking agent. Clarifies ambiguity, confirms preferences, and writes discussion artifacts. | primary | ❌ Code / ✅ discussion artifacts |
 | **@plan** | Primary strategic planner. Produces specs and plans. Architecture-aware. | primary | ❌ Plans only |
 | **@oracle** | High-depth read-only advisor for hard architecture trade-offs, complex debugging, and second-opinion analysis. Expensive specialist — invoke only when `@explore` or `@research` cannot resolve the question. | subagent | ❌ Read-only |
 | **@explore** | Fast local codebase navigator. Symbol definitions, usages, file structure, git history. Read-only. | subagent | ❌ Read-only |
-| **@research** | External evidence specialist. Docs, APIs, GitHub patterns, web sources. Read-only. | subagent | ❌ Read-only |
+| **@research** | External evidence specialist. Docs, APIs, GitHub patterns, web sources. May write research artifacts when directly invoked by `/research`. | subagent | ❌ Code / ✅ research artifacts |
 | **@review** | Code reviewer and security auditor. Quality gate before merge. | subagent | ❌ Read-only |
 | **@vision** | Design architect and visual implementer. Frontend UI only. | subagent | ✅ Frontend only |
 
 ## Specialist Boundaries
 
-The three read-only specialists have distinct scopes — choose the right one:
+The specialist subagents have distinct scopes — choose the right one:
 
 | Need | Use | Why |
 |------|-----|-----|
@@ -28,19 +29,19 @@ The three read-only specialists have distinct scopes — choose the right one:
 
 ## File Reading Strategy
 
-All agents that read files must follow the **tilth-first chain** (see `skill/tilth-reading/SKILL.md`):
+All agents that read files must follow the **tilth-first policy** (see `skill/tilth-reading/SKILL.md`):
 
 ```
 1. tilth <path> / tilth <symbol> --scope <dir>   — direct CLI first for read/search/navigation
-2. read <path>                                     — fallback: raw full file content
-3. glob <pattern>                                  — fallback: explicit path discovery only
-4. grep <pattern>                                  — fallback: text pattern search when tilth did not answer
+2. read <path>                                     — fallback: narrowed raw content
+3. grep <pattern>                                  — fallback: text pattern search
+4. glob <pattern>                                  — fallback: explicit path discovery only
 ```
 
 > Prefer direct `tilth` CLI first. Use `npx tilth` only when the CLI is not installed globally.
-> The runtime hook (`tilth_reading`) automatically enhances `read` tool output via tilth when available, so `read` is the default raw-content fallback.
-> `@explore` additionally has a hard runtime guard: `read` / `grep` / `glob` are blocked until an explicit `tilth` CLI attempt has been made in that subagent session.
-> For codebase exploration and semantic confirmation, the practical execution chain inside `@explore` is `tilth → grep → LSP → read`, while `glob` stays reserved for explicit path enumeration.
+> The runtime hook (`tilth_reading`) automatically enhances `read` tool output via tilth when available, so `read` remains the primary raw-content fallback.
+> This is a documented operating rule, not a hard runtime guard.
+> `@explore` should follow the same practical order: `tilth CLI` first, then `read` / `grep` / `glob` depending on the exact fallback need; use LSP after navigation when semantic confirmation is required.
 
 ## Active Roles in Compressed Workflow
 
@@ -51,6 +52,7 @@ Default active roles:
 - coordinator logic in command/runtime flow
 
 On-demand specialists (invoke only when needed):
+- `@discuss` — intent locking and pre-create clarification
 - `@explore` — codebase navigation
 - `@research` — external evidence
 - `@oracle` — hard decisions, expensive
@@ -94,6 +96,10 @@ User → @build (orchestrator)
          ├── @plan      (multi-step planning)
          ├── @vision    (UI work)
          └── @review    (quality gate before merge)
+
+User → @discuss (intent locking)
+         ├── @explore   (local context, relevant files, existing patterns)
+         └── @research  (only if the user explicitly pivots to evidence work)
 
 User → @plan (planning)
          ├── @explore   (codebase context, integration points)

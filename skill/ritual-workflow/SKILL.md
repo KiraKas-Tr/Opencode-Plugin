@@ -23,8 +23,10 @@ DISCOVER → PLAN → IMPLEMENT → VERIFY → COMPLETE
 
 | Mode | Commands |
 |------|----------|
-| Quick | `/create` → `/start` → `/verify` → `/ship` |
-| Deep (research/UI) | `/create` → `/research` → `/design` → `/start` → `/verify` → `/ship` |
+| Quick | `/discuss` → `/create` → `/start` → `/verify` → `/ship` |
+| Deep (UI) | `/discuss` → `/create` → `/design` → `/start` → `/verify` → `/ship` |
+
+`/create` includes a mandatory pre-plan research pass via `@research` before it finalizes the spec + plan. `/research` remains available as an optional standalone command when the user wants a dedicated evidence pass.
 
 ## Enforcement
 

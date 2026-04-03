@@ -49,11 +49,6 @@ export interface SubagentQuestionBlockerHookConfig {
   enabled?: boolean;
 }
 
-export interface TilthFirstGuardHookConfig {
-  enabled?: boolean;
-  log?: boolean;
-}
-
 export interface TruncatorHookConfig {
   enabled?: boolean;
   max_output_chars?: number;
@@ -124,7 +119,6 @@ export interface HooksConfig {
   git_guard?: GitGuardHookConfig;
   security_check?: SecurityCheckHookConfig;
   subagent_question_blocker?: SubagentQuestionBlockerHookConfig;
-  tilth_first_guard?: TilthFirstGuardHookConfig;
   truncator?: TruncatorHookConfig;
   memory_digest?: MemoryDigestHookConfig;
   todo_beads_sync?: TodoBeadsSyncHookConfig;
@@ -208,10 +202,6 @@ const DEFAULT_CONFIG: CliKitConfig = {
     },
     subagent_question_blocker: {
       enabled: true,
-    },
-    tilth_first_guard: {
-      enabled: true,
-      log: false,
     },
     truncator: {
       enabled: true,

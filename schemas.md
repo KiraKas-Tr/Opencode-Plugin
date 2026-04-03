@@ -51,6 +51,7 @@ Stored at: `.opencode/memory/beads/<bead_id>.json`
   },
   
   "artifacts": {
+    "discussions": [],
     "spec": null,
     "plan": null,
     "research": [],
@@ -160,7 +161,7 @@ Path: `.opencode/memory/handoffs/YYYY-MM-DD-<phase>.md`
 ```yaml
 ---
 date: YYYY-MM-DD
-phase: spec'd | researched | planned | implementing | validating
+phase: discussed | spec'd | researched | planned | implementing | validating
 branch: git-branch
 bead_id: optional
 ---
@@ -173,7 +174,31 @@ bead_id: optional
 ## Next Steps
 ```
 
-### 5.3 Research Report
+### 5.3 Discussion Artifact
+
+Path: `.opencode/memory/discussions/YYYY-MM-DD-<topic>.md`
+
+```yaml
+---
+topic: topic-name
+date: YYYY-MM-DD
+status: draft | approved
+mode: interactive | assumptions
+bead_id: optional
+---
+# Discussion: [Topic]
+## Goal
+## Scope Boundary
+## Locked Decisions
+## Confirmed Assumptions
+## Open Questions
+## Codebase Context
+## Canonical References
+## Deferred / Later
+## Planning Notes
+```
+
+### 5.4 Research Report
 
 Path: `.opencode/memory/research/YYYY-MM-DD-<topic>.md`
 
@@ -188,15 +213,18 @@ bead_id: optional
 ---
 # Research: [Topic]
 ## Question
+## Planning Goal
 ## Summary
+## Research Brief
 ## Key Findings
 ## Comparison (if applicable)
 ## Recommendation
-## Verification Steps
+## Planning Impact
+## Verification Hooks
 ## Sources
 ```
 
-### 5.4 PRD (Product Requirements Document)
+### 5.5 PRD (Product Requirements Document)
 
 Path: `.opencode/memory/prds/YYYY-MM-DD-<feature>.md`
 
@@ -288,6 +316,7 @@ escalate_if:                    # Conditions that require Oracle / re-plan
   - "Files outside scope need modification"
 
 context:
+  discussion_paths: []          # Optional
   spec_path: ".opencode/memory/specs/YYYY-MM-DD-feature.md"
   plan_path: ".opencode/memory/plans/YYYY-MM-DD-feature.md"
   research_paths: []            # Optional

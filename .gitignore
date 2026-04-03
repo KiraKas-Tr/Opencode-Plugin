@@ -12,3 +12,7 @@ memory/**
 !memory/**/.gitkeep
 !memory/project/
 !memory/project/**
+
+# Dolt database files (added by bd init)
+.dolt/
+*.db

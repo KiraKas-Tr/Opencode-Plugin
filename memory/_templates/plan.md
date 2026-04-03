@@ -22,6 +22,7 @@ Use this template when creating implementation plans.
 
 ## References
 
+- **Discussion:** `.opencode/memory/discussions/YYYY-MM-DD-topic.md` (if applicable)
 - **Spec:** `.opencode/memory/specs/YYYY-MM-DD-descriptor.md`
 - **PRD:** `.opencode/memory/prds/YYYY-MM-DD-feature.md` (if applicable)
 - **Research:** `.opencode/memory/research/YYYY-MM-DD-topic.md` (if applicable)
@@ -43,6 +44,9 @@ Use this template when creating implementation plans.
 
 ### Prior Research
 - [Relevant findings from .opencode/memory/research/*.md, or "None found"]
+
+### Prior Discussion
+- [Relevant locked decisions from .opencode/memory/discussions/*.md, or "None found"]
 
 ---
 
@@ -116,8 +120,9 @@ Use this template when creating implementation plans.
 
 ## Execution Model
 
-- Workflow quick mode: `/create → /start → /verify → /ship`
-- Workflow deep mode: `/create → /research → /design → /start → /verify → /ship`
+- Workflow quick mode: `/discuss → /create → /start → /verify → /ship`
+- Workflow deep mode: `/discuss → /create → /design → /start → /verify → /ship`
+- `/create` includes a mandatory pre-plan research pass via `@research`
 - Execution unit: **Task Packet**
 - Source of truth: **Beads**
 - `/start`: execute + per-packet verify loop

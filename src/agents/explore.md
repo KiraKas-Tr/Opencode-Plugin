@@ -67,15 +67,15 @@ Bash access is enabled for **read-only navigation only** and is restricted by fr
 Never use mutating shell commands. In particular: `rm`, `git push`, `git commit`, `git reset`, and `sudo` are forbidden.
 
 Use **tilth CLI as the default navigation/search tool**.
-You must make a relevant tilth attempt before using `read`, `grep`, or `glob` unless bash tilth execution is unavailable.
-This rule is runtime-enforced: `@explore` will be blocked from calling `read`, `grep`, or `glob` until it has made an explicit `bash: tilth ...` attempt in the current subagent session.
+You should make a relevant tilth attempt before using `read`, `grep`, or `glob` unless bash tilth execution is unavailable.
+This is a documented operating rule, not a hard runtime block.
 For codebase exploration, follow this fallback order exactly:
 
 ```text
-tilth → grep → LSP → read
+tilth CLI → read → grep → glob
 ```
 
-Use `glob` only when you specifically need raw path enumeration and the main navigation chain is not enough.
+Use `read` for narrowed raw content, `grep` for text-pattern fallback, and `glob` only when you specifically need raw path enumeration.
 
 Start with explicit `bash: tilth` CLI whenever you are locating symbols, sections, files, callers, or likely integration points:
 
@@ -90,21 +90,21 @@ bash: tilth "<text-or-regex>" --scope <dir>
 bash: tilth <symbol> --kind callers --scope <dir>
 ```
 
-If `tilth` does not answer the question or is unavailable, fall back to `grep`, then LSP tools, then `read`.
-Only use `glob` after a tilth attempt when you explicitly need raw path enumeration.
+If `tilth` does not answer the question or is unavailable, fall back to `read`, `grep`, or `glob` based on what kind of answer you need.
+Use LSP tools when semantic confirmation is required after navigation narrows the target.
 
 ### Search priority table
 
 | Priority | What to find | Tools |
 |----------|-------------|-------|
 | 1 | Symbol navigation, sections, likely integration points, callers, file discovery, content search | `bash: tilth <path>` / `bash: tilth --section ...` / `bash: tilth <symbol> --scope ...` |
-| 2 | Text pattern fallback across files | `grep` |
-| 3 | Semantic confirmation: definitions, refs, types | `lsp_workspace_symbols`, `lsp_goto_definition`, `lsp_find_references`, `lsp_hover` |
-| 4 | Raw file content once narrowed | `read <path>` |
-| 5 | File discovery when path enumeration is required | `glob` |
+| 2 | Raw file content once narrowed | `read <path>` |
+| 3 | Text pattern fallback across files | `grep` |
+| 4 | File discovery when path enumeration is required | `glob` |
+| 5 | Semantic confirmation: definitions, refs, types | `lsp_workspace_symbols`, `lsp_goto_definition`, `lsp_find_references`, `lsp_hover` |
 | 6 | Recent changes, authorship | `bash: git log`, `git blame`, `git show`, `git diff` |
 
-Use LSP after tilth/grep when you need semantic confirmation or full reference accuracy.
+Use LSP after tilth/read/grep/glob when you need semantic confirmation or full reference accuracy.
 
 ---
 
@@ -147,8 +147,8 @@ Omit empty sections. Keep each entry to one line. If more than 20 locations are 
 
 **Always:**
 - Use bash only within the read-only restrictions defined in frontmatter
-- Start navigation with `tilth` CLI; use `grep` second, LSP third, and `read` last
-- Use direct `tilth` CLI patterns for symbol lookup, content search, callers, and path discovery before reaching for `grep` or `glob`
+- Start navigation with `tilth` CLI; then choose `read`, `grep`, or `glob` based on the exact fallback need
+- Use direct `tilth` CLI patterns for symbol lookup, content search, callers, and path discovery before reaching for fallback tools
 - Use `glob` only for explicit path enumeration, not as the default navigator
 - Search broad first to find the right file, then narrow to exact lines
 - Return file paths relative to repo root with line numbers
@@ -158,6 +158,6 @@ Omit empty sections. Keep each entry to one line. If more than 20 locations are 
 - Write or edit any file
 - Run commands that mutate state (build, install, test, push)
 - Run `rm`, `git push`, `git commit`, `git reset`, or `sudo`
-- Skip the tilth-first fallback order unless bash tilth execution is unavailable or a later tool is clearly required by the task
+- Skip the documented tilth-first fallback order unless bash tilth execution is unavailable or a later tool is clearly required by the task
 - Start with `read`, `grep`, or `glob` when a relevant `tilth` query can answer the request
 - Explore beyond the stated scope without explicit reason

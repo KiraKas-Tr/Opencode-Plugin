@@ -161,14 +161,6 @@
           },
           "additionalProperties": false
         },
-        "tilth_first_guard": {
-          "type": "object",
-          "properties": {
-            "enabled": { "type": "boolean" },
-            "log": { "type": "boolean" }
-          },
-          "additionalProperties": false
-        },
         "truncator": {
           "type": "object",
           "properties": {

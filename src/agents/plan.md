@@ -37,7 +37,7 @@ beads-village_ls(status="ready")           # see what's already queued
 
 Then read memory context — **tilth-first via `read` tool** (runtime hook auto-enhances):
 - `.opencode/memory/_digest.md` — session-start digest of prior observations
-- Any relevant `memory/specs/`, `memory/plans/`, `memory/research/` artifacts
+- Any relevant `memory/discussions/`, `memory/specs/`, `memory/plans/`, `memory/research/` artifacts
 
 > You have `bash: false`. Use the `read` tool — it is automatically enhanced by the tilth runtime hook when tilth is available (smart outline/section mode). For large files, use `read` with `offset`+`limit` to target sections.
 
@@ -86,12 +86,22 @@ Delegate ALL codebase inspection to `@explore`. You do not have bash access — 
 
 Exploration checklist:
 - [ ] Codebase patterns — naming conventions, test locations, folder structure
+- [ ] Discussion context — locked decisions, confirmed assumptions, deferred items
 - [ ] Affected files — what currently exists that this plan will touch
 - [ ] Integration points — callers, consumers, shared types
 - [ ] Existing tests — what's already covered, what gaps exist
 - [ ] Recent git history — any related changes in the last few commits
 
+**Mandatory pre-plan research pass:**
+- After discussion/context intake and local exploration, you MUST delegate to `@research` before finalizing a spec or plan
+- The delegation must require `@research` to read any relevant discussion artifact first
+- The research pass must either:
+  - produce/update a research artifact under `.opencode/memory/research/`, or
+  - explicitly record that no further external evidence is needed and persist that conclusion in a research artifact
+- Treat the resulting research artifact as a required planning input, not an optional supplement
+
 Use `@research` only for:
+- Mandatory pre-plan evidence gathering after discussion/context intake
 - External APIs / library docs not available locally
 - Version compatibility questions
 - Evidence for architecture trade-offs
@@ -213,6 +223,7 @@ escalate_if:                    # Concrete, observable triggers — not vague
   - "External dependency unavailable or version mismatch"
 
 context:
+  discussion_paths: []          # optional — list any relevant discussion docs
   spec_path: ".opencode/memory/specs/YYYY-MM-DD-feature.md"     # or null
   plan_path: ".opencode/memory/plans/YYYY-MM-DD-feature.md"
   research_paths: []            # optional — list any relevant research docs
@@ -314,6 +325,7 @@ Do not let the plan silently drift from what Build is actually doing.
 - `beads-village_init` at session start — no exceptions
 - Read `_digest.md` before planning
 - Delegate codebase inspection to `@explore` (you have no bash)
+- Delegate to `@research` for the mandatory pre-plan research pass before finalizing a plan
 - Use `schemas.md §6` packet format for every task — include **all** fields
 - Use `pri=<0-4>` numeric scale when creating Beads issues (`schemas.md §8`)
 - Map all DAG dependencies into `deps` when calling `beads-village_add`

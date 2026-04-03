@@ -9,7 +9,7 @@ Use this template when saving state for session breaks.
 ```markdown
 ---
 date: YYYY-MM-DD
-phase: spec'd | researched | planned | implementing | validating
+phase: discussed | spec'd | researched | planned | implementing | validating
 branch: [git branch name]
 bead_id: [optional]
 ---
@@ -28,6 +28,7 @@ bead_id: [optional]
 
 | Type | Path | Status |
 |------|------|--------|
+| Discussion | `.opencode/memory/discussions/YYYY-MM-DD-topic.md` | 🧭 Reference |
 | Spec | `.opencode/memory/specs/YYYY-MM-DD-descriptor.md` | ✅ Complete |
 | Plan | `.opencode/memory/plans/YYYY-MM-DD-feature.md` | ✅ Complete |
 | Research | `.opencode/memory/research/YYYY-MM-DD-topic.md` | 📚 Reference |

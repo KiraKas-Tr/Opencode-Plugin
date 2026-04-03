@@ -33,6 +33,7 @@ export default CliKitPlugin;
 ### 3) Create `.opencode` structure
 
 Ensure these exist:
+- `.opencode/memory/discussions`
 - `.opencode/memory/specs`
 - `.opencode/memory/plans`
 - `.opencode/memory/research`
@@ -97,7 +98,7 @@ Return:
 
 ### Next
 1. Restart OpenCode
-2. Run /create to begin work
+2. Run /discuss to begin work
 ```
 
 ## Important behavior

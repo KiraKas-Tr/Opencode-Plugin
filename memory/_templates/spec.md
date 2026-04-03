@@ -123,6 +123,7 @@ Use this template when creating specifications.
 
 ## References
 
+- [Link to discussion]
 - [Link to related docs]
 - [Link to research]
 ```

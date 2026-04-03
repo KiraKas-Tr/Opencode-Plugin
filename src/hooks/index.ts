@@ -7,7 +7,6 @@
  * - Git Guard — blocks dangerous git commands
  * - Security Check — scans for secrets before commits
  * - Subagent Question Blocker — prevents subagents from asking questions
- * - Tilth-First Guard — hard-enforces explicit tilth usage for @explore
  * - Truncator — dynamic output truncation
  * - Memory Digest — generates _digest.md from SQLite observations for agent access
  * - Tilth Reading — tilth-first smart file reading with glob/read/grep fallback
@@ -49,19 +48,6 @@ export {
   isSubagentTool,
   formatBlockerWarning,
 } from "./subagent-question-blocker";
-
-// Tilth-First Guard
-export {
-  isExploreAgent,
-  isFallbackNavigationTool,
-  isExplicitTilthCommand,
-  markTilthAttempt,
-  shouldBlockTilthFallback,
-  formatTilthFirstGuardWarning,
-  formatTilthFirstGuardReason,
-  formatTilthFirstGuardPass,
-  type TilthFirstGuardState,
-} from "./tilth-first-guard";
 
 // Truncator
 export {

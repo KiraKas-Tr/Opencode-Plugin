@@ -11,7 +11,7 @@ Execute the plan: claim the next packet, implement it, verify it, and close it.
 
 **Standalone use:** You can run `/start` directly if you already have a plan in `.opencode/memory/plans/` or describe what to implement and the agent will create a minimal plan inline.
 
-**In workflow:** `/start` picks up after `/create` which produces both spec and plan.
+**In workflow:** `/start` usually picks up after `/discuss → /create`, where `/create` reads the discussion artifact, runs a mandatory research pass, and then produces the spec + plan.
 
 ## Process
 
@@ -28,8 +28,9 @@ If no plan exists:
 
 - Read `plan.md` — get task list, file impact, dependencies
 - Read `spec.md` — understand requirements and acceptance criteria
+- Read `discussion.md` (if referenced or latest relevant) — preserve locked intent and constraints
 - Read latest handoff in `.opencode/memory/handoffs/` (if exists) — resume from previous session
-- Check bead status via `mcp__beads_village__ls()`
+- Check bead status via `beads-village_ls()`
 
 ### 3. Determine Next Packet
 
@@ -42,7 +43,7 @@ If resuming from handoff, pick up `in_progress` tasks first.
 
 ### 4. Execute Packet
 
-- Reserve packet files via `mcp__beads_village__reserve()`
+- Reserve packet files via `beads-village_reserve()`
 - Follow `files_in_scope` strictly
 - Implement only the active packet
 

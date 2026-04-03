@@ -4,12 +4,12 @@ Curated agents, commands, skills, and memory system for OpenCode.
 
 ## Features
 
-- **7 Specialized Agents**: build, plan, explore, review, vision, oracle, research
-- **15 Slash Commands**: /create, /start, /ship, /verify, /debug, /design, /research, /commit, /pr, and more
+- **8 Specialized Agents**: build, discuss, plan, explore, review, vision, oracle, research
+- **14 Slash Commands**: /discuss, /create, /start, /ship, /verify, /debug, /design, /research, /commit, /pr, and more
 - **22 Workflow Skills**: TDD, debugging, research, integrations, ritual-workflow, and more
 - **7 Internal Utilities**: memory (read/search/get/timeline/update/admin), observation, context-summary, cass-memory (used by hooks, not directly registered as agent tools)
-- **12 Runtime Hooks/Modules**: todo enforcer, empty output sanitizer, git guard, security check, subagent blocker, tilth-first guard, truncator, memory digest, todo→beads sync, beads-context, cass-memory, and tilth-reading
-- **Memory System**: Templates, specs, plans, research artifacts with FTS5 search
+- **11 Runtime Hooks/Modules**: todo enforcer, empty output sanitizer, git guard, security check, subagent blocker, truncator, memory digest, todo→beads sync, beads-context, cass-memory, and tilth-reading
+- **Memory System**: Templates, discussions, specs, plans, research artifacts with FTS5 search
 - **Extended Permissions**: doom_loop, external_directory controls
 - **Configurable**: Enable/disable agents, override models, customize behavior
 
@@ -84,21 +84,22 @@ After installation, use these commands:
 
 **Quick mode** (simple features):
 ```
-/create → /start → /verify → /ship
+/discuss → /create → /start → /verify → /ship
 ```
 
 **Deep mode** (complex features, research, UI):
 ```
-/create → /research → /design → /start → /verify → /ship
+/discuss → /create → /design → /start → /verify → /ship
 ```
 
 Workflow notes:
-- All 15 commands work **standalone** — the pipeline is recommended, not required
-- `/create` explores codebase first, then produces both spec and plan
+- All 14 commands work **standalone** — the pipeline is recommended, not required
+- `/discuss` runs a pre-create discussion phase — clarify intent, confirm assumptions, and save a planning-ready discussion artifact
+- `/create` explores codebase first, consumes discussion context, runs a mandatory pre-plan research pass, then produces both spec and plan
 - `/start` executes the plan, one Task Packet at a time — creates a minimal inline plan if none exists
 - `/verify` runs all 4 gates (typecheck, tests, lint, build) + deep review — use anytime, not just pre-ship
 - `/ship` finalizes work in the shared checkout — commit, sync, and land on the repo default branch; `/pr` is optional and only for explicit PR-based exceptions
-- `/research` conducts external research — use standalone before any complex implementation
+- `/research` is an optional standalone research command — it reads discussion context first, closes decision gaps with external evidence, and saves a planning-ready report
 - `/design` implements UI/UX with variant exploration and a11y — uses Vision agent
 - Beads is the live execution source of truth
 - Plans decompose work into **Task Packets** (1 concern, 1–3 files, one verify bundle)
@@ -149,7 +150,6 @@ Project config overrides user config.
     "git_guard": { "enabled": true },
     "security_check": { "enabled": true },
     "subagent_question_blocker": { "enabled": true },
-    "tilth_first_guard": { "enabled": true, "log": false },
     "truncator": { "enabled": true, "packet_friendly": true },
     "memory_digest": { "enabled": true, "compact_mode": true },
     "todo_beads_sync": { "enabled": false, "mode": "disabled" },
@@ -190,7 +190,6 @@ Project config overrides user config.
 | `git_guard` | on | Blocks dangerous git commands (force push, hard reset, rm -rf) |
 | `security_check` | on | Scans for secrets/credentials before git commits |
 | `subagent_question_blocker` | on | Prevents subagents from asking clarifying questions |
-| `tilth_first_guard` | on | Requires `@explore` to make an explicit `tilth` CLI attempt before `read` / `grep` / `glob` fallback |
 | `truncator` | on | Truncates large outputs to prevent context overflow |
 | `memory_digest` | on | Generates `memory/_digest.md` index + topic files (`decision.md`, `learning.md`, etc.) from SQLite observations |
 | `todo_beads_sync` | off | Legacy todo→Beads mirror; disabled in compressed workflow |
@@ -203,9 +202,10 @@ Project config overrides user config.
 | Agent | Mode | Description |
 |-------|------|-------------|
 | `build` | primary | Primary code executor, implements plans |
-| `plan` | primary | Creates implementation plans from specs |
+| `discuss` | primary | Clarifies intent and writes discussion artifacts for `/create` |
+| `plan` | primary | Creates specs and plans from discussion context plus a mandatory research pass |
 | `oracle` | subagent | Deep code inspection + architecture trade-off analysis |
-| `research` | subagent | External docs + GitHub evidence research |
+| `research` | subagent | External evidence specialist; writes research artifacts for `/research` and Plan's pre-plan pass |
 | `explore` | subagent | Fast codebase exploration |
 | `review` | subagent | Code review & quality gate |
 | `vision` | subagent | Design direction + visual implementation |
@@ -214,13 +214,14 @@ Default active roles in compressed workflow: `build`, `plan`, `review`, plus coo
 
 ## Commands
 
-Run with `/command-name` in OpenCode. **All 15 commands work standalone** — the pipeline is a recommended flow, not a requirement.
+Run with `/command-name` in OpenCode. **All 14 commands work standalone** — the pipeline is a recommended flow, not a requirement.
 
 ### Workflow pipeline
 | Command | Standalone? | One-liner |
 |---------|-------------|-----------|
-| `/create` | ✅ | Explore codebase → interview requirements → produce spec + plan |
-| `/research` | ✅ | Deep-dive any library, API, or pattern with saved report |
+| `/discuss` | ✅ | Pre-create discussion phase — lock intent, confirm assumptions, save planning-ready artifact |
+| `/create` | ✅ | Explore codebase → load discussion context → run mandatory pre-plan research → produce spec + plan |
+| `/research` | ✅ | Optional standalone research pass — read discussion context, gather evidence, save planning-ready report |
 | `/design` | ✅ | UI/UX design + implementation — variant exploration, a11y, responsive (Vision agent) |
 | `/start` | ✅ | Execute plan packets — creates minimal inline plan if none exists |
 | `/ship` | ✅ | Commit + land shared-checkout changes on the default branch — self-review built in, `/verify` recommended |
@@ -230,14 +231,12 @@ Run with `/command-name` in OpenCode. **All 15 commands work standalone** — th
 | Command | One-liner |
 |---------|-----------|
 | `/debug` | Reproduce → 5-Whys root cause → fix → regression test |
-| `/issue` | Instantly capture a task, bug, or idea as a Beads issue |
 | `/status` | Workspace snapshot — Beads tasks, git state, active artifacts |
 | `/init` | Bootstrap CliKit — scaffold dirs + write tailored AGENTS.md |
 | `/handoff` | Auto-capture session state for graceful pause |
 | `/resume` | Pick up cold from latest handoff, no warm-up questions |
 | `/commit` | Auto-detect type/scope → perfect Conventional Commit message |
 | `/pr` | Optional PR flow for explicit branch-based review exceptions |
-| `/import-plan` | Import Jira/Notion/Linear tasks → Beads issues + plan |
 
 ## Skills
 
@@ -320,11 +319,12 @@ bun run dev
 │   ├── agents/       # Agent loaders
 │   ├── skills/       # Skill loaders
 │   ├── tools/        # Internal utilities (memory, context-summary, cass-memory)
-│   └── hooks/        # Runtime hooks (10 modules)
+│   └── hooks/        # Runtime hooks (11 modules + index)
 ├── skill/            # Skill definitions (*.md)
 ├── command/          # Command definitions (*.md)
 ├── memory/           # Memory system
-│   ├── _templates/   # Document templates
+│   ├── _templates/   # Document templates (discussion, spec, plan, research, handoff, review, PRD)
+│   ├── discussions/  # Discussion artifacts
 │   ├── specs/        # Specifications
 │   ├── plans/        # Implementation plans
 │   ├── research/     # Research artifacts

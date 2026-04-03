@@ -40,16 +40,6 @@ import {
   containsQuestion,
   isSubagentTool,
   formatBlockerWarning,
-  // Tilth-First Guard
-  isExploreAgent,
-  isFallbackNavigationTool,
-  isExplicitTilthCommand,
-  markTilthAttempt,
-  shouldBlockTilthFallback,
-  formatTilthFirstGuardWarning,
-  formatTilthFirstGuardReason,
-  formatTilthFirstGuardPass,
-  type TilthFirstGuardState,
   // Truncator
   shouldTruncate,
   truncateOutput,
@@ -142,8 +132,6 @@ function ensureDcpInConfig(): void {
 const CliKitPlugin: Plugin = async (ctx) => {
   const todosBySession = new Map<string, OpenCodeTodo[]>();
   const sessionAgents = new Map<string, string>();
-  const tilthFirstBySession = new Map<string, TilthFirstGuardState>();
-
   const defaultMcpEntries = {
     "beads-village": {
       type: "local",
@@ -823,7 +811,6 @@ const CliKitPlugin: Plugin = async (ctx) => {
           if (sessionID) {
             todosBySession.delete(sessionID);
             sessionAgents.delete(sessionID);
-            tilthFirstBySession.delete(sessionID);
           }
         }
       },
@@ -945,36 +932,6 @@ const CliKitPlugin: Plugin = async (ctx) => {
           }
         }
 
-        // Tilth-First Guard: require explicit tilth before @explore uses fallback tools
-        if (pluginConfig.hooks?.tilth_first_guard?.enabled !== false && isExploreAgent(activeAgent)) {
-          const tilthGuardConfig = pluginConfig.hooks?.tilth_first_guard;
-          const command = (toolInput.command as string | undefined) ?? (toolInput.cmd as string | undefined);
-
-          try {
-            if (isToolNamed(toolName, "bash") && command && isExplicitTilthCommand(command)) {
-              const nextState = markTilthAttempt(tilthFirstBySession.get(sessionID));
-              tilthFirstBySession.set(sessionID, nextState);
-
-              if (tilthGuardConfig?.log === true) {
-                await cliLog("info", formatTilthFirstGuardPass(command.trim()));
-              }
-            }
-
-            if (isFallbackNavigationTool(toolName)) {
-              const state = tilthFirstBySession.get(sessionID);
-              if (shouldBlockTilthFallback(activeAgent, toolName, state)) {
-                await cliLog("warn", formatTilthFirstGuardWarning(toolName));
-                await showToast("@explore must call tilth before fallback tools", "warning", "CliKit Guard");
-                blockToolExecution(formatTilthFirstGuardReason(toolName));
-              }
-            }
-          } catch (error) {
-            if (isBlockedToolExecutionError(error)) {
-              throw error;
-            }
-            await hookErr("tilth-first-guard", error, { tool: toolName, sessionID, agent: activeAgent, command });
-          }
-        }
       },
 
     "tool.execute.after": async (input, output) => {
