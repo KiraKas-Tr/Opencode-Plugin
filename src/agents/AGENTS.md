@@ -32,14 +32,15 @@ All agents that read files must follow the **tilth-first chain** (see `skill/til
 
 ```
 1. tilth <path> / tilth <symbol> --scope <dir>   — direct CLI first for read/search/navigation
-2. grep <pattern>                                  — fallback: text pattern search when tilth did not answer
-3. read <path>                                     — fallback: raw full file content
-4. glob <pattern>                                  — fallback: explicit path discovery only
+2. read <path>                                     — fallback: raw full file content
+3. glob <pattern>                                  — fallback: explicit path discovery only
+4. grep <pattern>                                  — fallback: text pattern search when tilth did not answer
 ```
 
 > Prefer direct `tilth` CLI first. Use `npx tilth` only when the CLI is not installed globally.
-> The runtime hook (`tilth_reading`) automatically enhances `read` tool output via tilth, but it does **not** replace `grep`/`glob`, so agents must call `tilth` explicitly for search and navigation.
+> The runtime hook (`tilth_reading`) automatically enhances `read` tool output via tilth when available, so `read` is the default raw-content fallback.
 > `@explore` additionally has a hard runtime guard: `read` / `grep` / `glob` are blocked until an explicit `tilth` CLI attempt has been made in that subagent session.
+> For codebase exploration and semantic confirmation, the practical execution chain inside `@explore` is `tilth → grep → LSP → read`, while `glob` stays reserved for explicit path enumeration.
 
 ## Active Roles in Compressed Workflow
 
@@ -63,12 +64,13 @@ Agents use **Beads** (`beads-village_*` MCP tools) for persistent task tracking.
 
 **Core cycle:**
 ```
-beads-village_init → beads-village_add → beads-village_claim → work → beads-village_done
+beads-village_init → beads-village_status/include_agents → beads-village_inbox → beads-village_ls(status="ready") → beads-village_show(id) → beads-village_add (if needed) → beads-village_claim → beads-village_reservations → beads-village_reserve → work → verify → beads-village_done → beads-village_sync
 ```
 
 Execution happens one **Task Packet** at a time.
 
 - **@build**: Creates issues for non-trivial tasks, claims and closes on completion
+- **@build**: Reads issue context before claiming, reserves packet files, verifies evidence, and syncs on completion
 - **@plan**: Creates issues for every plan task after plan approval
 - **Subagents**: Read-only — do not create/modify Beads issues
 

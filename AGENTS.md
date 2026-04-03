@@ -4,7 +4,7 @@ An OpenCode plugin that provides agents, commands, skills, hooks, and a memory s
 
 ## How It Works
 
-The plugin (`src/index.ts`) loads agents from `src/agents/*.md`, commands from `command/*.md`, and skills from `skill/*/SKILL.md`. Runtime hooks in `src/hooks/` intercept tool execution for safety (git guard, security scan) and quality (typecheck, formatting). Configuration lives in `clikit.config.json`.
+The plugin (`src/index.ts`) loads agents from `src/agents/*.md`, commands from `command/*.md`, and skills from `skill/*/SKILL.md`. Runtime hooks in `src/hooks/` intercept tool execution for safety (git guard, security scan) and quality (typecheck, formatting). Configuration prefers `clikit.jsonc` or `clikit.json`; legacy `clikit.config.json` remains supported for backward compatibility.
 
 ## Workflow
 
@@ -19,9 +19,11 @@ The plugin (`src/index.ts`) loads agents from `src/agents/*.md`, commands from `
 ```
 
 - `/create` produces both spec and plan — `/start` works directly from this output
-- `/verify` is the pre-ship gate — run before `/ship` finalizes and lands shared-checkout changes
+- `/start` executes packet-by-packet and embeds the execute + verify loop in compressed mode
+- `/verify` is the deeper optional audit / pre-ship gate — run before `/ship` finalizes and lands shared-checkout changes
 - `/research` = external docs, API comparison, library research
 - `/design` = UI/UX design and implementation (uses Vision agent)
+- Execution happens one **Task Packet** at a time (1 concern, 1–3 files, one verify bundle)
 
 ## Where to Find Things
 
@@ -31,7 +33,7 @@ The plugin (`src/index.ts`) loads agents from `src/agents/*.md`, commands from `
 - **Schemas**: `@.opencode/schemas.md` — canonical schemas for tasks, beads, delegation, artifacts, and Task Packets.
 - **Templates**: `memory/_templates/*.md` — templates for specs, plans, research, reviews, handoffs, PRDs.
 - **Memory**: `memory/_digest.md` (auto-generated from SQLite observations on session start), plus `memory/specs/`, `memory/plans/`, `memory/research/`, `memory/handoffs/`.
-- **Config**: `clikit.config.json` — enable/disable agents, hooks, override models.
+- **Config**: `.opencode/clikit.jsonc` or `.opencode/clikit.json` (preferred); `clikit.config.json` remains a legacy fallback.
 - **Full docs**: `@.opencode/README.md` — complete reference for all agents, commands, skills, hooks, and config options.
 
 ## Context Management (DCP Beta)
@@ -74,6 +76,8 @@ Load `session-management` skill for full threshold handling (including handoff t
 bun install        # dependencies
 bun run build      # compile plugin
 bun run typecheck  # type check
+bun run test       # unit tests
+bun run verify     # full local verification
 bun run dev        # watch mode
 ```
 
@@ -102,7 +106,7 @@ bun run dev        # watch mode
 ### Agent Core Cycle
 
 ```
-beads-village_init → inspect shared git state → beads-village_add → beads-village_claim → reserve → work → done
+beads-village_init → status/inbox → ls(ready) → show → add (if needed) → claim → reservations → reserve → work → verify → done → sync
 ```
 
 In compressed workflow, the execution unit is a **Task Packet**:
@@ -145,3 +149,9 @@ In compressed workflow, the execution unit is a **Task Packet**:
 - Use `beads-village_reserve` to surface conflicts early in the shared workspace
 - Always `reserve` files before editing in multi-agent contexts
 - Call `done` before ending a completed session; for mid-task handoff, leave the issue open and hand off without `done`
+
+### Nested Repository Note
+
+- In this workspace, `.opencode/` is treated as its own nested git repository
+- The outer repo often only shows `.opencode` as modified, while detailed diffs live inside the nested `.opencode` repo
+- It is not currently configured as a normal `.gitmodules` submodule, so inspect both git layers when auditing docs or code changes
