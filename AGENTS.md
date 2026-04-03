@@ -1,6 +1,6 @@
 # Agent Instructions
 
-This project uses **bd** (beads) for issue tracking. Run `bd onboard` to get started.
+This workspace uses **bd / Beads** for persistent issue tracking and **beads-village MCP tools** for AI-agent execution. Run `bd onboard` if you are setting up the terminal CLI for the first time.
 
 ## Quick Reference
 
@@ -11,6 +11,8 @@ bd update <id> --claim  # Claim work atomically
 bd close <id>         # Complete work
 bd dolt push          # Push beads data to remote
 ```
+
+**AI-agent note:** humans use the `bd` CLI in a terminal; OpenCode agents must use `beads-village_*` MCP tools for init / claim / reserve / done.
 
 ## Non-Interactive Shell Commands
 
@@ -76,6 +78,15 @@ bd update bd-42 --priority 1 --json
 bd close bd-42 --reason "Completed" --json
 ```
 
+### Two Interfaces
+
+| Interface | Who Uses It | How |
+|-----------|-------------|-----|
+| **`bd` CLI** | Human in terminal | `bd ready`, `bd create`, `bd close` |
+| **`beads-village_*` MCP** | AI agents in OpenCode | `beads-village_init`, `beads-village_claim`, `beads-village_reserve`, `beads-village_done` |
+
+**AI agents must use `beads-village_*` MCP tools — never shell `bd` commands for claim / lock / close.**
+
 ### Issue Types
 
 - `bug` - Something broken
@@ -94,12 +105,33 @@ bd close bd-42 --reason "Completed" --json
 
 ### Workflow for AI Agents
 
-1. **Check ready work**: `bd ready` shows unblocked issues
-2. **Claim your task atomically**: `bd update <id> --claim`
-3. **Work on it**: Implement, test, document
-4. **Discover new work?** Create linked issue:
-   - `bd create "Found bug" --description="Details about what was found" -p 1 --deps discovered-from:<parent-id>`
-5. **Complete**: `bd close <id> --reason "Done"`
+For **non-trivial work**, AI agents follow the Beads Village execution loop:
+
+1. `beads-village_init(team="project")` — join workspace first
+2. `beads-village_status(include_agents=true)` + `beads-village_inbox(unread=true)` — inspect active agents and blockers
+3. `beads-village_ls(status="ready")` — find ready work
+4. `beads-village_show(<id>)` — read task context before claiming
+5. `beads-village_claim()` — claim the next ready task in queue order
+6. `beads-village_reservations()` + `beads-village_reserve(paths, reason)` — check and lock files before editing
+7. Implement and verify inside the reserved file scope
+8. `beads-village_done(id, msg)` — close the task and auto-release locks
+9. `beads-village_sync()` — sync shared task state after completion
+
+If new follow-up work is discovered, create a linked issue with `discovered-from:<parent-id>`.
+
+**Trivial work** (< 2 minutes, one-line / one-file fix) may skip Beads and execute directly.
+
+### Compressed Workflow Model
+
+- **Mode:** `compressed`
+- **Active roles:** `build`, `plan`, `review`, `coordinator`
+- **Execution unit:** **Task Packet** (1 concern, 1–3 files, one verify bundle)
+- **Source of truth:** Beads live task state; `todowrite` is informational only
+- **Subagent budget per packet:** 2
+- **`/start`:** execute + verify loop for the next packet
+- **`/verify`:** optional deeper audit / pre-ship confidence pass
+
+Non-trivial implementation should follow the packet model above instead of ad-hoc multi-file editing.
 
 ### Shared Workspace Policy
 
@@ -110,6 +142,12 @@ This repo now uses a **shared checkout** workflow for agents.
 - ✅ Pull/rebase frequently so conflicts surface immediately instead of being hidden in isolated workspaces
 - ❌ Do NOT create git worktrees for routine agent execution
 - ❌ Do NOT create per-task branches unless the user explicitly asks for an exception
+
+### Nested Repository Note
+
+- `.opencode/` is currently treated as its **own nested git repository** in this workspace
+- The outer repo may only show `.opencode` as modified, while the detailed file diffs live inside the nested `.opencode` repo
+- It is **not** configured as a normal `.gitmodules` submodule in the current workspace, so inspect both git layers when auditing documentation or code changes
 
 ### Auto-Sync
 
@@ -125,11 +163,32 @@ bd automatically syncs with git:
 - ✅ Always use `--json` flag for programmatic use
 - ✅ Link discovered work with `discovered-from` dependencies
 - ✅ Check `bd ready` before asking "what should I work on?"
+- ✅ Use `beads-village_reserve` before editing files in multi-agent work
+- ✅ Work one Task Packet at a time for non-trivial changes
 - ❌ Do NOT create markdown TODO lists
 - ❌ Do NOT use external issue trackers
 - ❌ Do NOT duplicate tracking systems
 
 For more details, see README.md and docs/QUICKSTART.md.
+
+## Navigation & Context Rules
+
+### Tilth-first reading
+
+When reading files or exploring code, prefer this order:
+
+1. `tilth <path>` / `tilth <path> --section ...` — default file and section navigation
+2. `read <path>` — raw content fallback when tilth is unavailable or insufficient
+3. `grep <pattern>` — cross-file text search when needed
+4. `glob <pattern>` — only for explicit path enumeration
+
+Use LSP tools for semantic confirmation after narrowing the target.
+
+### Context management
+
+- Manage context continuously in compressed mode
+- Use the `compress` tool to summarize closed exploration / implementation ranges
+- Keep active work uncompressed; compress stale, high-signal sections once they are no longer needed verbatim
 
 ## Landing the Plane (Session Completion)
 
