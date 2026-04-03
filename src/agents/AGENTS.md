@@ -39,6 +39,7 @@ All agents that read files must follow the **tilth-first chain** (see `skill/til
 
 > Prefer direct `tilth` CLI first. Use `npx tilth` only when the CLI is not installed globally.
 > The runtime hook (`tilth_reading`) automatically enhances `read` tool output via tilth, but it does **not** replace `grep`/`glob`, so agents must call `tilth` explicitly for search and navigation.
+> `@explore` additionally has a hard runtime guard: `read` / `grep` / `glob` are blocked until an explicit `tilth` CLI attempt has been made in that subagent session.
 
 ## Active Roles in Compressed Workflow
 

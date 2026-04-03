@@ -68,6 +68,7 @@ Never use mutating shell commands. In particular: `rm`, `git push`, `git commit`
 
 Use **tilth CLI as the default navigation/search tool**.
 You must make a relevant tilth attempt before using `read`, `grep`, or `glob` unless bash tilth execution is unavailable.
+This rule is runtime-enforced: `@explore` will be blocked from calling `read`, `grep`, or `glob` until it has made an explicit `bash: tilth ...` attempt in the current subagent session.
 For codebase exploration, follow this fallback order exactly:
 
 ```text

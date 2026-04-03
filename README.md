@@ -8,7 +8,7 @@ Curated agents, commands, skills, and memory system for OpenCode.
 - **15 Slash Commands**: /create, /start, /ship, /verify, /debug, /design, /research, /commit, /pr, and more
 - **22 Workflow Skills**: TDD, debugging, research, integrations, ritual-workflow, and more
 - **7 Internal Utilities**: memory (read/search/get/timeline/update/admin), observation, context-summary, cass-memory (used by hooks, not directly registered as agent tools)
-- **10 Runtime Hooks/Modules**: todo enforcer, empty output sanitizer, git guard, security check, subagent blocker, truncator, memory digest, todo→beads sync, beads-context, and cass-memory
+- **12 Runtime Hooks/Modules**: todo enforcer, empty output sanitizer, git guard, security check, subagent blocker, tilth-first guard, truncator, memory digest, todo→beads sync, beads-context, cass-memory, and tilth-reading
 - **Memory System**: Templates, specs, plans, research artifacts with FTS5 search
 - **Extended Permissions**: doom_loop, external_directory controls
 - **Configurable**: Enable/disable agents, override models, customize behavior
@@ -149,6 +149,7 @@ Project config overrides user config.
     "git_guard": { "enabled": true },
     "security_check": { "enabled": true },
     "subagent_question_blocker": { "enabled": true },
+    "tilth_first_guard": { "enabled": true, "log": false },
     "truncator": { "enabled": true, "packet_friendly": true },
     "memory_digest": { "enabled": true, "compact_mode": true },
     "todo_beads_sync": { "enabled": false, "mode": "disabled" },
@@ -189,11 +190,13 @@ Project config overrides user config.
 | `git_guard` | on | Blocks dangerous git commands (force push, hard reset, rm -rf) |
 | `security_check` | on | Scans for secrets/credentials before git commits |
 | `subagent_question_blocker` | on | Prevents subagents from asking clarifying questions |
+| `tilth_first_guard` | on | Requires `@explore` to make an explicit `tilth` CLI attempt before `read` / `grep` / `glob` fallback |
 | `truncator` | on | Truncates large outputs to prevent context overflow |
 | `memory_digest` | on | Generates `memory/_digest.md` index + topic files (`decision.md`, `learning.md`, etc.) from SQLite observations |
 | `todo_beads_sync` | off | Legacy todo→Beads mirror; disabled in compressed workflow |
 | `beads_context` | on | Injects active Beads task state into prompts |
 | `cass_memory` | on | Loads embedded memory context on session start and runs idle reflection (`cassMemoryContext`, `cassMemoryReflect`) |
+| `tilth_reading` | on | Enhances `read` tool output via tilth when available for smarter file reads |
 
 ## Agents
 

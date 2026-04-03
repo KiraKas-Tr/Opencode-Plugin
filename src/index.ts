@@ -40,6 +40,16 @@ import {
   containsQuestion,
   isSubagentTool,
   formatBlockerWarning,
+  // Tilth-First Guard
+  isExploreAgent,
+  isFallbackNavigationTool,
+  isExplicitTilthCommand,
+  markTilthAttempt,
+  shouldBlockTilthFallback,
+  formatTilthFirstGuardWarning,
+  formatTilthFirstGuardReason,
+  formatTilthFirstGuardPass,
+  type TilthFirstGuardState,
   // Truncator
   shouldTruncate,
   truncateOutput,
@@ -131,6 +141,8 @@ function ensureDcpInConfig(): void {
 
 const CliKitPlugin: Plugin = async (ctx) => {
   const todosBySession = new Map<string, OpenCodeTodo[]>();
+  const sessionAgents = new Map<string, string>();
+  const tilthFirstBySession = new Map<string, TilthFirstGuardState>();
 
   const defaultMcpEntries = {
     "beads-village": {
@@ -255,6 +267,23 @@ const CliKitPlugin: Plugin = async (ctx) => {
 
   function isToolNamed(name: string, expected: string): boolean {
     return name.toLowerCase() === expected.toLowerCase();
+  }
+
+  function rememberSessionAgent(sessionID: string | undefined, agent: unknown): void {
+    if (typeof sessionID !== "string") {
+      return;
+    }
+
+    if (typeof agent !== "string") {
+      return;
+    }
+
+    const normalized = agent.trim();
+    if (!normalized) {
+      return;
+    }
+
+    sessionAgents.set(sessionID, normalized);
   }
 
   function toSingleLinePreview(text: string, maxLength = 72): string {
@@ -582,28 +611,46 @@ const CliKitPlugin: Plugin = async (ctx) => {
           }
         }
       }
-    },
+      },
 
-    event: async (input) => {
-      const { event } = input;
-      const props = event.properties as Record<string, unknown> | undefined;
+      "chat.message": async (input) => {
+        rememberSessionAgent(input.sessionID, input.agent);
+      },
 
-      // --- Session Created ---
-      if (event.type === "session.created") {
-        const info = props?.info as { id?: string; title?: string } | undefined;
+      "chat.params": async (input) => {
+        rememberSessionAgent(input.sessionID, input.agent);
+      },
 
-        // Drain init-time errors (agents/commands/skills/config had no ctx yet).
-        // Write each to error-log.txt + toast for errors.
-        const initErrors = drainInitErrors();
-        for (const entry of initErrors) {
-          writeBufferedErrorLog(entry, ctx.directory);
-          if (entry.level === "error") {
-            await cliLog("error", `[CliKit:${entry.source}] ${entry.message}`);
-            await showToast(`${entry.message}`, "error", `CliKit — ${entry.source}`);
-          } else {
-            await cliLog("warn", `[CliKit:${entry.source}] ${entry.message}`);
-          }
+      "chat.headers": async (input) => {
+        rememberSessionAgent(input.sessionID, input.agent);
+      },
+
+      event: async (input) => {
+        const { event } = input;
+        const props = event.properties as Record<string, unknown> | undefined;
+
+        if (event.type === "message.updated") {
+          const sessionID = typeof props?.sessionID === "string" ? props.sessionID : undefined;
+          const info = props?.info as { agent?: unknown } | undefined;
+          rememberSessionAgent(sessionID, info?.agent);
         }
+
+        // --- Session Created ---
+        if (event.type === "session.created") {
+          const info = props?.info as { id?: string; title?: string } | undefined;
+
+          // Drain init-time errors (agents/commands/skills/config had no ctx yet).
+          // Write each to error-log.txt + toast for errors.
+          const initErrors = drainInitErrors();
+          for (const entry of initErrors) {
+            writeBufferedErrorLog(entry, ctx.directory);
+            if (entry.level === "error") {
+              await cliLog("error", `[CliKit:${entry.source}] ${entry.message}`);
+              await showToast(`${entry.message}`, "error", `CliKit — ${entry.source}`);
+            } else {
+              await cliLog("warn", `[CliKit:${entry.source}] ${entry.message}`);
+            }
+          }
 
         if (debugLogsEnabled) {
           await cliLog("info", `[CliKit] Session created: ${info?.id || "unknown"}`);
@@ -769,48 +816,52 @@ const CliKitPlugin: Plugin = async (ctx) => {
 
       }
 
-      // --- Session Deleted ---
-      if (event.type === "session.deleted") {
-        const info = props?.info as { id?: string } | undefined;
-        const sessionID = info?.id;
-        if (sessionID) {
-          todosBySession.delete(sessionID);
-        }
-      }
-    },
-
-    "tool.execute.before": async (input, output) => {
-      const toolName = input.tool;
-      const beforeOutput = output as unknown as { args?: unknown };
-      const beforeInput = input as unknown as { args?: unknown };
-      const toolInput = getToolInput(beforeOutput.args ?? beforeInput.args);
-
-      if (toolLogsEnabled) {
-        await cliLog("debug", `[CliKit] Tool executing: ${toolName}`);
-      }
-
-      // Git Guard: block dangerous git commands
-      if (pluginConfig.hooks?.git_guard?.enabled !== false) {
-        if (isToolNamed(toolName, "bash")) {
-          const command = (toolInput.command as string | undefined) ?? (toolInput.cmd as string | undefined);
-          try {
-            if (command) {
-              const allowForceWithLease = pluginConfig.hooks?.git_guard?.allow_force_with_lease !== false;
-              const result = checkDangerousCommand(command, allowForceWithLease);
-              if (result.blocked) {
-                await cliLog("warn", formatBlockedWarning(result));
-                await showToast(result.reason || "Blocked dangerous git command", "warning", "CliKit Guard");
-                blockToolExecution(result.reason || "Dangerous git command");
-              }
-            }
-          } catch (error) {
-            if (isBlockedToolExecutionError(error)) {
-              throw error;
-            }
-            await hookErr("git-guard", error, { tool: toolName, command });
+        // --- Session Deleted ---
+        if (event.type === "session.deleted") {
+          const info = props?.info as { id?: string } | undefined;
+          const sessionID = info?.id;
+          if (sessionID) {
+            todosBySession.delete(sessionID);
+            sessionAgents.delete(sessionID);
+            tilthFirstBySession.delete(sessionID);
           }
         }
-      }
+      },
+
+      "tool.execute.before": async (input, output) => {
+        const toolName = input.tool;
+        const sessionID = input.sessionID;
+        const beforeOutput = output as unknown as { args?: unknown };
+        const beforeInput = input as unknown as { args?: unknown };
+        const toolInput = getToolInput(beforeOutput.args ?? beforeInput.args);
+        const activeAgent = sessionAgents.get(sessionID);
+
+        if (toolLogsEnabled) {
+          await cliLog("debug", `[CliKit] Tool executing: ${toolName}`);
+        }
+
+        // Git Guard: block dangerous git commands
+        if (pluginConfig.hooks?.git_guard?.enabled !== false) {
+          if (isToolNamed(toolName, "bash")) {
+            const command = (toolInput.command as string | undefined) ?? (toolInput.cmd as string | undefined);
+            try {
+              if (command) {
+                const allowForceWithLease = pluginConfig.hooks?.git_guard?.allow_force_with_lease !== false;
+                const result = checkDangerousCommand(command, allowForceWithLease);
+                if (result.blocked) {
+                  await cliLog("warn", formatBlockedWarning(result));
+                  await showToast(result.reason || "Blocked dangerous git command", "warning", "CliKit Guard");
+                  blockToolExecution(result.reason || "Dangerous git command");
+                }
+              }
+            } catch (error) {
+              if (isBlockedToolExecutionError(error)) {
+                throw error;
+              }
+              await hookErr("git-guard", error, { tool: toolName, command });
+            }
+          }
+        }
 
       // Security Check: scan for secrets before git commit
       if (pluginConfig.hooks?.security_check?.enabled !== false) {
@@ -875,25 +926,56 @@ const CliKitPlugin: Plugin = async (ctx) => {
         }
       }
 
-      // Subagent Question Blocker: prevent subagents from asking questions
-      if (pluginConfig.hooks?.subagent_question_blocker?.enabled !== false) {
-        if (isSubagentTool(toolName)) {
-          const prompt = toolInput.prompt as string | undefined;
+        // Subagent Question Blocker: prevent subagents from asking questions
+        if (pluginConfig.hooks?.subagent_question_blocker?.enabled !== false) {
+          if (isSubagentTool(toolName)) {
+            const prompt = toolInput.prompt as string | undefined;
+            try {
+              if (prompt && containsQuestion(prompt)) {
+                await cliLog("warn", formatBlockerWarning());
+                await showToast("Subagent prompt blocked: avoid direct questions", "warning", "CliKit Guard");
+                blockToolExecution("Subagents should not ask questions");
+              }
+            } catch (error) {
+              if (isBlockedToolExecutionError(error)) {
+                throw error;
+              }
+              await hookErr("subagent-question-blocker", error, { tool: toolName });
+            }
+          }
+        }
+
+        // Tilth-First Guard: require explicit tilth before @explore uses fallback tools
+        if (pluginConfig.hooks?.tilth_first_guard?.enabled !== false && isExploreAgent(activeAgent)) {
+          const tilthGuardConfig = pluginConfig.hooks?.tilth_first_guard;
+          const command = (toolInput.command as string | undefined) ?? (toolInput.cmd as string | undefined);
+
           try {
-            if (prompt && containsQuestion(prompt)) {
-              await cliLog("warn", formatBlockerWarning());
-              await showToast("Subagent prompt blocked: avoid direct questions", "warning", "CliKit Guard");
-              blockToolExecution("Subagents should not ask questions");
+            if (isToolNamed(toolName, "bash") && command && isExplicitTilthCommand(command)) {
+              const nextState = markTilthAttempt(tilthFirstBySession.get(sessionID));
+              tilthFirstBySession.set(sessionID, nextState);
+
+              if (tilthGuardConfig?.log === true) {
+                await cliLog("info", formatTilthFirstGuardPass(command.trim()));
+              }
+            }
+
+            if (isFallbackNavigationTool(toolName)) {
+              const state = tilthFirstBySession.get(sessionID);
+              if (shouldBlockTilthFallback(activeAgent, toolName, state)) {
+                await cliLog("warn", formatTilthFirstGuardWarning(toolName));
+                await showToast("@explore must call tilth before fallback tools", "warning", "CliKit Guard");
+                blockToolExecution(formatTilthFirstGuardReason(toolName));
+              }
             }
           } catch (error) {
             if (isBlockedToolExecutionError(error)) {
               throw error;
             }
-            await hookErr("subagent-question-blocker", error, { tool: toolName });
+            await hookErr("tilth-first-guard", error, { tool: toolName, sessionID, agent: activeAgent, command });
           }
         }
-      }
-    },
+      },
 
     "tool.execute.after": async (input, output) => {
       const toolName = input.tool;
