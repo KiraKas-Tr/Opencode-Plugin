@@ -23,7 +23,6 @@ Run these in parallel:
 - `git diff --stat` — what changed
 - Check `.opencode/memory/discussions/` for active discussion artifact
 - Check `.opencode/memory/plans/` for active plan
-- Check `.opencode/memory/specs/` for active spec
 - Check `.opencode/memory/research/` for active research artifact
 - Check ritual state if exists
 
@@ -34,7 +33,7 @@ Create `.opencode/memory/handoffs/YYYY-MM-DD-<phase>.md` with this structure:
 ```markdown
 ---
 date: YYYY-MM-DD
-phase: discussed | spec'd | researched | planned | implementing | validating
+phase: discussed | researched | planned | implementing | validating
 branch: <branch>
 ---
 
@@ -50,7 +49,6 @@ branch: <branch>
 
 ## Active Artifacts
 - Discussion: `<path>` (if exists)
-- Spec: `<path>` (if exists)
 - Plan: `<path>` (if exists)
 - Research: `<path>` (if exists)
 

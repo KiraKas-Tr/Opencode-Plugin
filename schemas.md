@@ -42,7 +42,7 @@ Stored at: `.opencode/memory/beads/<bead_id>.json`
   "title": "Feature Title",
   "type": "feature",
   "priority": 2,
-  "status": "created | spec'd | planned | implementing | validating | done",
+  "status": "created | researched | planned | implementing | validating | done",
   
   "git": {
     "branch": "bead/B-YYYY-MM-DD-descriptor",
@@ -52,7 +52,6 @@ Stored at: `.opencode/memory/beads/<bead_id>.json`
   
   "artifacts": {
     "discussions": [],
-    "spec": null,
     "plan": null,
     "research": [],
     "reviews": [],
@@ -140,7 +139,7 @@ Path: `.opencode/memory/reviews/YYYY-MM-DD-<subject>-review.md`
 
 ```yaml
 ---
-type: Code | PRD | Spec | Plan | Security
+type: Code | PRD | Plan | Security
 date: YYYY-MM-DD
 reviewer: agent-name
 artifact: path/to/reviewed
@@ -161,7 +160,7 @@ Path: `.opencode/memory/handoffs/YYYY-MM-DD-<phase>.md`
 ```yaml
 ---
 date: YYYY-MM-DD
-phase: discussed | spec'd | researched | planned | implementing | validating
+phase: discussed | researched | planned | implementing | validating
 branch: git-branch
 bead_id: optional
 ---
@@ -317,7 +316,6 @@ escalate_if:                    # Conditions that require Oracle / re-plan
 
 context:
   discussion_paths: []          # Optional
-  spec_path: ".opencode/memory/specs/YYYY-MM-DD-feature.md"
   plan_path: ".opencode/memory/plans/YYYY-MM-DD-feature.md"
   research_paths: []            # Optional
 ```

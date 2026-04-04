@@ -14,7 +14,7 @@ DISCOVER → PLAN → IMPLEMENT → VERIFY → COMPLETE
 | Phase | Gate (must pass before advancing) |
 |-------|-----------------------------------|
 | DISCOVER | Problem statement written, success criteria defined |
-| PLAN | User approves spec + plan |
+| PLAN | User approves plan |
 | IMPLEMENT | All planned tasks checked off |
 | VERIFY | typecheck + tests + lint + build all pass |
 | COMPLETE | Changes landed on default branch / deployed |
@@ -26,7 +26,7 @@ DISCOVER → PLAN → IMPLEMENT → VERIFY → COMPLETE
 | Quick | `/discuss` → `/create` → `/start` → `/verify` → `/ship` |
 | Deep (UI) | `/discuss` → `/create` → `/design` → `/start` → `/verify` → `/ship` |
 
-`/create` includes a mandatory pre-plan research pass via `@research` before it finalizes the spec + plan. `/research` remains available as an optional standalone command when the user wants a dedicated evidence pass.
+`/create` includes a mandatory pre-plan research pass via `@research` before it finalizes the plan. `/research` remains available as an optional standalone command when the user wants a dedicated evidence pass.
 
 ## Enforcement
 
@@ -39,5 +39,5 @@ DISCOVER → PLAN → IMPLEMENT → VERIFY → COMPLETE
 
 - Implementing without a plan
 - Marking COMPLETE with failing `/verify` gates
-- Moving forward without user approval on spec/plan
+- Moving forward without user approval on the plan
 - Running `/ship` before SHIP_READY

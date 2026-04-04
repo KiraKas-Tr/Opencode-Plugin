@@ -56,7 +56,6 @@ When Build is invoked, `@plan` has already produced artifacts on disk, and `/dis
 |----------|------|-----------------|
 | **Discussion** | `.opencode/memory/discussions/YYYY-MM-DD-<topic>.md` | Locked intent, confirmed assumptions, deferred items |
 | **Plan** | `.opencode/memory/plans/YYYY-MM-DD-<feature>.md` | DAG, File Impact, Boundaries, all Task Packets |
-| **Spec** | `.opencode/memory/specs/YYYY-MM-DD-<feature>.md` | Requirements, user stories, acceptance criteria |
 | **Research** | `.opencode/memory/research/YYYY-MM-DD-<topic>.md` | External evidence, library findings |
 | **Digest** | `.opencode/memory/_digest.md` | Auto-generated summary of all prior session observations |
 
@@ -211,12 +210,12 @@ tilth <path> --section 45-89          # section by line range
 
 ```
 # Fallback order
+read <path>                           # raw content once narrowed
 grep <pattern>                        # text pattern fallback across files
-read <path>                           # full raw content once narrowed
 glob <pattern>                        # path enumeration only when required
 ```
 
-> Follow this order by default: `tilth` → `grep` → `LSP` → `read`.
+> Follow this order by default: `tilth CLI` → `read` → `grep` → `glob`, then use LSP when semantic confirmation is required.
 > Use `glob` only when you need explicit path discovery.
 > `read` tool output is still enhanced by the tilth runtime hook when tilth is available.
 

@@ -11,7 +11,7 @@ Execute the plan: claim the next packet, implement it, verify it, and close it.
 
 **Standalone use:** You can run `/start` directly if you already have a plan in `.opencode/memory/plans/` or describe what to implement and the agent will create a minimal plan inline.
 
-**In workflow:** `/start` usually picks up after `/discuss → /create`, where `/create` reads the discussion artifact, runs a mandatory research pass, and then produces the spec + plan.
+**In workflow:** `/start` usually picks up after `/discuss → /create`, where `/create` reads the discussion artifact, runs a mandatory research pass, and then produces the plan.
 
 ## Process
 
@@ -21,13 +21,11 @@ Look for plans in `.opencode/memory/plans/`. If multiple exist, ask the user whi
 
 If no plan exists:
 - **If user described a task inline**: create a minimal single-packet plan on the fly and proceed
-- **Otherwise**: suggest running `/create` first to produce a full spec + plan
-- Check for specs in `.opencode/memory/specs/`
+- **Otherwise**: suggest running `/create` first to produce a full plan
 
 ### 2. Load Context
 
-- Read `plan.md` — get task list, file impact, dependencies
-- Read `spec.md` — understand requirements and acceptance criteria
+- Read `plan.md` — get objectives, context, task list, file impact, dependencies, and acceptance criteria
 - Read `discussion.md` (if referenced or latest relevant) — preserve locked intent and constraints
 - Read latest handoff in `.opencode/memory/handoffs/` (if exists) — resume from previous session
 - Check bead status via `beads-village_ls()`
@@ -68,7 +66,7 @@ If verification fails twice, stop and escalate.
 
 ```
 1. ✅ Plan exists and is approved (created by /create)
-2. ✅ Context loaded (spec, plan, handoff)
+2. ✅ Context loaded (plan, discussion, handoff)
 3. ✅ Next task identified
 4. ✅ Packet selected
 5. ✅ Files reserved
@@ -77,7 +75,7 @@ If verification fails twice, stop and escalate.
 
 ## Rules
 
-- ✅ ALWAYS load plan and spec before starting
+- ✅ ALWAYS load the plan before starting
 - ✅ ALWAYS check for existing handoff to resume
 - ✅ ALWAYS execute one packet at a time
 - ✅ ALWAYS verify before marking packet done

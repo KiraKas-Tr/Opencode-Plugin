@@ -1,6 +1,6 @@
 # Review Template
 
-Use this template when reviewing code, PRDs, specs, or plans.
+Use this template when reviewing code, PRDs, or plans.
 
 **Output path:** `.opencode/memory/reviews/YYYY-MM-DD-<subject>-review.md`
 
@@ -8,7 +8,7 @@ Use this template when reviewing code, PRDs, specs, or plans.
 
 ```markdown
 ---
-type: Code | PRD | Spec | Plan | Security
+type: Code | PRD | Plan | Security
 date: YYYY-MM-DD
 reviewer: [Name/Agent]
 artifact: [Path to reviewed artifact]

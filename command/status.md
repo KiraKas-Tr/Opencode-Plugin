@@ -31,7 +31,6 @@ git log --oneline -5
 
 Look for:
 - `.opencode/memory/discussions/` — Discussion artifacts
-- `.opencode/memory/specs/` — Active specifications
 - `.opencode/memory/plans/` — Implementation plans
 - `.opencode/memory/handoffs/` — Pending handoffs
 - `.opencode/memory/research/` — Research docs
@@ -70,7 +69,6 @@ Look for:
 | Type | File | Status |
 |------|------|--------|
 | Discussion | YYYY-MM-DD-topic.md | 🧭 Intent Locked |
-| Spec | YYYY-MM-DD-feature.md | ✅ Active |
 | Plan | YYYY-MM-DD-feature.md | ✅ Active |
 | Research | YYYY-MM-DD-topic.md | 📚 Reference |
 | Handoff | YYYY-MM-DD-phase.md | ⏸️ Paused |

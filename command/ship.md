@@ -32,7 +32,7 @@ Run `/verify` for full quality assurance before shipping.
 
 Before landing changes:
 - Review changed files (`git diff --name-only` and `git diff`)
-- Confirm acceptance criteria from spec/plan are satisfied
+- Confirm acceptance criteria from the plan are satisfied
 - Confirm no debug artifacts (`console.log`, `TODO`, temporary hacks)
 - Confirm changes stay within planned file impact
 

@@ -4,12 +4,12 @@ Curated agents, commands, skills, and memory system for OpenCode.
 
 ## Features
 
-- **8 Specialized Agents**: build, discuss, plan, explore, review, vision, oracle, research
+- **7 Specialized Agents**: build, plan, explore, review, vision, oracle, research
 - **14 Slash Commands**: /discuss, /create, /start, /ship, /verify, /debug, /design, /research, /commit, /pr, and more
-- **22 Workflow Skills**: TDD, debugging, research, integrations, ritual-workflow, and more
+- **26 Workflow Skills**: TDD, debugging, research, integrations, ritual-workflow, and more
 - **7 Internal Utilities**: memory (read/search/get/timeline/update/admin), observation, context-summary, cass-memory (used by hooks, not directly registered as agent tools)
 - **11 Runtime Hooks/Modules**: todo enforcer, empty output sanitizer, git guard, security check, subagent blocker, truncator, memory digest, todo→beads sync, beads-context, cass-memory, and tilth-reading
-- **Memory System**: Templates, discussions, specs, plans, research artifacts with FTS5 search
+- **Memory System**: Templates, discussions, plans, research artifacts with FTS5 search
 - **Extended Permissions**: doom_loop, external_directory controls
 - **Configurable**: Enable/disable agents, override models, customize behavior
 
@@ -95,7 +95,7 @@ After installation, use these commands:
 Workflow notes:
 - All 14 commands work **standalone** — the pipeline is recommended, not required
 - `/discuss` runs a pre-create discussion phase — clarify intent, confirm assumptions, and save a planning-ready discussion artifact
-- `/create` explores codebase first, consumes discussion context, runs a mandatory pre-plan research pass, then produces both spec and plan
+- `/create` explores codebase first, consumes discussion context, runs a mandatory pre-plan research pass, then produces a single XML-structured plan
 - `/start` executes the plan, one Task Packet at a time — creates a minimal inline plan if none exists
 - `/verify` runs all 4 gates (typecheck, tests, lint, build) + deep review — use anytime, not just pre-ship
 - `/ship` finalizes work in the shared checkout — commit, sync, and land on the repo default branch; `/pr` is optional and only for explicit PR-based exceptions
@@ -202,8 +202,7 @@ Project config overrides user config.
 | Agent | Mode | Description |
 |-------|------|-------------|
 | `build` | primary | Primary code executor, implements plans |
-| `discuss` | primary | Clarifies intent and writes discussion artifacts for `/create` |
-| `plan` | primary | Creates specs and plans from discussion context plus a mandatory research pass |
+| `plan` | primary | Handles `/discuss` intent locking and `/create` planning, producing discussion artifacts and XML-structured plans |
 | `oracle` | subagent | Deep code inspection + architecture trade-off analysis |
 | `research` | subagent | External evidence specialist; writes research artifacts for `/research` and Plan's pre-plan pass |
 | `explore` | subagent | Fast codebase exploration |
@@ -220,7 +219,7 @@ Run with `/command-name` in OpenCode. **All 14 commands work standalone** — th
 | Command | Standalone? | One-liner |
 |---------|-------------|-----------|
 | `/discuss` | ✅ | Pre-create discussion phase — lock intent, confirm assumptions, save planning-ready artifact |
-| `/create` | ✅ | Explore codebase → load discussion context → run mandatory pre-plan research → produce spec + plan |
+| `/create` | ✅ | Explore codebase → load discussion context → run mandatory pre-plan research → produce a single XML-structured plan |
 | `/research` | ✅ | Optional standalone research pass — read discussion context, gather evidence, save planning-ready report |
 | `/design` | ✅ | UI/UX design + implementation — variant exploration, a11y, responsive (Vision agent) |
 | `/start` | ✅ | Execute plan packets — creates minimal inline plan if none exists |
@@ -317,15 +316,14 @@ bun run dev
 │   ├── config.ts     # Config loader
 │   ├── types.ts      # Type definitions
 │   ├── agents/       # Agent loaders
-│   ├── skills/       # Skill loaders
+│   ├── skill/        # Skill loaders
 │   ├── tools/        # Internal utilities (memory, context-summary, cass-memory)
 │   └── hooks/        # Runtime hooks (11 modules + index)
 ├── skill/            # Skill definitions (*.md)
 ├── command/          # Command definitions (*.md)
 ├── memory/           # Memory system
-│   ├── _templates/   # Document templates (discussion, spec, plan, research, handoff, review, PRD)
+│   ├── _templates/   # Document templates (discussion, plan, research, handoff, review, PRD)
 │   ├── discussions/  # Discussion artifacts
-│   ├── specs/        # Specifications
 │   ├── plans/        # Implementation plans
 │   ├── research/     # Research artifacts
 │   ├── reviews/      # Code reviews

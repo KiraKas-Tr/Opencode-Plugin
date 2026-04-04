@@ -19,7 +19,7 @@ The plugin (`src/index.ts`) loads agents from `src/agents/*.md`, commands from `
 ```
 
 - `/discuss` captures user intent and writes a planning-ready discussion artifact
-- `/create` reads discussion context, runs a mandatory pre-plan research pass, then produces both spec and plan — `/start` works directly from this output
+- `/create` reads discussion context, runs a mandatory pre-plan research pass, then produces a single XML-structured plan — `/start` works directly from this output
 - `/start` executes packet-by-packet and embeds the execute + verify loop in compressed mode
 - `/verify` is the deeper optional audit / pre-ship gate — run before `/ship` finalizes and lands shared-checkout changes
 - `/research` = optional standalone research command — read discussion context, close decision gaps with external evidence, and write a planning-ready report
@@ -32,8 +32,8 @@ The plugin (`src/index.ts`) loads agents from `src/agents/*.md`, commands from `
 - **Commands**: `command/*.md` — each slash command's template and instructions.
 - **Skills**: `skill/*/SKILL.md` — load relevant skills before tasks. List available skills with `ls skill/`.
 - **Schemas**: `@.opencode/schemas.md` — canonical schemas for tasks, beads, delegation, artifacts, and Task Packets.
-- **Templates**: `memory/_templates/*.md` — templates for discussions, specs, plans, research, reviews, handoffs, PRDs.
-- **Memory**: `memory/_digest.md` (auto-generated from SQLite observations on session start), plus `memory/discussions/`, `memory/specs/`, `memory/plans/`, `memory/research/`, `memory/handoffs/`, `memory/reviews/`, `memory/prds/`.
+- **Templates**: `memory/_templates/*.md` — templates for discussions, plans, research, reviews, handoffs, PRDs.
+- **Memory**: `memory/_digest.md` (auto-generated from SQLite observations on session start), plus `memory/discussions/`, `memory/plans/`, `memory/research/`, `memory/handoffs/`, `memory/reviews/`, `memory/prds/`.
 - **Config**: `.opencode/clikit.jsonc` or `.opencode/clikit.json` (preferred); `clikit.config.json` remains a legacy fallback.
 - **Full docs**: `@.opencode/README.md` — complete reference for all agents, commands, skills, hooks, and config options.
 

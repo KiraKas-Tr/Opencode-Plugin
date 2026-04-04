@@ -77,7 +77,7 @@ Context comes from the delegation. Expect the caller to provide:
 - `files_in_scope` — the exact files to review
 - `acceptance_criteria` — what must pass
 - Evidence Bundle from `@build` (verification output)
-- `context.spec_path` / `context.plan_path` if available
+- `context.plan_path` if available
 
 Run:
 ```
@@ -122,7 +122,7 @@ read <path>         — raw file content once narrowed
 Use LSP tools after tilth/grep when you need semantic confirmation or full reference accuracy.
 Use `glob` only if you need explicit path enumeration.
 
-For spec/plan context: check `.opencode/memory/plans/` and `specs/`. If none exist, proceed without them — absence of a plan is not a blocker for review.
+For planning context: check `.opencode/memory/plans/`. If none exist, proceed without it — absence of a plan is not a blocker for review.
 
 ---
 
@@ -242,4 +242,4 @@ Then output one summary line:
 - Approve with any critical or high finding
 - Skip `lsp_diagnostics` for any reason
 - Re-run tests in packet review if Evidence Bundle is present — inspect claims instead
-- Treat absence of a spec/plan as a blocker — review what exists
+- Do not treat absence of a plan as a blocker — review what exists

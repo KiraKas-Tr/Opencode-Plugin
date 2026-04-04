@@ -19,7 +19,7 @@ This command is not a generic fact-finding exercise. Its purpose is to close the
 Keep the workflow compatible with the current kit:
 - Save artifacts to `.opencode/memory/research/YYYY-MM-DD-<topic>.md`
 - Do **not** create `.planning/*` artifacts
-- Do **not** modify specs, plans, or source code
+- Do **not** modify plans or source code
 - Use your own research tools to gather external evidence
 - Produce an output that is directly useful to `/create`, `/start`, or manual planning
 - Always read discussion context first when a discussion artifact exists
@@ -29,7 +29,7 @@ Keep the workflow compatible with the current kit:
 Use whichever context is available:
 - The explicit user request
 - Active discussion artifact
-- Active spec / PRD / plan / handoff / prior research artifacts
+- Active PRD / plan / handoff / prior research artifacts
 - Known constraints: language, framework, runtime, platform, versions
 
 If context is incomplete, state your assumption at the top of the report instead of stalling.
@@ -38,7 +38,7 @@ If context is incomplete, state your assumption at the top of the report instead
 
 1. **Read available planning context first**
    - Check the user request
-   - Read any relevant discussion, spec, PRD, plan, handoff, or prior research artifacts
+   - Read any relevant discussion, PRD, plan, handoff, or prior research artifacts
    - Treat the discussion artifact as the first planning constraint input when it exists
    - Identify what is already known so you do not repeat solved work
 

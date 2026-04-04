@@ -34,7 +34,6 @@ export default CliKitPlugin;
 
 Ensure these exist:
 - `.opencode/memory/discussions`
-- `.opencode/memory/specs`
 - `.opencode/memory/plans`
 - `.opencode/memory/research`
 - `.opencode/memory/reviews`

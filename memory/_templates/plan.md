@@ -7,188 +7,90 @@ Use this template when creating implementation plans.
 ---
 
 ```markdown
-# Implementation Plan: [Feature]
-
-**Date:** YYYY-MM-DD
-**Author:** [Name]
-**Status:** Draft | Approved
-**bead_id:** [ID]
-
+---
+phase: XX-name
+plan: NN
+type: execute
+wave: N
+depends_on: []
+files_modified: []
+autonomous: true
+requirements: []
+must_haves:
+  truths: []
+  artifacts: []
+  key_links: []
 ---
 
-## Overview
+<objective>
+[What this plan accomplishes]
+</objective>
 
-[Brief description of what will be built]
+<context>
+[Relevant context files and source references]
+</context>
 
-## References
+<tasks>
+<task type="auto">
+  <packet_id>P-T001</packet_id>
+  <task_id>T-001</task_id>
+  <name>Task 1: [Action-oriented name]</name>
+  <goal>[One executable concern]</goal>
+  <files_in_scope>
+    <create>[]</create>
+    <modify>["path/to/file.ext"]</modify>
+    <delete>[]</delete>
+  </files_in_scope>
+  <dependencies>[]</dependencies>
+  <action>[Specific implementation]</action>
+  <acceptance_criteria>
+    <criterion cmd="bun test path/to/test.ts">exits 0</criterion>
+    <criterion cmd="lsp_diagnostics path/to/file.ext">zero errors</criterion>
+  </acceptance_criteria>
+  <verification_commands>
+    <command>bun run typecheck</command>
+    <command>bun test path/to/test.ts</command>
+  </verification_commands>
+  <risks>
+    <risk>[Top risk for this packet]</risk>
+  </risks>
+  <escalate_if>
+    <condition>Verification fails after 2 attempts</condition>
+    <condition>Implementation requires file outside files_in_scope</condition>
+  </escalate_if>
+  <context_refs>
+    <discussion_paths>[]</discussion_paths>
+    <plan_path>.opencode/memory/plans/YYYY-MM-DD-<feature>.md</plan_path>
+    <research_paths>[]</research_paths>
+  </context_refs>
+</task>
+</tasks>
 
-- **Discussion:** `.opencode/memory/discussions/YYYY-MM-DD-topic.md` (if applicable)
-- **Spec:** `.opencode/memory/specs/YYYY-MM-DD-descriptor.md`
-- **PRD:** `.opencode/memory/prds/YYYY-MM-DD-feature.md` (if applicable)
-- **Research:** `.opencode/memory/research/YYYY-MM-DD-topic.md` (if applicable)
+<file_impact>
+  <create>[]</create>
+  <modify>["path/to/file.ext"]</modify>
+  <delete>[]</delete>
+</file_impact>
 
----
+<dag>
+  <wave number="1">P-T001</wave>
+</dag>
 
-## Conventions & Past Decisions
+<boundaries>
+  <always>[Required invariants and constraints]</always>
+  <ask_first>[Changes that require explicit approval]</ask_first>
+  <never>[Out-of-scope or forbidden changes]</never>
+</boundaries>
 
-### Git Conventions
-- **Commit format:** [e.g., conventional commits, prefix patterns]
-- **Branch naming:** [e.g., feature/xxx, bead/B-xxx]
-- **File organization:** [patterns observed from recent commits]
+<out_of_scope>
+[Explicitly excluded work]
+</out_of_scope>
 
-### Relevant Past Decisions
-- [Decision from memory/handoffs that affects this plan, or "None found"]
+<verification>
+[Overall phase checks]
+</verification>
 
-### Learnings & Gotchas
-- [Past learnings, blockers, workarounds from memory that apply, or "None found"]
-
-### Prior Research
-- [Relevant findings from .opencode/memory/research/*.md, or "None found"]
-
-### Prior Discussion
-- [Relevant locked decisions from .opencode/memory/discussions/*.md, or "None found"]
-
----
-
-## Tasks
-
-### Task 1: [Title]
-
-| Field | Value |
-|-------|-------|
-| **task_id** | T-001 |
-| **type** | task \| bug \| feature \| chore |
-| **assignee** | build \| fe \| be \| mobile \| devops |
-| **effort** | S \| M \| L \| XL |
-| **priority** | P0 \| P1 \| P2 |
-| **status** | not_started \| in_progress \| blocked \| done |
-| **dependencies** | [T-xxx] or none |
-
-**Description:**
-[What needs to be done]
-
-**Input:**
-- [Required artifacts/context]
-
-**Output:**
-- [Expected deliverables]
-- [Files to create/modify]
-
-**Acceptance Criteria:**
-- [ ] AC-01: [Criteria]
-- [ ] AC-02: [Criteria]
-
-**Boundaries:**
-- [What NOT to do]
-
-**Task Packet:**
-- **packet_id:** P-T-001
-- **goal:** [Single executable concern]
-- **files_in_scope:**
-  - create: [`path/to/new-file.ts`]
-  - modify: [`path/to/existing.ts`]
-  - delete: []
-- **verification_commands:**
-  - `bun run typecheck`
-  - `bun test path/to/test.ts`
-- **risks:**
-  - [Top risk for this packet]
-- **escalate_if:**
-  - [Verification fails twice]
-  - [A file outside scope must be edited]
-
----
-
-### Task 2: [Title]
-
-[Repeat structure]
-
----
-
-## File Impact
-
-**Files to CREATE:**
-- `path/to/new-file.ts` — [Purpose]
-
-**Files to MODIFY:**
-- `path/to/existing.ts` — [Reason]
-
-**Files to DELETE:**
-- (none)
-
----
-
-## Execution Model
-
-- Workflow quick mode: `/discuss → /create → /start → /verify → /ship`
-- Workflow deep mode: `/discuss → /create → /design → /start → /verify → /ship`
-- `/create` includes a mandatory pre-plan research pass via `@research`
-- Execution unit: **Task Packet**
-- Source of truth: **Beads**
-- `/start`: execute + per-packet verify loop
-- `/verify`: pre-ship gate (all 4 checks, SHIP_READY verdict required before `/ship`)
-- `/ship`: commit + sync/push landed changes in the shared checkout; `/pr` is an explicit exception path
-
----
-
-## Dependencies
-
-```mermaid
-graph TD
-    T001[T-001: Title] --> T002[T-002: Title]
-    T002 --> T003[T-003: Title]
-    T001 --> T003
-```
-
----
-
-## Effort Summary
-
-| Task | Effort | Priority |
-|------|--------|----------|
-| T-001 | S | P0 |
-| T-002 | M | P0 |
-| T-003 | S | P1 |
-
-**Total Estimated Effort:** [X days/weeks]
-
----
-
-## Risk Assessment
-
-| Risk | Probability | Impact | Mitigation |
-|------|-------------|--------|------------|
-| [Risk 1] | L/M/H | L/M/H | [Mitigation] |
-
----
-
-## Quick Mode Eligibility
-
-Tasks eligible for Quick Mode (no full plan needed):
-- [ ] T-001 (S, ≤3 files, no security/db/api)
-
-## Packet Checklist
-
-- [ ] Every task has a packet_id
-- [ ] Every packet stays within 1–3 files
-- [ ] Every packet has executable verification commands
-- [ ] Every packet has an escalate_if clause
-- [ ] File Impact matches all packet scopes
-
----
-
-## Rollout Plan
-
-| Phase | Tasks | Milestone |
-|-------|-------|-----------|
-| Phase 1 | T-001, T-002 | [Milestone] |
-| Phase 2 | T-003 | [Milestone] |
-
----
-
-## Approval
-
-- [ ] Plan reviewed
-- [ ] User approved
-- [ ] Ready for implementation
+<success_criteria>
+[Measurable completion]
+</success_criteria>
 ```

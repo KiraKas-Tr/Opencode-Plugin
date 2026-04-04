@@ -1,13 +1,12 @@
 ---
-description: Turn clarified intent into execution-ready artifacts — explore codebase, synthesize discussion context, fill remaining gaps, produce spec + implementation plan.
+description: Turn clarified intent into an execution-ready XML-structured plan — explore codebase, synthesize discussion context, fill remaining gaps, and write a single implementation plan.
 agent: plan
 ---
 
 You are the **Plan Agent**. Execute the `/create` command.
 
-## Templates
+## Template
 
-- Spec: `@.opencode/memory/_templates/spec.md`
 - Plan: `@.opencode/memory/_templates/plan.md`
 
 ## Inputs
@@ -21,7 +20,7 @@ Prefer discussion-first workflow when available:
 - **DO NOT** start with generic questions — explore the codebase FIRST
 - **DO** read any relevant discussion artifact before re-eliciting requirements or triggering research
 - **DO NOT** end turns passively — always end with a specific question or action
-- Auto-transition to spec + plan generation when self-clearance passes
+- Auto-transition to plan generation when self-clearance passes
 
 ## Process
 
@@ -51,14 +50,16 @@ Use exploration results to ask SPECIFIC questions across 5 dimensions:
 Rules:
 - Max 3 questions per turn
 - Do **not** re-ask anything already locked by `/discuss`
-- Prefer resolving only the gaps that still block spec + plan generation
+- Prefer resolving only the gaps that still block plan generation
 - If ambiguity remains high and no discussion artifact exists, you may recommend `/discuss` for a cleaner first pass, but `/create` must still work standalone
 
 Update draft after each exchange.
 
 ### 3. Mandatory Pre-Plan Research Pass
 
-Before finalizing the spec or plan, you MUST run a research pass via `@research`.
+Before finalizing the plan, you MUST run a research pass via `@research`.
+
+Treat this as a `/research`-style contract, not an optional side lookup.
 
 Research pass requirements:
 - Provide the active discussion artifact (or note that none exists)
@@ -70,7 +71,7 @@ If the research pass finds no meaningful external gap, it should still produce a
 
 ### 4. Self-Clearance Check
 
-When ALL of these are true, auto-transition to spec + plan generation:
+When ALL of these are true, auto-transition to plan generation:
 - Core problem understood and confirmed
 - Scope boundaries defined
 - Enough info for acceptance criteria
@@ -79,18 +80,7 @@ When ALL of these are true, auto-transition to spec + plan generation:
 - Research artifact created or updated by the mandatory pre-plan research pass
 - No critical open questions
 
-### 5. Generate Spec
-
-Write to `.opencode/memory/specs/YYYY-MM-DD-<descriptor>.md` using the spec template.
-
-**Acceptance criteria MUST be agent-executable** — commands with expected outputs, not "user manually verifies."
-
-When a discussion artifact exists:
-- carry forward its locked decisions faithfully
-- reference it explicitly in the spec
-- preserve deferred items as out-of-scope or follow-up material rather than silently absorbing them
-
-### 6. Memory & History Mining (parallel with plan generation)
+### 5. Memory & History Mining (parallel with plan generation)
 
 **Memory mining** (Plan reads directly — has file read access):
 ```
@@ -112,9 +102,56 @@ Explore: "Mine git log for conventions. Return:
   4. Gotcha markers (git log --grep='HACK\|TODO\|FIXME\|workaround' --oneline -n 10)"
 ```
 
-### 7. Generate Plan
+### 6. Generate Plan
 
 Write to `.opencode/memory/plans/YYYY-MM-DD-<feature>.md` using the plan template.
+
+The plan file is the single pre-implementation artifact. It must stay in Markdown with YAML frontmatter plus XML-style sections.
+
+The plan must use this structure:
+
+```markdown
+---
+phase: XX-name
+plan: NN
+type: execute
+wave: N
+depends_on: []
+files_modified: []
+autonomous: true
+requirements: []
+must_haves:
+  truths: []
+  artifacts: []
+  key_links: []
+---
+
+<objective>
+[What this plan accomplishes]
+</objective>
+
+<context>
+[Relevant context files and source references]
+</context>
+
+<tasks>
+<task type="auto">
+  <name>Task 1: [Action-oriented name]</name>
+  <files>path/to/file.ext</files>
+  <action>[Specific implementation]</action>
+  <verify>[Command or check]</verify>
+  <done>[Acceptance criteria]</done>
+</task>
+</tasks>
+
+<verification>
+[Overall phase checks]
+</verification>
+
+<success_criteria>
+[Measurable completion]
+</success_criteria>
+```
 
 **Task decomposition rules:**
 - Each task must contain a **Task Packet**
@@ -126,9 +163,11 @@ Write to `.opencode/memory/plans/YYYY-MM-DD-<feature>.md` using the plan templat
 **File Impact = BUILD BOUNDARY:**
 Build Agent may ONLY touch files listed here. Missing a file = Build can't modify it.
 
-### 8. Quality Self-Review
+### 7. Quality Self-Review
 
-Before presenting spec + plan, verify:
+Before presenting the plan, run a verification loop and only stop when all conditions pass, a blocker requires escalation, or one focused user clarification is required.
+
+Before presenting the plan, verify:
 - [ ] Every task has task_id, acceptance criteria, effort, priority
 - [ ] File Impact covers ALL files across ALL tasks
 - [ ] No dependency cycles
@@ -136,12 +175,12 @@ Before presenting spec + plan, verify:
 - [ ] All acceptance criteria are agent-executable
 - [ ] Top 2+ risks assessed
 
-### 9. Approval, Create Beads, & Guide
+### 8. Approval, Create Beads, & Guide
 
-1. Present spec + plan to user
+1. Present plan to user
 2. Wait for explicit approval
 3. Only after approval, call `beads-village_add()` with title, description, and priority
-4. Then say: "Spec and plan ready. Use `/start` to begin execution."
+4. Then say: "Plan ready. Use `/start` to begin execution."
 
 ## Rules
 
@@ -150,7 +189,7 @@ Before presenting spec + plan, verify:
 - ✅ Tag assumptions as Confirmed/Unconfirmed
 - ✅ Run a mandatory pre-plan research pass and persist its artifact before finalizing the plan
 - ✅ Auto-transition when clearance check passes
-- ✅ Always produce BOTH spec and plan before guiding to `/start`
+- ✅ Always produce a single execution-ready plan before guiding to `/start`
 - ✅ Mine memory for past decisions, learnings, blockers
 - ✅ Delegate git history mining to Explore (Plan has bash: false)
 - ✅ Include Conventions & Past Decisions section in plan

@@ -87,6 +87,5 @@ bead_id: [optional]
 
 ## Planning Notes
 
-- [Specific instruction `/create` should preserve in the spec]
 - [Specific instruction `/create` should preserve in the plan]
 ```

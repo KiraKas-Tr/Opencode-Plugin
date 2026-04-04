@@ -135,7 +135,7 @@ Return findings in this structure. When invoked by `/research` or Plan's mandato
 - Report conflicting evidence — never suppress it
 
 **Never:**
-- Modify source code, specs, plans, or any file outside `.opencode/memory/research/`
+- Modify source code, plans, or any file outside `.opencode/memory/research/`
 - Recommend an approach without evidence
 - Present a single source as conclusive for a high-stakes decision
 - Omit version context for library/API findings

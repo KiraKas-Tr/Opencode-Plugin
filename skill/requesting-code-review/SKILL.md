@@ -15,7 +15,7 @@ Request review after: major features, significant refactors, before merge, when 
 |------|---------|
 | Diff range | `a1b2c3d..e4f5g6h` |
 | What changed | "Added JWT auth with refresh tokens" |
-| Spec/plan ref | `.opencode/memory/specs/auth.md` |
+| Plan ref | `.opencode/memory/plans/auth.md` |
 | Known gaps | "Edge case X not handled yet" |
 
 ## Dispatch
@@ -23,7 +23,7 @@ Request review after: major features, significant refactors, before merge, when 
 ```
 @review: review changes from <sha>..<sha>
 Context: <what was built>
-Spec: <path>
+Plan: <path>
 Known issues: <list or none>
 ```
 

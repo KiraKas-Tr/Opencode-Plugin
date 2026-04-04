@@ -1,5 +1,5 @@
 ---
-description: Optional branch-based utility. Generate a complete PR description from git diff — summary, file changes, test evidence, linked spec/plan — then create it via gh when the user or repo policy explicitly requires a PR.
+description: Optional branch-based utility. Generate a complete PR description from git diff — summary, file changes, test evidence, linked plan — then create it via gh when the user or repo policy explicitly requires a PR.
 agent: build
 ---
 
@@ -37,7 +37,6 @@ If you are still on the shared default branch, stop and ask before proceeding �
 
 ### 2. Load Artifacts
 
-- `spec.md` — Link requirements
 - `plan.md` — Link implementation plan
 - `review.md` — Link review results (if exists)
 - Bead info — Get from beads village
@@ -67,7 +66,6 @@ gh pr create \
 
 ### Related
 - **Bead:** [ID]
-- **Spec:** `.opencode/memory/specs/YYYY-MM-DD-feature.md`
 - **Plan:** `.opencode/memory/plans/YYYY-MM-DD-feature.md`
 
 ---
@@ -172,7 +170,7 @@ pnpm lint
 
 ## Rules
 
-- ✅ ALWAYS link to spec/plan/bead
+- ✅ ALWAYS link to plan/bead
 - ✅ ALWAYS include testing info
 - ✅ ALWAYS run checks before PR
 - ✅ ALWAYS self-review first

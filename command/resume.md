@@ -23,7 +23,6 @@ You are the **Build Agent**. Execute the `/resume` command **immediately without
 
 In parallel:
 - Load discussion from `.opencode/memory/discussions/` (if referenced or latest)
-- Load spec from `.opencode/memory/specs/` (if referenced or latest)
 - Load plan from `.opencode/memory/plans/` (if referenced or latest)
 - Run `git status --short` and `git log --oneline -3`
 

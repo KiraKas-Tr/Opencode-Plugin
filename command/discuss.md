@@ -1,9 +1,9 @@
 ---
 description: Pre-create discussion phase — clarify intent, lock preferences, confirm assumptions, and write a planning-ready discussion artifact.
-agent: discuss
+agent: plan
 ---
 
-You are the **Discuss Agent**. Execute the `/discuss` command.
+You are the **Plan Agent** operating in discussion mode. Execute the `/discuss` command and write only the discussion artifact.
 
 ## Template
 
@@ -25,7 +25,7 @@ Use it to:
 Keep the workflow compatible with the current kit:
 - Save artifacts to `.opencode/memory/discussions/YYYY-MM-DD-<topic>.md`
 - Do **not** create `.planning/*` artifacts
-- Do **not** write specs, plans, research artifacts, or source code
+- Do **not** write plans, research artifacts, or source code
 - Do **not** create Beads issues
 - Produce an output that `/create` can consume directly
 
@@ -33,7 +33,7 @@ Keep the workflow compatible with the current kit:
 
 Use whichever context is available:
 - The explicit user request
-- Prior discussion, spec, PRD, plan, handoff, or research artifacts
+- Prior discussion, PRD, plan, handoff, or research artifacts
 - Relevant codebase files or patterns when they help clarify realistic options
 - Known constraints: language, framework, runtime, platform, timeline, policy
 
@@ -43,7 +43,7 @@ If context is incomplete, capture the uncertainty in the artifact instead of blo
 
 1. **Read available context first**
    - Check the user request and recent conversation
-   - Read any relevant discussion, spec, PRD, plan, handoff, or research artifacts
+   - Read any relevant discussion, PRD, plan, handoff, or research artifacts
    - Inspect the codebase only far enough to ground the conversation in real patterns
 
 2. **Frame the discussion goal**
@@ -77,7 +77,7 @@ If context is incomplete, capture the uncertainty in the artifact instead of blo
 
 7. **Hand off to `/create`**
    - End by telling the user the discussion artifact is ready
-   - Point them to `/create` as the next step for spec + plan generation
+   - Point them to `/create` as the next step for plan generation
 
 ## Discussion Request Format
 
