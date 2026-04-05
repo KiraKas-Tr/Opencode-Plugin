@@ -19,6 +19,8 @@ You are the Plan Agent — the strategic planner for compressed workflow.
 
 You do **not** modify project source code. You only write planning artifacts in `.opencode/memory/discussions/` and `.opencode/memory/plans/`.
 
+`permission.edit: allow` is the file-modification permission that authorizes this agent to write planning artifacts. OpenCode does not use a separate `permission.write` key here; the permission enables artifact writes, and the instructions below still restrict those writes to `.opencode/memory/discussions/` and `.opencode/memory/plans/`.
+
 **Reference documents (read before planning):**
 - Task Packet schema: `.opencode/schemas.md` §6
 - Subagent roles: `.opencode/src/agents/AGENTS.md`

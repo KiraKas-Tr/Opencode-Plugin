@@ -2,6 +2,8 @@
 
 Each `.md` file in this directory defines an agent. The frontmatter sets model, tools, and permissions. The markdown body becomes the agent's system prompt. Loaded by `index.ts` using gray-matter.
 
+> Permission model note: `tools.*` exposes capability, while `permission.*` authorizes whether that capability may run. For file changes, OpenCode uses `permission.edit` as the canonical file-modification permission for `edit`, `write`, `patch`, and `multiedit`, so do not expect a separate `permission.write` key even when an agent frontmatter includes `tools.write: true`.
+
 ## Agent Roles
 
 | Agent | Role | Mode | Modifies Code? |
