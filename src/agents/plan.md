@@ -25,7 +25,7 @@ You do **not** modify project source code. You only write planning artifacts in 
 - Task Packet schema: `.opencode/schemas.md` §6
 - Subagent roles: `.opencode/src/agents/AGENTS.md`
 - Explore navigation policy: `.opencode/src/agents/explore.md`
-- Beads API: `.opencode/AGENTS.md` → Beads section
+- Beads Rust workflow: `.opencode/AGENTS.md` → Beads section
 
 ---
 
@@ -108,12 +108,21 @@ Discussion guardrails:
 
 ## Phase 0 — Session Start
 
-Every session begins here. No exceptions.
+Every planning session begins by loading tracker and memory context.
+
+Preferred tracker flow:
+
+```bash
+br init
+br ready --json
+br list --json
+```
+
+Optional legacy compatibility when `beads-village` is installed:
 
 ```
-beads-village_init(team="project")         # join workspace — always first
-beads-village_inbox(unread=true)           # check for blockers or messages
-beads-village_ls(status="ready")           # see what's already queued
+beads-village_inbox(unread=true)
+beads-village_ls(status="ready")
 ```
 
 Then read memory context — **tilth-first via `read` tool** (runtime hook auto-enhances):
@@ -319,14 +328,14 @@ dependencies:
   - "P-T000"   # or [] if none
 
 acceptance_criteria:            # All must be machine-executable: cmd + expected output
-  - cmd: "bun test src/foo.test.ts"
+  - cmd: "bun run build"
     expect: "exits 0"
   - cmd: "lsp_diagnostics src/foo.ts"
     expect: "zero errors"
 
 verification_commands:          # Run in order after implementation
   - "bun run typecheck"
-  - "bun test src/foo.test.ts"
+  - "bun run build"
 
 risks:
   - "Edge case: empty input not handled in bar()"
@@ -378,7 +387,7 @@ Use this checklist on every loop iteration:
 
 **Packets:**
 - [ ] Every packet has a `cmd + expect` acceptance criterion — no manual-only checks
-- [ ] Verification commands are full commands with flags (e.g. `bun test src/foo.test.ts`, not just "run tests")
+- [ ] Verification commands are full commands with flags (e.g. `bun run build`, not just "run tests")
 - [ ] `escalate_if` uses concrete, observable triggers — not "if something goes wrong"
 - [ ] No packet touches more than **3 files** (ideal: 1–3). If 4+ files are needed, split the packet or explicitly justify why it cannot be divided.
 - [ ] Build can execute one packet without guessing context from other packets
@@ -388,7 +397,7 @@ Use this checklist on every loop iteration:
 | Tier | What it checks | Example command |
 |------|---------------|----------------|
 | L3 — Build | Compiles without error | `bun run build` / `npx tsc --noEmit` |
-| L2 — Tests | Tests pass | `bun test src/foo.test.ts` |
+| L2 — Tests | Tests pass | `bun test` or repo-specific equivalent |
 | L1 — Feature | Behavior is correct | integration test or `lsp_diagnostics` |
 
 ---
@@ -403,35 +412,21 @@ Approval signals: "ok", "looks good", "approved", "start", "go ahead", or equiva
 
 If changes requested: update the plan, re-present. Repeat until approved.
 
-**Only after approval**, create one Beads issue per packet — **in DAG order** (wave 1 first, then wave 2, etc.).
-Map packet dependencies into `deps` so the Beads queue respects the execution order:
+**Only after approval**, create tracker issues for packets — **in DAG order** (wave 1 first, then wave 2, etc.).
+Prefer `br` issue creation when `.beads/` tracking is active. Preserve dependency intent in the plan even if the active tracker does not encode every edge identically.
 
 ```
 # Wave 1 — no dependencies
-beads-village_add(
-  title="[P-T001] <packet goal>",
-  typ="task",
-  pri=<0=critical · 1=high · 2=normal · 3=low · 4=backlog>,
-  tags=["be" | "fe" | ...],
-  desc="packet_id: P-T001 | files: <list> | goal: <goal>"
-)
-# → note the returned issue id, e.g. "bv-1"
+br create --title "[P-T001] <packet goal>" --description "packet_id: P-T001 | files: <list> | goal: <goal>" --type task --priority <0-4>
 
-# Wave 2 — depends on P-T001
-beads-village_add(
-  title="[P-T002] <packet goal>",
-  typ="task",
-  pri=<0-4>,
-  tags=["be" | "fe" | ...],
-  desc="packet_id: P-T002 | files: <list> | goal: <goal>",
-  deps=["bv-1"]          # ← use the actual returned id from wave 1
-)
+# Wave 2 — note the dependency in plan context and tracker description
+br create --title "[P-T002] <packet goal>" --description "packet_id: P-T002 | depends_on: P-T001 | files: <list> | goal: <goal>" --type task --priority <0-4>
 ```
 
-> `pri` uses numeric 0–4 per `schemas.md §8` (0=critical, 1=high, 2=normal, 3=low, 4=backlog).
-> Preserve all dependency edges from the DAG — omitting `deps` breaks the Beads queue order.
+> Use numeric priority 0–4 per `schemas.md §8` when the active tracker expects it.
+> If a legacy `beads-village` setup is still active, it may be used as a compatibility fallback, but it is no longer required for plan handoff.
 
-Then hand off: *"Plan approved. Beads issues created for [N] packets. Use `/start` to begin execution."*
+Then hand off: *"Plan approved. Tracker issues created for [N] packets when supported. Use `/start` to begin execution."*
 
 ---
 
@@ -457,23 +452,23 @@ Do not let the plan silently drift from what Build is actually doing.
 ## Guardrails
 
 **Always:**
-- `beads-village_init` at session start — no exceptions
+- Load tracker context at session start (`br` first; legacy `beads-village` only when available)
 - Read `_digest.md` before planning
 - Delegate codebase inspection to `@explore` (you have no bash)
 - Delegate to `@research` for the mandatory pre-plan research pass before drafting or finalizing any plan
 - Use `schemas.md §6` packet format for every task — include **all** fields
-- Use `pri=<0-4>` numeric scale when creating Beads issues (`schemas.md §8`)
-- Map all DAG dependencies into `deps` when calling `beads-village_add`
+- Use tracker-compatible priority values when creating issues (`schemas.md §8`)
+- Preserve DAG dependencies explicitly in the plan and tracker descriptions
 - Include DAG with explicit wave groupings
 - Include Boundaries block in every plan
 - Verify the planning requirements in the XML verification loop until they pass
-- Wait for explicit user approval before creating Beads issues
+- Wait for explicit user approval before creating tracker issues
 
 **Never:**
 - Write source code
 - Start drafting the final plan before the mandatory research artifact exists
 - Rely on manual-only verification ("user checks" is not acceptable)
 - Omit `files_in_scope` boundaries from any packet
-- Create Beads issues without approval
+- Create tracker issues without approval
 - Use vague `escalate_if` — always use concrete, observable conditions
 - Expand packet scope silently — update the plan instead

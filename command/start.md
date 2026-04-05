@@ -28,20 +28,22 @@ If no plan exists:
 - Read `plan.md` — get objectives, context, task list, file impact, dependencies, and acceptance criteria
 - Read `discussion.md` (if referenced or latest relevant) — preserve locked intent and constraints
 - Read latest handoff in `.opencode/memory/handoffs/` (if exists) — resume from previous session
-- Check bead status via `beads-village_ls()`
+- Check tracker state:
+  - prefer `br ready --json` / `br list --json` when `.beads/` is active
+  - if a legacy `beads-village` MCP is installed, you may also inspect reservations or inbox state
 
 ### 3. Determine Next Packet
 
 Find the first task / packet that is executable:
 - dependencies satisfied
-- within Beads ready state
+- within the active tracker ready state when tracking exists
 - not blocked
 
 If resuming from handoff, pick up `in_progress` tasks first.
 
 ### 4. Execute Packet
 
-- Reserve packet files via `beads-village_reserve()`
+- Reserve packet files when optional legacy reservations are available; otherwise use explicit file scope plus `git status` as the coordination primitive
 - Follow `files_in_scope` strictly
 - Implement only the active packet
 
@@ -58,7 +60,7 @@ If verification fails twice, stop and escalate.
 
 ### 6. Close Packet
 
-- Mark Beads task done
+- Close or update tracker state when a tracked issue exists
 - Report evidence
 - Continue only if another ready packet exists and the user asked to keep going
 

@@ -1,12 +1,12 @@
 {
   "name": "clikit-plugin",
-  "version": "0.3.11",
-  "description": "OpenCode plugin — 7 agents, 14 commands, 26 skills, 11 hooks",
+  "version": "0.3.12",
+  "description": "Workflow layer for OpenCode — agents, commands, hooks, memory, and verification",
   "type": "module",
   "main": "./dist/index.js",
   "types": "./dist/index.d.ts",
   "bin": {
-    "clikit": "./dist/cli.js"
+    "clikit": "dist/cli.js"
   },
   "exports": {
     ".": {
@@ -20,16 +20,17 @@
     "src/agents",
     "skill",
     "command",
-    "memory",
+    "memory/_templates",
+    "memory/project",
     "AGENTS.md",
     "README.md"
   ],
   "scripts": {
     "build": "bun build src/index.ts src/cli.ts --outdir dist --target bun --format esm && tsc --emitDeclarationOnly && cp src/clikit.schema.json dist/clikit.schema.json",
-    "clean": "rm -rf dist",
+    "clean": "node -e \"const fs=require('fs'); fs.rmSync('dist',{recursive:true,force:true});\"",
     "lint": "tsc --noEmit",
     "prepublishOnly": "bun run clean && bun run build",
-    "postpublish": "rm -rf ~/.cache/opencode/node_modules/clikit-plugin && rm -f ~/.cache/opencode/bun.lock && echo '✓ Cleared OpenCode plugin cache — next start will install fresh'",
+    "postpublish": "node -e \"const fs=require('fs'); const os=require('os'); const path=require('path'); const root=path.join(os.homedir(),'.cache','opencode'); fs.rmSync(path.join(root,'node_modules','clikit-plugin'),{recursive:true,force:true}); fs.rmSync(path.join(root,'bun.lock'),{force:true}); console.log('✓ Cleared OpenCode plugin cache — next start will install fresh');\"",
     "typecheck": "tsc --noEmit",
     "verify": "bun run lint && bun run build",
     "dev": "bun run build --watch"

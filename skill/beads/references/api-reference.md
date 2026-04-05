@@ -1,4 +1,7 @@
-# Beads API Reference
+# Legacy Beads Village API Reference
+
+This reference documents the optional `beads-village_*` MCP helpers only.
+For primary task tracking, use `br` CLI first.
 
 ## Full Tool Parameters
 
@@ -38,7 +41,7 @@ importance: string
 thread:     string
 ```
 
-## Example: Build Agent Session
+## Example: Legacy Compatibility Session
 
 ```
 beads-village_init(team="myproject")
@@ -56,9 +59,11 @@ beads-village_done(id="bv-42", msg="Fixed null check in token validation")
 beads-village_sync()
 ```
 
-## File Locking Protocol
+## File Locking Protocol (optional legacy)
 
 1. `beads-village_reservations()` — check what's locked before editing
 2. `beads-village_reserve(paths=[…])` — lock your files
 3. TTL default: 10 min — extend for longer tasks
 4. `beads-village_done()` — auto-releases all locks, no manual release needed
+
+When possible, prefer the `br` workflow documented in `skill/beads/SKILL.md` and use these helpers only when your local runtime still depends on Beads Village.

@@ -1,0 +1,59 @@
+# Beads Rust Configuration File
+# This file configures default behavior for `br` in this repository.
+# Most settings can also be set via environment variables
+# or overridden with command-line flags
+
+# Issue prefix for this repository (used by `br init`)
+# If not set, `br init` auto-detects from directory name
+# Example: issue-prefix: "myproject" creates issues like "myproject-1", "myproject-2", etc.
+# issue-prefix: ""
+
+# Use no-db mode: load from JSONL, no SQLite, write back after each command
+# When true, `br` will use .beads/issues.jsonl as the source of truth
+# instead of SQLite database
+# no-db: false
+
+# Disable daemon for RPC communication (forces direct database access)
+# no-daemon: false
+
+# Disable auto-flush of database to JSONL after mutations
+# no-auto-flush: false
+
+# Disable auto-import from JSONL when it's newer than database
+# no-auto-import: false
+
+# Enable JSON output by default
+# json: false
+
+# Default actor for audit trails (overridden by BD_ACTOR or --actor)
+# actor: ""
+
+# Path to database (overridden by BEADS_DB or --db)
+# db: ""
+
+# Auto-start daemon if not running (can also use BEADS_AUTO_START_DAEMON)
+# auto-start-daemon: true
+
+# Debounce interval for auto-flush (can also use BEADS_FLUSH_DEBOUNCE)
+# flush-debounce: "5s"
+
+# Git branch metadata for tracker sync workflows.
+# `br sync` itself does not run git, but this value can still document the
+# intended shared branch for teams that version `.beads/` data.
+# sync-branch: "beads-sync"
+
+# Multi-repo configuration (legacy / advanced)
+# Allows hydrating from multiple repositories and routing writes to the correct JSONL
+# repos:
+#   primary: "."  # Primary repo (where this database lives)
+#   additional:   # Additional repos to hydrate from (read-only)
+#     - ~/beads-planning  # Personal planning repo
+#     - ~/work-planning   # Work planning repo
+
+# Integration settings may be stored in tracker state rather than in this file:
+# - jira.url
+# - jira.project
+# - linear.url
+# - linear.api-key
+# - github.org
+# - github.repo

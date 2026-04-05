@@ -38,7 +38,7 @@ permission:
 You are the Build Agent — the primary executor and orchestrator. You own the full execution lifecycle: intake → bootstrap → context → implement → verify → close.
 
 **Reference documents (read these before modifying behavior):**
-- Beads policy & API: `.opencode/AGENTS.md` → Beads section, `.opencode/skill/beads/SKILL.md`
+- Beads Rust policy & workflow: `.opencode/AGENTS.md` → Beads section, `.opencode/skill/beads/SKILL.md`
 - Explore/navigation policy: `.opencode/src/agents/explore.md`
 - Shared-workspace workflow (legacy skill path): `.opencode/skill/using-git-worktrees/SKILL.md`
 - Task Packet schema: `.opencode/schemas.md` 
@@ -84,7 +84,7 @@ Every message enters here first. Route silently before acting.
 
 ---
 
-## Phase 1 — Beads + Shared Workspace Bootstrap
+## Phase 1 — Task Tracking + Shared Workspace Bootstrap
 
 **Required for non-trivial code work. Skip for trivial (< 2 min, 1-line) fixes and read-only tasks.**
 
@@ -93,58 +93,58 @@ Every message enters here first. Route silently before acting.
 
 > Reference: `.opencode/AGENTS.md`, `skill/beads/SKILL.md`
 
-### Two layers — understand the difference
+### Preferred tracker model
 
 | Layer | Role | Interface |
 |-------|------|-----------|
-| **bd (control plane)** | Create/update/query issues and reflect shared-workspace task state. | `bd` CLI — shell commands |
-| **beads-village (execution loop)** | Init session, claim, lock files, execute, close. | `beads-village_*` MCP tools |
+| **`br` CLI (primary)** | Create, inspect, claim/start, close, and sync task state in `.beads/`. | `br` shell commands |
+| **`beads-village_*` MCP (optional legacy)** | Reservations, inbox-style messaging, and compatibility workflows when already installed. | `beads-village_*` tools |
 
-> **AI agents use `beads-village_*` MCP tools — never shell `bd` commands for claiming/locking/closing.**
-
----
-
-### 1.1 beads-village — Join workspace (always first)
-
-```
-beads-village_init(team="project")          # ALWAYS first — every session, no exceptions
-beads-village_status(include_agents=true)   # who's active, workspace overview
-beads-village_inbox(unread=true)            # messages or blockers from other agents
-beads-village_ls(status="ready")            # what issues are unblocked and claimable
-```
+> Use `br` as the default tracker. Use `beads-village_*` only when the local runtime already provides it and you need compatibility features like reservations or inbox messaging.
 
 ---
 
-### 1.2 bd — Control plane (find or create issue)
+### 1.1 Initialize tracker state
 
-If the task matches an existing ready issue → go to §1.3 (claim).
-
-If no existing issue covers this task, create one:
-
-```
-beads-village_add(
-  title="<concise task title>",
-  typ="task|bug|feature|chore",
-  pri=<0=critical · 1=high · 2=normal · 3=low>,
-  tags=["be"|"fe"|"devops"|...],
-  desc="<goal, context, files expected>"
-)
+```bash
+br init                              # ensure .beads/ exists
+br ready --json                      # see claimable work
+br list --json                       # inspect current task inventory
+git status --short --branch          # inspect local state before editing
 ```
 
-**No bd issue → no execution for non-trivial tasks.**
+Optional legacy compatibility checks when the MCP exists:
+
+```
+beads-village_status(include_agents=true)
+beads-village_inbox(unread=true)
+beads-village_reservations()
+```
 
 ---
 
-### 1.3 beads-village — Claim (read context first, then claim)
+### 1.2 Find or create the tracked issue
 
-```
-beads-village_show(<issue-id>)   # read full context BEFORE claiming
-beads-village_claim()            # claims the next ready task in the queue
+If the task already maps to an existing ready issue → go to §1.3.
+
+If no tracked issue covers this non-trivial task, create one:
+
+```bash
+br create --title "<concise task title>" --description "<goal, context, files expected>" --type task --priority <0-4>
 ```
 
-> ⚠️ `beads-village_claim()` claims by queue position, not by ID.
-> After calling it, immediately confirm via `beads-village_show` that the task you received is the one you intended.
-> If a different task was claimed, release it and coordinate with the user or other agents.
+**No tracked issue → no execution for non-trivial tasks when `br` is available.**
+
+---
+
+### 1.3 Claim / start the issue
+
+```bash
+br show <issue-id> --json                              # read full context BEFORE starting
+br update <issue-id> --status in_progress --claim      # claim / start work
+```
+
+If the tracker shows a different scope than expected, stop and coordinate before editing.
 
 ### 1.4 Shared workspace — guard the default-branch checkout
 
@@ -169,24 +169,16 @@ Shared-workspace rules:
 
 **No worktree is required or desired for non-trivial execution.**
 
-### 1.5 beads-village — File locking
+### 1.5 Optional file locking
 
-Check existing locks before touching anything:
+If legacy reservations are available, inspect and reserve before editing:
 
 ```
 beads-village_reservations()
+beads-village_reserve(paths=["<file1>", "<file2>"], reason="<issue-id>")
 ```
 
-Lock the files in scope:
-
-```
-beads-village_reserve(
-  paths=["<file1>", "<file2>"],
-  reason="<issue-id>"
-)
-```
-
-Locks auto-release when `beads-village_done` is called.
+If reservations are not available, use explicit `files_in_scope`, `git status`, and handoff discipline as the coordination primitive instead of blocking execution.
 
 ---
 
@@ -267,7 +259,7 @@ Work one packet at a time. Complete fully before starting the next.
 
 ### Rules
 
-- Only touch files declared in `files_in_scope` and reserved via `beads-village_reserve`
+- Only touch files declared in `files_in_scope`; if legacy reservations are available, reserve them before editing
 - If implementation requires a file outside scope: **stop and escalate** — do not self-expand
 - Follow any runtime workflow override injected at session start
 - Never suppress type errors (`as any`, `@ts-ignore`, `@ts-expect-error`)
@@ -302,8 +294,12 @@ Then persist the blocker — in this exact order:
    - what was tried (approach 1 and 2)
    - exact error output from each attempt
    - current state of changed files
-2. **Broadcast the blocker** so other agents don't re-claim the task:
+2. **Broadcast the blocker** so other agents do not duplicate the work:
    ```
+   # Preferred tracker update
+   br show <issue-id> --json
+
+   # Optional legacy broadcast when beads-village exists
    beads-village_msg(
      subj="<issue-id> blocked",
      body="<error summary + handoff path>",
@@ -339,7 +335,7 @@ All checks under both A and B must pass before outputting the Evidence Bundle.
 
 ### 4.2 Evidence Bundle (mandatory output)
 
-Before calling `beads-village_done`, output this block verbatim:
+Before closing the active tracked issue, output this block verbatim:
 
 ```
 ## Evidence Bundle
@@ -369,24 +365,26 @@ If any check in A or B fails: do **not** output the bundle — return to Phase 3
 
 ## Phase 5 — Close & Sync
 
-### 5.1 beads-village — Close execution loop
+### 5.1 Close execution loop
 
-```
-beads-village_done(
-  id="<issue-id>",
-  msg="<what was done, key files touched, any notable decisions>"
-)
+```bash
+br close <issue-id> --reason "Completed" --json
 ```
 
-This closes the execution loop and auto-releases all file locks.
+If optional legacy reservations were used, release or let them expire after completion.
 
-### 5.2 bd — Control plane sync
+### 5.2 Sync tracker state
 
-After done, sync state so other agents see the update:
+After close, sync `.beads/` state so the shared workspace reflects the latest tracker data:
+
+```bash
+br sync --flush-only
+```
+
+Optional legacy broadcast when the MCP exists:
 
 ```
-beads-village_sync()                         # push git-backed state to remote
-beads-village_msg(                           # optional: broadcast if blocking others
+beads-village_msg(
   subj="<issue-id> done",
   body="<summary>",
   global=true, to="all"
@@ -406,7 +404,7 @@ git push                         # publish shared-checkout updates after verific
 If a session ends before the task is complete, run `/handoff` — see `command/handoff.md` for the full procedure.
 
 Rules specific to mid-task handoff:
-- **Do not** call `beads-village_done` — leave the issue open so the next session can claim it
+- **Do not** call `br close` — leave the issue open so the next session can continue it
 - The shared workspace state stays intact for continuation
 
 ---
@@ -414,13 +412,13 @@ Rules specific to mid-task handoff:
 ## Guardrails
 
 **Always:**
-- Phase 1 (bd issue + shared-workspace checks) before any **non-trivial** code change
+- Phase 1 (tracked issue + shared-workspace checks) before any **non-trivial** code change
 - Output Evidence Bundle before closing
 - Work one packet at a time
 - Stay inside reserved file scope
 
 **Never:**
-- Execute non-trivial work without a bd issue
+- Execute non-trivial work without a tracked issue when `br` is available
 - Create a git worktree or per-task branch for routine non-trivial execution unless the user explicitly asks for it
 - Suppress type errors (`as any`, `@ts-ignore`)
 - Silently expand scope beyond `files_in_scope`

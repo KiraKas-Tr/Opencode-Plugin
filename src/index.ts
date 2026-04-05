@@ -133,11 +133,6 @@ const CliKitPlugin: Plugin = async (ctx) => {
   const todosBySession = new Map<string, OpenCodeTodo[]>();
   const sessionAgents = new Map<string, string>();
   const defaultMcpEntries = {
-    "beads-village": {
-      type: "local",
-      command: ["npx", "-y", "beads-village"],
-      enabled: true,
-    },
     context7: {
       type: "remote",
       url: "https://mcp.context7.com/mcp",

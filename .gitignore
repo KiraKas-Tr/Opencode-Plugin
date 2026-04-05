@@ -1,9 +1,32 @@
 node_modules
 bun.lock
 .gitignore
+!.beads/.gitignore
 dist/
 .opencode/
-.beads/
+.beads/*.db
+.beads/*.db?*
+.beads/dolt/
+.beads/dolt-access.lock
+.beads/dolt-server.pid
+.beads/dolt-server.log
+.beads/dolt-server.lock
+.beads/dolt-server.port
+.beads/daemon.lock
+.beads/daemon.log
+.beads/.local_version
+.beads/backup/
+.beads/export-state/
+.beads/.sync.lock
+.beads/sync-state.json
+.beads/last-touched
+.beads/redirect
+.beads/bd.sock
+.beads/bd.sock.startlock
+.beads/ephemeral.sqlite3
+.beads/ephemeral.sqlite3-journal
+.beads/ephemeral.sqlite3-wal
+.beads/ephemeral.sqlite3-shm
 
 # Memory runtime artifacts
 memory/**
@@ -13,6 +36,6 @@ memory/**
 !memory/project/
 !memory/project/**
 
-# Dolt database files (added by bd init)
+# Legacy database files
 .dolt/
 *.db

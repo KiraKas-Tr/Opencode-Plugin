@@ -60,23 +60,23 @@ On-demand specialists (invoke only when needed):
 
 ## Beads Task Management
 
-Agents use **Beads** (`beads-village_*` MCP tools) for persistent task tracking.
+Agents prefer **Beads Rust** (`br`) for persistent task tracking. `beads-village_*` MCP tools are optional legacy helpers, not a mandatory dependency.
 
-**Policy:** Beads is used for non-trivial work. Trivial fixes (typo, single-line) skip Beads and execute immediately.
+**Policy:** Non-trivial work should use `.beads/` tracking when available. Trivial fixes (typo, single-line) skip Beads and execute immediately.
 
 **Core cycle:**
 ```
-beads-village_init → beads-village_status/include_agents → beads-village_inbox → beads-village_ls(status="ready") → beads-village_show(id) → beads-village_add (if needed) → beads-village_claim → beads-village_reservations → beads-village_reserve → work → verify → beads-village_done → beads-village_sync
+br init → br ready --json → br show/list --json → br create (if needed) → br update --status in_progress --claim → work → verify → br close → br sync --flush-only
 ```
 
 Execution happens one **Task Packet** at a time.
 
-- **@build**: Creates issues for non-trivial tasks, claims and closes on completion
-- **@build**: Reads issue context before claiming, reserves packet files, verifies evidence, and syncs on completion
-- **@plan**: Creates issues for every plan task after plan approval
-- **Subagents**: Read-only — do not create/modify Beads issues
+- **@build**: Creates issues for non-trivial tasks, claims/starts them, verifies evidence, and closes them on completion
+- **@build**: May use optional `beads-village_reserve` locks when the MCP is installed, but must not assume they exist
+- **@plan**: Creates task-tracking issues after plan approval when the workflow calls for it
+- **Subagents**: Read-only — do not create/modify `.beads/` task state unless explicitly instructed by a primary agent workflow
 
-`todowrite` is for in-session UI display only. Beads persists across sessions.
+`todowrite` is for in-session UI display only. `.beads/` persists across sessions.
 
 ## Delegation Rules
 

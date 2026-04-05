@@ -1,0 +1,38 @@
+# Runtime / local-machine files
+daemon.lock
+daemon.log
+.local_version
+
+# SQLite runtime sidecars
+*.db
+*.db?*
+*.db-journal
+*.db-wal
+*.db-shm
+
+# Legacy Dolt compatibility leftovers
+dolt/
+dolt-access.lock
+dolt-server.pid
+dolt-server.log
+dolt-server.lock
+dolt-server.port
+
+# Local sync / export scratch space
+backup/
+export-state/
+.sync.lock
+sync-state.json
+last-touched
+redirect
+
+# Legacy sockets / ephemeral files
+bd.sock
+bd.sock.startlock
+ephemeral.sqlite3
+ephemeral.sqlite3-journal
+ephemeral.sqlite3-wal
+ephemeral.sqlite3-shm
+
+# NOTE: `metadata.json`, `config.yaml`, `issues.jsonl`, `deletions.jsonl`, and this file
+# are intended to remain trackable by git when the repo root allows `.beads/` entries.

@@ -28,13 +28,13 @@ acceptance_criteria:
 
 ### Special Values
 
-task_id "ALL": Used by Review Agent /finish to review entire bead
+task_id "ALL": Used by Review Agent /finish to review entire tracked work item
 
 ---
 
-## 2. Bead Metadata Schema
+## 2. Optional Bead Metadata Schema
 
-Stored at: `.opencode/memory/beads/<bead_id>.json`
+Stored at: `.opencode/memory/beads/<bead_id>.json` when legacy compatibility artifacts are needed.
 
 ```json
 {
@@ -298,14 +298,14 @@ dependencies:                   # Packet IDs that must be done first
   - "P-T000"
 
 acceptance_criteria:            # All must be agent-executable (command + expected output)
-  - cmd: "bun test src/foo.test.ts"
+  - cmd: "bun run build"
     expect: "exits 0"
   - cmd: "lsp_diagnostics src/foo.ts"
     expect: "zero errors"
 
 verification_commands:          # Run in order after implementation
   - "bun run typecheck"
-  - "bun test src/foo.test.ts"
+  - "bun run build"
 
 risks:
   - "Edge case: empty input not handled in bar()"
@@ -330,8 +330,8 @@ context:
 
 ### Usage
 
-Plan Agent: Creates packets after plan approval, maps each T-xxx to a Beads issue
-Build Agent: Claims one packet via `beads-village_claim`, executes, verifies, marks done
+Plan Agent: Creates packets after plan approval and may map each T-xxx to a `br` issue when tracking is active
+Build Agent: Starts one packet via the active tracker (`br ready --json` + `br update ... --claim`) when available, executes, verifies, and closes it
 Subagents: Read packet context only — do not create or close packets
 
 ### Legacy Envelope compatibility

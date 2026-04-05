@@ -1,23 +1,26 @@
 ---
-description: Instant workspace snapshot — active Beads tasks, ready work, git state, and all memory artifacts in one view.
+description: Instant workspace snapshot — tracker state, ready work, git state, and memory artifacts in one view.
 agent: build
 ---
 
-You are providing a **status overview** of the current workspace and beads.
+You are providing a **status overview** of the current workspace and task tracker.
 
 ## Your Task
 
-Show the current state of work: beads, tasks, files, and git status.
+Show the current state of work: tracker state, tasks, files, and git status.
 
 ## Process
 
-### 1. Check Beads Village
+### 1. Check Task Tracking
 
-```
-beads-village_status()
+Preferred path:
+
+```bash
+br ready --json
+br list --json
 ```
 
-Also inspect ready work, reservations, and inbox state using the matching `beads-village_*` tools.
+If a legacy `beads-village` MCP is installed, you may also inspect reservations, inbox state, or agent presence using the matching MCP tools.
 
 ### 2. Check Git State
 
@@ -48,7 +51,7 @@ Look for:
 
 ---
 
-### 🎯 Beads Village
+### 🎯 Tracker State
 
 | Status | Count |
 |--------|-------|
@@ -61,6 +64,8 @@ Look for:
 **Ready to Claim:**
 1. [ID] [Title] (P[priority])
 2. [ID] [Title] (P[priority])
+
+**Tracker Source:** `br` / `beads-village` / `none`
 
 ---
 
@@ -113,11 +118,9 @@ Look for:
 
 | Area | Tool |
 |------|------|
-| Beads | `beads-village_status()` |
-| Tasks | `beads-village_ls()` |
-| Ready tasks | `beads-village_ls(status="ready")` |
-| Reservations | `beads-village_reservations()` |
-| Messages | `beads-village_inbox()` |
+| Tracker | `br ready --json`, `br list --json` |
+| Legacy reservations | `beads-village_reservations()` when available |
+| Legacy inbox | `beads-village_inbox()` when available |
 | Git | `git status`, `git log` |
 | Artifacts | `glob`, `Read` |
 

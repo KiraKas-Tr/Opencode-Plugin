@@ -3,7 +3,7 @@
     "beads-village": {
       "type": "local",
       "command": ["npx", "-y", "beads-village"],
-      "description": "Multi-agent task coordination, file locking, issue tracking",
+      "description": "Optional legacy Beads Village compatibility for reservations and messaging",
       "tools": [
         "beads-village_init",
         "beads-village_add",

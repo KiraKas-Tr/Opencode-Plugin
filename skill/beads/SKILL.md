@@ -1,33 +1,42 @@
 ---
 name: beads
-description: Use for multi-agent task coordination, file locking, and dependency management via beads-village MCP tools.
+description: Use for multi-agent task coordination with `br` and optional legacy beads-village helpers.
 ---
 
 # Beads
 
-**AI agents: always use `beads-village_*` MCP tools — never shell `bd` commands.**
+**Preferred tracker:** `br` (`beads_rust`) with `.beads/` storage.
+
+Use `br` CLI first for task state. Use `beads-village_*` only as optional legacy compatibility when reservations, inbox-style messaging, or existing local workflows still depend on it.
 
 ## Session Cycle
 
 ```
-init → ls(ready) → show → claim → reserve(files) → work → done
+br init → br ready --json → br show <id> --json → br update <id> --status in_progress --claim → work → br close <id> --reason "Completed" --json → br sync --flush-only
 ```
 
-## Core Tools
+## Preferred Commands
 
-| Tool | Purpose |
-|------|---------|
-| `beads-village_init(team=…)` | **First call every session** |
-| `beads-village_ls(status="ready")` | List unblocked tasks |
-| `beads-village_show(id)` | Read task details |
-| `beads-village_claim()` | Claim next ready task |
-| `beads-village_add(title, typ, pri, tags, deps)` | Create issue |
-| `beads-village_reserve(paths, reason)` | Lock files before editing |
-| `beads-village_done(id, msg)` | Complete + auto-release locks |
-| `beads-village_msg(subj, global=true, to="all")` | Broadcast |
-| `beads-village_inbox(unread=true)` | Read messages |
-| `beads-village_status(include_agents=true)` | Workspace overview |
-| `beads-village_sync()` | Git push/pull |
+| Command | Purpose |
+|---------|---------|
+| `br init` | Initialize `.beads/` if missing |
+| `br ready --json` | List unblocked tasks |
+| `br show <id> --json` | Read task details |
+| `br create --title ... --description ... --type ... --priority ...` | Create issue |
+| `br update <id> --status in_progress --claim` | Claim/start work |
+| `br close <id> --reason "Completed" --json` | Complete work |
+| `br sync --flush-only` | Flush `.beads/` state before commit/push |
+| `br sync --import-only` | Re-import `.beads/` state after pull/rebase |
+
+## Optional Legacy MCP Helpers
+
+| Tool | Use only when... |
+|------|------------------|
+| `beads-village_reserve(paths, reason)` | You need explicit file reservations in a shared workspace |
+| `beads-village_reservations()` | You need to inspect existing locks |
+| `beads-village_inbox(unread=true)` | Your team still uses village-style messaging |
+| `beads-village_status(include_agents=true)` | You need legacy workspace/agent discovery |
+| `beads-village_msg(...)` | You need a compatibility broadcast path |
 
 ## Issue Schema
 
@@ -35,7 +44,7 @@ init → ls(ready) → show → claim → reserve(files) → work → done
 typ:  task | bug | feature | epic | chore
 pri:  0=critical  1=high  2=normal  3=low  4=backlog
 tags: fe | be | devops | qa
-deps: ["bv-id"]  or  ["discovered-from:bv-id"]
+deps: ["br-id"]  or  ["discovered-from:br-id"]
 ```
 
 ## When to Create Issues
@@ -43,13 +52,4 @@ deps: ["bv-id"]  or  ["discovered-from:bv-id"]
 - Trivial (< 2 min, 1-line): skip, just do it
 - Non-trivial (2+ min, 2+ files): create issue first, then work
 
-## v1.3 API — Correct Names
-
-| ❌ Old | ✅ Correct |
-|--------|-----------|
-| `beads-village_ready` | `beads-village_ls(status="ready")` |
-| `beads-village_broadcast` | `beads-village_msg(global=true, to="all")` |
-| `beads-village_discover` | `beads-village_status(include_agents=true)` |
-
-See [references/api-reference.md](references/api-reference.md) for full tool params and examples.
-- MCP: `beads-village` — see [mcp.json](mcp.json)
+Legacy `beads-village` remains optional compatibility only. Do not make it a hard prerequisite in new workflows.

@@ -77,7 +77,6 @@ Load `session-management` skill for full threshold handling (including handoff t
 bun install        # dependencies
 bun run build      # compile plugin
 bun run typecheck  # type check
-bun run test       # unit tests
 bun run verify     # full local verification
 bun run dev        # watch mode
 ```
@@ -108,23 +107,21 @@ tilth CLI → read → grep → glob
 
 This is a documented agent rule, not a hard runtime block.
 
-## Issue Tracking with bd (beads)
+## Issue Tracking with Beads Rust (`br`)
 
-**IMPORTANT**: This project uses **bd (beads)** for ALL issue tracking. Do NOT use markdown TODOs, task lists, or other tracking methods.
+**IMPORTANT**: This project now prefers **Beads Rust** (`br`) with local `.beads/` storage for persistent task tracking. Do NOT use markdown TODOs or ad-hoc task lists as the source of truth.
 
-### Two Interfaces
+### Preferred Interface
 
 | Interface | Who Uses It | How |
 |-----------|-------------|-----|
-| **`bd` CLI** | User in terminal | `bd create`, `bd ready`, `bd close` |
-| **`beads-village_*` MCP** | AI agents in OpenCode | `beads-village_add`, `beads-village_claim` |
-
-**AI agents must use `beads-village_*` MCP tools — never shell `bd` commands.**
+| **`br` CLI** | User and agents | `br init`, `br ready --json`, `br create`, `br update`, `br close`, `br sync` |
+| **`beads-village_*` MCP** | Optional legacy compatibility | Use only if already installed and explicitly needed for reservations/messages |
 
 ### Agent Core Cycle
 
 ```
-beads-village_init → status/inbox → ls(ready) → show → add (if needed) → claim → reservations → reserve → work → verify → done → sync
+br init → br ready --json → br show/list --json → br create (if needed) → br update --status in_progress --claim → work → verify → br close → br sync --flush-only
 ```
 
 In compressed workflow, the execution unit is a **Task Packet**:
@@ -137,36 +134,32 @@ In compressed workflow, the execution unit is a **Task Packet**:
 
 | Tool | Purpose |
 |------|---------|
-| `beads-village_init` | Join workspace — call FIRST every session |
-| `beads-village_add(title, typ, pri, tags, deps)` | Create issue |
-| `beads-village_claim` | Claim next ready task (filtered by role) |
-| `beads-village_reserve(paths, reason)` | Lock files before editing |
-| `beads-village_done(id, msg)` | Complete task, auto-release locks |
-| `beads-village_ls(status="ready")` | List claimable tasks |
-| `beads-village_show(id)` | Get task details |
-| `beads-village_status(include_agents=true)` | Workspace overview + agent discovery |
-| `beads-village_msg(subj, global=true, to="all")` | Broadcast to team |
-| `beads-village_inbox(unread=true)` | Read messages |
-| `beads-village_sync` | Push/pull git changes |
+| `br init` | Initialize `.beads/` for the project |
+| `br ready --json` | List unblocked claimable work |
+| `br create --title ... --description ... --type ... --priority ...` | Create issue |
+| `br update <id> --status in_progress --claim` | Claim / start work |
+| `br show <id> --json` | Read task details |
+| `br list --json` | Inspect task inventory |
+| `br close <id> --reason "Completed" --json` | Close completed work |
+| `br sync --flush-only` | Flush `.beads/` state before git commit/push |
+| `br sync --import-only` | Re-import `.beads/` state after pull/rebase |
 
-### v1.3 API Changes (avoid old names)
+### Legacy compatibility note
 
-| ❌ Old (broken) | ✅ Correct |
-|---|---|
-| `beads-village_ready` | `beads-village_ls(status="ready")` |
-| `beads-village_broadcast` | `beads-village_msg(global=true, to="all")` |
-| `beads-village_discover` | `beads-village_status(include_agents=true)` |
+- `beads-village_*` is no longer the default required workflow in this repo.
+- If a local setup still depends on `beads-village` for reservations or inbox-style coordination, treat it as optional compatibility, not the primary task tracker.
+- This repo does **not** currently provide a full MCP replacement for `br`; use the CLI-first workflow above.
 
 ### Policy
 
 - Trivial (< 2 min, 1-line fix): skip Beads, just do it
-- Non-trivial: create issue first → claim → work → done
-- `todowrite` = in-session UI display only — Beads is the persistent and authoritative execution state
+- Non-trivial: prefer `br` issue first → claim/start → work → close
+- `todowrite` = in-session UI display only — `.beads/` is the persistent execution state when task tracking is in use
 - Work in the shared checkout on the repo default branch — no git worktrees or per-task branches unless the user explicitly requests them
 - Check `git status --short --branch` before editing; if overlapping local changes already exist in your scope, stop and coordinate instead of isolating the work
-- Use `beads-village_reserve` to surface conflicts early in the shared workspace
-- Always `reserve` files before editing in multi-agent contexts
-- Call `done` before ending a completed session; for mid-task handoff, leave the issue open and hand off without `done`
+- If optional `beads-village` reservations are available, you may use them to surface conflicts early in the shared workspace
+- Otherwise coordinate through git state, handoffs, and explicit file scope instead of assuming reservations exist
+- Call `br close` before ending a completed tracked session; for mid-task handoff, leave the issue open and hand off without closing it
 
 ### Nested Repository Note
 

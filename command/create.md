@@ -175,11 +175,14 @@ Before presenting the plan, verify:
 - [ ] All acceptance criteria are agent-executable
 - [ ] Top 2+ risks assessed
 
-### 8. Approval, Create Beads, & Guide
+### 8. Approval, Sync Tracking, & Guide
 
 1. Present plan to user
 2. Wait for explicit approval
-3. Only after approval, call `beads-village_add()` with title, description, and priority
+3. Only after approval, sync task tracking in the active workflow:
+   - Prefer `br` issue creation in DAG order when `.beads/` tracking is active and the runtime can execute `br`
+   - If a legacy `beads-village` MCP setup still exists, it may be used as a compatibility fallback
+   - Do **not** block plan handoff on missing legacy MCP support
 4. Then say: "Plan ready. Use `/start` to begin execution."
 
 ## Rules
@@ -195,7 +198,7 @@ Before presenting the plan, verify:
 - ✅ Include Conventions & Past Decisions section in plan
 - ✅ Every task must include a Task Packet
 - ✅ File Impact is the build contract
-- ✅ Create Beads issues only after explicit approval
+- ✅ Create tracker issues only after explicit approval
 - ❌ NEVER ask generic questions without codebase context
 - ❌ NEVER skip acceptance criteria
 - ❌ NEVER end passively — always question or action

@@ -39,8 +39,9 @@ Ensure these exist:
 - `.opencode/memory/reviews`
 - `.opencode/memory/handoffs`
 - `.opencode/memory/prds`
-- `.opencode/memory/beads`
 - `.opencode/memory/_templates`
+
+Task tracking now lives in the project-root `.beads/` directory created by `br init`, not under `.opencode/memory/beads`.
 
 ### 4) Handle existing AGENTS.md safely
 

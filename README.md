@@ -1,6 +1,83 @@
 # CliKit Plugin for OpenCode
 
-Curated agents, commands, skills, and memory system for OpenCode.
+Turn raw OpenCode into a disciplined delivery workflow: **discuss → create → start → verify → ship**.
+
+CliKit is the workflow layer for OpenCode — curated agents, slash commands, runtime hooks, memory artifacts, and quality gates that help you move from vague request to verified change without inventing your process every session.
+
+## Why CliKit exists
+
+OpenCode is powerful, but the hard part is not calling a model — it is keeping planning, execution, verification, and handoff aligned as the task gets bigger.
+
+CliKit adds that missing structure:
+
+- **Workflow orchestration** — opinionated commands for discuss/create/start/verify/ship
+- **Agent library** — specialized roles for build, plan, explore, review, research, oracle, and vision
+- **Memory system** — discussion, plan, research, review, and handoff artifacts that survive across sessions
+- **Safety + quality hooks** — git guard, security checks, truncation, memory digest, and prompt-context helpers
+- **Verification loop** — compressed packet execution plus explicit verification before landing changes
+
+## Start here
+
+### Install in 3 steps
+
+```bash
+# 1) Install Beads Rust for local task tracking
+br --version
+
+# 2) Initialize tracker state in your project
+br init
+
+# 3) Install CliKit for OpenCode
+bun x clikit-plugin install
+```
+
+Need the full install notes, Windows binary path, or MCP details? Jump to [Installation](#installation).
+
+### Pick a workflow
+
+**Quick feature / fix**
+```text
+/discuss → /create → /start → /verify → /ship
+```
+
+**Deeper feature / research-heavy change**
+```text
+/discuss → /create → /design → /start → /verify → /ship
+```
+
+**Audit existing work before landing**
+```text
+/verify → /ship
+```
+
+## What you get
+
+- **7 specialized agents** — build, plan, explore, review, vision, oracle, research
+- **14 slash commands** — including `/discuss`, `/create`, `/start`, `/verify`, `/ship`, `/debug`, `/research`, `/design`, `/status`
+- **26 workflow skills** — planning, debugging, testing, integration, and session-management skills
+- **11 runtime hooks/modules** — git guard, security check, truncator, memory digest, beads context, tilth reading, and more
+- **Structured memory** — templates plus saved discussions, plans, research, reviews, handoffs, and PRDs
+- **Configurable runtime** — per-agent overrides, hook toggles, workflow mode selection, and extended permissions
+
+## Trust & compatibility
+
+- **OpenCode-first** plugin architecture
+- **Compressed workflow** with packetized execution and embedded verification
+- **Beads Rust (`br`)** as the preferred local tracker workflow
+- **Shared-workspace friendly** defaults with optional legacy `beads-village` compatibility
+- **Published package**: [`clikit-plugin` on npm](https://www.npmjs.com/package/clikit-plugin)
+
+## Docs map
+
+- `README.md` — install, workflows, commands, skills, config
+- `AGENTS.md` — repo-wide execution policy and tracker workflow
+- `command/` — slash command definitions and execution rules
+- `src/agents/` — agent prompts and behavior contracts
+- `skill/` — reusable workflow skills
+- `schemas.md` — canonical packet / artifact / tracker schemas
+- `memory/_templates/` — discussion, plan, research, review, PRD, and handoff templates
+
+---
 
 ## Features
 
@@ -15,45 +92,33 @@ Curated agents, commands, skills, and memory system for OpenCode.
 
 ## Installation
 
-### Step 1 — Install Beads (required)
+### Step 1 — Install Beads Rust (`br`)
 
-CliKit uses [Beads](https://github.com/steveyegge/beads) (`bd`) for persistent task tracking. Install it system-wide first.
+CliKit now prefers [beads_rust](https://github.com/Dicklesworthstone/beads_rust) (`br`) for persistent task tracking in `.beads/`. Classic `bd` + Dolt are no longer required for the default workflow.
 
-**Windows (PowerShell):**
-```pwsh
-irm https://raw.githubusercontent.com/steveyegge/beads/main/install.ps1 | iex
-```
+**Windows (native binary):**
+1. Download the latest `br-v*-windows_amd64.zip` asset from the GitHub Releases page.
+2. Extract `br.exe`.
+3. Place it on your `PATH` (for example under `%APPDATA%\npm`).
 
-**macOS / Linux — Homebrew (recommended):**
+**macOS / Linux / Windows via WSL:**
 ```bash
-brew install beads
-```
-
-**npm / bun:**
-```bash
-npm install -g @beads/bd
-# or
-bun install -g --trust @beads/bd
-```
-
-**go install (Go 1.24+ required):**
-```bash
-go install github.com/steveyegge/beads/cmd/bd@latest
+curl -fsSL "https://raw.githubusercontent.com/Dicklesworthstone/beads_rust/main/install.sh" | bash
 ```
 
 Verify:
 ```bash
-bd version
+br --version
 ```
 
-### Step 2 — Initialize Beads in your project
+### Step 2 — Initialize `.beads/` in your project
 
 ```bash
 cd your-project
-bd init --quiet
+br init
 ```
 
-This creates the `.beads/` database directory. Do this once per project.
+This creates the `.beads/` task-tracking directory. Do this once per project. If `.beads/` already exists, keep it and use `br sync --import-only` after pulling or rebasing older state.
 
 ### Step 3 — Install CliKit
 
@@ -68,10 +133,11 @@ The plugin is registered in `~/.config/opencode/opencode.json`.
 
 CliKit injects default MCP server entries at runtime when missing:
 
-- `beads-village` (`npx beads-village`) — requires `bd init` to have been run in the project
 - `context7` (`https://mcp.context7.com/mcp`)
 - `grep` (`https://mcp.grep.app`)
 - `human-mcp` (`npx @goonnguyen/human-mcp`)
+
+`beads-village` is no longer injected by default. If you still rely on the legacy MCP workflow for reservations or inbox-style coordination, add it manually.
 
 Recommended environment variables:
 
@@ -101,7 +167,7 @@ Workflow notes:
 - `/ship` finalizes work in the shared checkout — commit, sync, and land on the repo default branch; `/pr` is optional and only for explicit PR-based exceptions
 - `/research` is an optional standalone research command — it reads discussion context first, closes decision gaps with external evidence, and saves a planning-ready report
 - `/design` implements UI/UX with variant exploration and a11y — uses Vision agent
-- Beads is the live execution source of truth
+- `br` + `.beads/` is the preferred persistent task source of truth; `beads-village` is optional legacy compatibility only
 - Plans decompose work into **Task Packets** (1 concern, 1–3 files, one verify bundle)
 
 ## Configuration
@@ -192,8 +258,8 @@ Project config overrides user config.
 | `subagent_question_blocker` | on | Prevents subagents from asking clarifying questions |
 | `truncator` | on | Truncates large outputs to prevent context overflow |
 | `memory_digest` | on | Generates `memory/_digest.md` index + topic files (`decision.md`, `learning.md`, etc.) from SQLite observations |
-| `todo_beads_sync` | off | Legacy todo→Beads mirror; disabled in compressed workflow |
-| `beads_context` | on | Injects active Beads task state into prompts |
+| `todo_beads_sync` | off | Legacy compatibility mirror for syncing todos into `.beads/` exports |
+| `beads_context` | on | Injects active `.beads/` task state into prompts when local Beads data exists |
 | `cass_memory` | on | Loads embedded memory context on session start and runs idle reflection (`cassMemoryContext`, `cassMemoryReflect`) |
 | `tilth_reading` | on | Enhances `read` tool output via tilth when available for smarter file reads |
 
@@ -230,7 +296,7 @@ Run with `/command-name` in OpenCode. **All 14 commands work standalone** — th
 | Command | One-liner |
 |---------|-----------|
 | `/debug` | Reproduce → 5-Whys root cause → fix → regression test |
-| `/status` | Workspace snapshot — Beads tasks, git state, active artifacts |
+| `/status` | Workspace snapshot — task tracker state, git state, active artifacts |
 | `/init` | Bootstrap CliKit — scaffold dirs + write tailored AGENTS.md |
 | `/handoff` | Auto-capture session state for graceful pause |
 | `/resume` | Pick up cold from latest handoff, no warm-up questions |
@@ -278,7 +344,7 @@ Run with `/command-name` in OpenCode. **All 14 commands work standalone** — th
 ### Integration & Collaboration (6)
 | Skill | Use When |
 |-------|----------|
-| `beads` | Multi-agent task coordination via beads-village |
+| `beads` | Multi-agent task coordination with `br` and optional legacy beads-village helpers |
 | `playwright` | Browser automation and E2E testing |
 | `chrome-devtools` | Web debugging and performance analysis |
 | `requesting-code-review` | After completing a task |
@@ -296,9 +362,6 @@ bun run build
 
 # Type check
 bun run typecheck
-
-# Unit tests
-bun run test
 
 # Full local verification
 bun run verify
@@ -328,7 +391,7 @@ bun run dev
 │   ├── research/     # Research artifacts
 │   ├── reviews/      # Code reviews
 │   ├── handoffs/     # Session handoffs
-│   ├── beads/        # Beads task artifacts
+│   ├── beads/        # Optional compatibility bead metadata
 │   └── prds/         # Product requirements
 └── clikit.jsonc
 ```
