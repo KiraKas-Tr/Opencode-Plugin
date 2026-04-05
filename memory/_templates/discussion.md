@@ -4,7 +4,7 @@ Use this template when documenting clarified intent before `/create`.
 
 **Output path:** `.opencode/memory/discussions/YYYY-MM-DD-<topic>.md`
 
-This template is optimized for **pre-create discussion**: the report should reduce guessing for `/create`, `/research`, and `/start` by separating locked intent from unresolved technical work.
+This template is optimized for an **interview-style pre-create discussion**: the report should reduce guessing for `/create`, `/research`, and `/start` by separating what the interview already resolved from what still needs downstream work.
 
 ---
 
@@ -22,6 +22,7 @@ bead_id: [optional]
 **Goal:** [What outcome the user wants]
 **Why now:** [Why this needs to be clarified before planning]
 **Assumptions:** [Any assumptions made due to incomplete context, or "None"]
+**Interview focus:** [Which gray areas the discussion prioritized first]
 
 ---
 
@@ -33,6 +34,8 @@ bead_id: [optional]
 ---
 
 ## Locked Decisions
+
+Record only decisions that the interview actually resolved. If a topic stayed uncertain, move it to **Open Questions** instead of implying certainty.
 
 ### Decision 1: [Title]
 - **Decision:** [Confirmed choice]
@@ -48,6 +51,8 @@ bead_id: [optional]
 
 ## Confirmed Assumptions
 
+Use this section for defaults accepted during the interview because prior artifacts or codebase evidence made them reasonable.
+
 - **Assumption:** [What was assumed]
   - **Confirmed by:** [user / artifact / codebase pattern]
   - **Notes:** [Any caveat]
@@ -55,6 +60,8 @@ bead_id: [optional]
 ---
 
 ## Open Questions
+
+Use this section for planning-critical ambiguity that the interview intentionally left unresolved.
 
 - **Question:** [Unresolved item]
   - **Why unresolved:** [Reason]
@@ -88,4 +95,5 @@ bead_id: [optional]
 ## Planning Notes
 
 - [Specific instruction `/create` should preserve in the plan]
+- [If useful: which question order or interview framing worked best for this topic]
 ```

@@ -1,9 +1,9 @@
 ---
-description: Pre-create discussion phase — clarify intent, lock preferences, confirm assumptions, and write a planning-ready discussion artifact.
+description: Pre-create discussion phase — run an interview-style clarification pass, lock preferences, confirm assumptions, and write a planning-ready discussion artifact.
 agent: plan
 ---
 
-You are the **Plan Agent** operating in discussion mode. Execute the `/discuss` command and write only the discussion artifact.
+You are the **Plan Agent** operating in discussion mode. Execute the `/discuss` command as an **interview-style pre-plan phase** and write only the discussion artifact.
 
 ## Template
 
@@ -12,6 +12,13 @@ Use template at: `@.opencode/memory/_templates/discussion.md`
 ## Purpose
 
 Run a **pre-create discussion phase adapted for CliKit**.
+
+The command name stays `/discuss`, but the interaction style should feel like a focused **interview**:
+- surface the highest-impact gray areas first
+- ask only the questions that change planning direction
+- prefer structured choices over open-ended brainstorming when possible
+- skip topics that are already settled by prior artifacts or strong codebase evidence
+- end with a concise artifact that captures what the interview resolved
 
 This command exists to capture the decisions that `/create`, `/research`, and `/start` should not have to guess.
 
@@ -59,13 +66,15 @@ If context is incomplete, capture the uncertainty in the artifact instead of blo
    - constraints or non-goals
    - sequencing between discuss/create/research/build
 
-4. **Run an adaptive discussion**
-   - Ask focused, high-signal questions
-   - Prefer decisions over open-ended brainstorming once enough context exists
+4. **Run an adaptive interview**
+   - Start with the few gray areas most likely to change `/create`, `/research`, or `/start`
+   - Ask focused, high-signal questions one at a time when possible
+   - Prefer decisions or structured options over open-ended brainstorming once enough context exists
    - Avoid re-asking anything already confirmed by prior artifacts
-   - If the repository strongly suggests a sensible default, present it as an assumption for confirmation
+   - If the repository strongly suggests a sensible default, present it as an assumption for confirmation instead of asking a vague question
+   - If multiple gray areas remain, prioritize the ones with the biggest scope or workflow impact first
 
-5. **Lock what is known and defer the rest**
+5. **Lock what the interview resolved and defer the rest**
    - Record confirmed decisions explicitly
    - Separate confirmed assumptions from unresolved questions
    - Push non-critical ideas into a deferred section rather than expanding scope
@@ -85,7 +94,7 @@ Use this request schema:
 
 ```yaml
 type: "discussion"
-mode: "pre-create-phase"
+mode: "interview-style-pre-create-phase"
 topic: "[Feature or topic being clarified]"
 goal: "[What outcome the user wants]"
 ambiguities:
@@ -97,12 +106,15 @@ constraints:
   workflow: "[Any sequencing or approval constraints]"
 format: "discussion-brief"
 depth: "standard"         # quick | standard | deep
+question_style: "adaptive-interview"
 ```
 
 ## Rules
 
 - Start from user intent, not technical implementation detail
 - Clarify only what changes planning, sequencing, or execution direction
+- Treat `/discuss` as an interview, not an unbounded brainstorm
+- Ask the minimum number of questions needed to remove planning-critical ambiguity
 - Prefer concrete decisions over vague summaries
 - Preserve unresolved items instead of guessing them away
 - Write only the final discussion artifact under `.opencode/memory/discussions/`
