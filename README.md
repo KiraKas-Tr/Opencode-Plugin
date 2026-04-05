@@ -4,6 +4,8 @@ Turn raw OpenCode into a disciplined delivery workflow: **discuss → create →
 
 CliKit is the workflow layer for OpenCode — curated agents, slash commands, runtime hooks, memory artifacts, and quality gates that help you move from vague request to verified change without inventing your process every session.
 
+_README structure inspired by [GSD / get-shit-done](https://github.com/gsd-build/get-shit-done) and [OpenCodeKit](https://opencodekit.xyz/)._
+
 ## Why CliKit exists
 
 OpenCode is powerful, but the hard part is not calling a model — it is keeping planning, execution, verification, and handoff aligned as the task gets bigger.
