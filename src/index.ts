@@ -66,6 +66,7 @@ import {
   type OpenCodeTodo,
 } from "./hooks";
 import { cassMemoryContext, cassMemoryReflect } from "./tools/cass-memory";
+import { augmentPrompt } from "./tools/augment";
 import { contextSummary } from "./tools/context-summary";
 
 const DCP_PLUGIN_ENTRY = "@tarquinen/opencode-dcp@beta";
@@ -513,7 +514,37 @@ const CliKitPlugin: Plugin = async (ctx) => {
 
   return {
     tool: {
-      // context_summary — summarize memory observations into structured context
+      // augment_prompt - rewrite a draft prompt into a stronger, structured prompt for review
+      augment_prompt: tool({
+        description: "Rewrite a draft prompt into a stronger, intent-aware prompt for user review.",
+        args: {
+          draft: tool.schema.string().describe("Draft prompt to enhance before sending to the model."),
+          mode: tool.schema.enum(["auto", "plain", "execution-contract"]).optional().describe("Optional rewrite mode override (default: auto)."),
+        },
+        async execute(args) {
+          const draft = typeof args.draft === "string" ? args.draft.trim() : "";
+          if (!draft) {
+            return JSON.stringify({
+              success: false,
+              error: "Draft prompt is required.",
+            }, null, 2);
+          }
+
+          const mode = args.mode === "plain" || args.mode === "execution-contract" ? args.mode : "auto";
+          const result = augmentPrompt(draft, { mode });
+
+          return JSON.stringify({
+            success: true,
+            original: result.original,
+            enhanced: result.enhanced,
+            intent: result.intent,
+            mode: result.mode,
+            intensity: result.intensity,
+          }, null, 2);
+        },
+      }),
+
+      // context_summary - summarize memory observations into structured context
       context_summary: tool({
         description: "Summarize memory observations (decisions, learnings, blockers, progress) into a structured context digest. Useful for compaction or session handoff.",
         args: {
