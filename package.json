@@ -1,6 +1,6 @@
 {
   "name": "clikit-plugin",
-  "version": "0.3.14",
+  "version": "0.3.17",
   "description": "Workflow layer for OpenCode — agents, commands, hooks, memory, and verification",
   "type": "module",
   "main": "./dist/index.js",

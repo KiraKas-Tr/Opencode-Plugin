@@ -223,33 +223,23 @@ const CliKitPlugin: Plugin = async (ctx) => {
   }
 
   interface TuiShowToastRequest {
-    body?: {
-      title?: string;
-      message?: string;
-      variant?: "info" | "success" | "warning" | "error";
-      duration?: number;
-    };
-    query?: {
-      directory?: string;
-      workspace?: string;
-    };
+    directory?: string;
+    workspace?: string;
+    title?: string;
+    message?: string;
+    variant?: "info" | "success" | "warning" | "error";
+    duration?: number;
   }
 
   interface TuiAppendPromptRequest {
-    body?: {
-      text: string;
-    };
-    query?: {
-      directory?: string;
-      workspace?: string;
-    };
+    directory?: string;
+    workspace?: string;
+    text: string;
   }
 
   interface TuiClearPromptRequest {
-    query?: {
-      directory?: string;
-      workspace?: string;
-    };
+    directory?: string;
+    workspace?: string;
   }
 
   interface TuiClient {
@@ -283,10 +273,10 @@ const CliKitPlugin: Plugin = async (ctx) => {
     }
 
     return {
-      create: create as SessionClient["create"],
-      prompt: prompt as SessionClient["prompt"],
+      create: (parameters) => (create as SessionClient["create"]).call(sessionValue, parameters),
+      prompt: (parameters) => (prompt as SessionClient["prompt"]).call(sessionValue, parameters),
       delete: typeof deleteSession === "function"
-        ? (deleteSession as SessionClient["delete"])
+        ? ((parameters) => (deleteSession as NonNullable<SessionClient["delete"]>).call(sessionValue, parameters))
         : undefined,
     };
   }
@@ -309,13 +299,13 @@ const CliKitPlugin: Plugin = async (ctx) => {
 
     return {
       showToast: typeof showToastMethod === "function"
-        ? (showToastMethod as TuiClient["showToast"])
+        ? ((parameters) => (showToastMethod as NonNullable<TuiClient["showToast"]>).call(tuiValue, parameters))
         : undefined,
       appendPrompt: typeof appendPromptMethod === "function"
-        ? (appendPromptMethod as TuiClient["appendPrompt"])
+        ? ((parameters) => (appendPromptMethod as NonNullable<TuiClient["appendPrompt"]>).call(tuiValue, parameters))
         : undefined,
       clearPrompt: typeof clearPromptMethod === "function"
-        ? (clearPromptMethod as TuiClient["clearPrompt"])
+        ? ((parameters) => (clearPromptMethod as NonNullable<TuiClient["clearPrompt"]>).call(tuiValue, parameters))
         : undefined,
     };
   }
@@ -325,14 +315,18 @@ const CliKitPlugin: Plugin = async (ctx) => {
   }
 
   async function showToast(message: string, variant: "info" | "success" | "warning" | "error", title = "CliKit"): Promise<boolean> {
+    const tuiClient = getTuiClient();
+    if (!tuiClient?.showToast) {
+      return false;
+    }
+
     try {
-      await ctx.client.tui.showToast({
-        body: {
-          title,
-          message,
-          variant,
-          duration: 3500,
-        },
+      await tuiClient.showToast({
+        directory: ctx.directory,
+        title,
+        message,
+        variant,
+        duration: 3500,
       });
       return true;
     } catch {
@@ -350,19 +344,13 @@ const CliKitPlugin: Plugin = async (ctx) => {
     try {
       if (tuiClient.clearPrompt) {
         await tuiClient.clearPrompt({
-          query: {
-            directory: ctx.directory,
-          },
+          directory: ctx.directory,
         });
       }
 
       await tuiClient.appendPrompt({
-        body: {
-          text: prompt,
-        },
-        query: {
-          directory: ctx.directory,
-        },
+        directory: ctx.directory,
+        text: prompt,
       });
 
       return true;
