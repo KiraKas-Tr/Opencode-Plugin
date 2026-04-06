@@ -66,7 +66,7 @@ import {
   type OpenCodeTodo,
 } from "./hooks";
 import { cassMemoryContext, cassMemoryReflect } from "./tools/cass-memory";
-import { augmentPrompt } from "./tools/augment";
+import { augmentPromptWithRefinement } from "./tools/augment";
 import { contextSummary } from "./tools/context-summary";
 
 const DCP_PLUGIN_ENTRY = "@tarquinen/opencode-dcp@beta";
@@ -158,8 +158,166 @@ const CliKitPlugin: Plugin = async (ctx) => {
     },
   } as const;
 
+  interface SessionCreatePayload {
+    directory?: string;
+    workspace?: string;
+    parentID?: string;
+    title?: string;
+    permission?: unknown;
+    workspaceID?: string;
+  }
+
+  interface SessionPromptPayload {
+    sessionID: string;
+    directory?: string;
+    workspace?: string;
+    messageID?: string;
+    model?: {
+      providerID: string;
+      modelID: string;
+    };
+    agent?: string;
+    noReply?: boolean;
+    tools?: Record<string, boolean>;
+    format?: string;
+    system?: string;
+    variant?: string;
+    parts?: Array<{
+      type: "text";
+      text: string;
+    }>;
+  }
+
+  interface SessionDeletePayload {
+    sessionID: string;
+    directory?: string;
+    workspace?: string;
+  }
+
+  interface SessionCreateResponse {
+    data?: {
+      id?: string;
+    };
+    error?: unknown;
+  }
+
+  interface SessionPromptResponse {
+    data?: {
+      parts?: Array<{
+        type?: string;
+        text?: string;
+      }>;
+    };
+    error?: unknown;
+  }
+
+  interface SessionDeleteResponse {
+    data?: unknown;
+    error?: unknown;
+  }
+
+  interface SessionClient {
+    create: (parameters?: SessionCreatePayload) => Promise<SessionCreateResponse>;
+    prompt: (parameters: SessionPromptPayload) => Promise<SessionPromptResponse>;
+    delete?: (parameters: SessionDeletePayload) => Promise<SessionDeleteResponse>;
+  }
+
+  interface TuiShowToastRequest {
+    body?: {
+      title?: string;
+      message?: string;
+      variant?: "info" | "success" | "warning" | "error";
+      duration?: number;
+    };
+    query?: {
+      directory?: string;
+      workspace?: string;
+    };
+  }
+
+  interface TuiAppendPromptRequest {
+    body?: {
+      text: string;
+    };
+    query?: {
+      directory?: string;
+      workspace?: string;
+    };
+  }
+
+  interface TuiClearPromptRequest {
+    query?: {
+      directory?: string;
+      workspace?: string;
+    };
+  }
+
+  interface TuiClient {
+    showToast?: (parameters?: TuiShowToastRequest) => Promise<unknown>;
+    appendPrompt?: (parameters?: TuiAppendPromptRequest) => Promise<unknown>;
+    clearPrompt?: (parameters?: TuiClearPromptRequest) => Promise<unknown>;
+  }
+
   function getToolInput(args: unknown): Record<string, unknown> {
     return args && typeof args === "object" ? (args as Record<string, unknown>) : {};
+  }
+
+  function getSessionClient(): SessionClient | undefined {
+    if (!ctx.client || typeof ctx.client !== "object") {
+      return undefined;
+    }
+
+    const clientRecord = ctx.client as unknown as Record<string, unknown>;
+    const sessionValue = clientRecord.session;
+    if (!sessionValue || typeof sessionValue !== "object") {
+      return undefined;
+    }
+
+    const sessionRecord = sessionValue as Record<string, unknown>;
+    const create = sessionRecord.create;
+    const prompt = sessionRecord.prompt;
+    const deleteSession = sessionRecord.delete;
+
+    if (typeof create !== "function" || typeof prompt !== "function") {
+      return undefined;
+    }
+
+    return {
+      create: create as SessionClient["create"],
+      prompt: prompt as SessionClient["prompt"],
+      delete: typeof deleteSession === "function"
+        ? (deleteSession as SessionClient["delete"])
+        : undefined,
+    };
+  }
+
+  function getTuiClient(): TuiClient | undefined {
+    if (!ctx.client || typeof ctx.client !== "object") {
+      return undefined;
+    }
+
+    const clientRecord = ctx.client as unknown as Record<string, unknown>;
+    const tuiValue = clientRecord.tui;
+    if (!tuiValue || typeof tuiValue !== "object") {
+      return undefined;
+    }
+
+    const tuiRecord = tuiValue as Record<string, unknown>;
+    const showToastMethod = tuiRecord.showToast;
+    const appendPromptMethod = tuiRecord.appendPrompt;
+    const clearPromptMethod = tuiRecord.clearPrompt;
+
+    return {
+      showToast: typeof showToastMethod === "function"
+        ? (showToastMethod as TuiClient["showToast"])
+        : undefined,
+      appendPrompt: typeof appendPromptMethod === "function"
+        ? (appendPromptMethod as TuiClient["appendPrompt"])
+        : undefined,
+      clearPrompt: typeof clearPromptMethod === "function"
+        ? (clearPromptMethod as TuiClient["clearPrompt"])
+        : undefined,
+    };
   }
 
   function blockToolExecution(reason: string): never {
@@ -179,6 +337,36 @@ const CliKitPlugin: Plugin = async (ctx) => {
       return true;
     } catch {
       // Toasts are best-effort; never break hook flow.
+      return false;
+    }
+  }
+
+  async function injectPromptIntoTui(prompt: string): Promise<boolean> {
+    const tuiClient = getTuiClient();
+    if (!tuiClient?.appendPrompt) {
+      return false;
+    }
+
+    try {
+      if (tuiClient.clearPrompt) {
+        await tuiClient.clearPrompt({
+          query: {
+            directory: ctx.directory,
+          },
+        });
+      }
+
+      await tuiClient.appendPrompt({
+        body: {
+          text: prompt,
+        },
+        query: {
+          directory: ctx.directory,
+        },
+      });
+
+      return true;
+    } catch {
       return false;
     }
   }
@@ -530,8 +718,91 @@ const CliKitPlugin: Plugin = async (ctx) => {
             }, null, 2);
           }
 
+          await showToast("Enhancing prompt…", "info", "CliKit Augment");
+
           const mode = args.mode === "plain" || args.mode === "execution-contract" ? args.mode : "auto";
-          const result = augmentPrompt(draft, { mode });
+          const sessionClient = getSessionClient();
+          const result = await augmentPromptWithRefinement(draft, {
+            mode,
+            refine: sessionClient ? async ({ enhanced, mode: resolvedMode, intent, intensity }) => {
+              const createResult = await sessionClient.create({
+                directory: ctx.directory,
+                title: `augment:${intent}`,
+              });
+
+              if (createResult.error || !createResult.data?.id) {
+                throw new Error("Unable to create OpenCode session for prompt enhancement.");
+              }
+
+              const sessionID = createResult.data.id;
+
+              try {
+                const refinementPrompt = [
+                  "You are refining an already-structured prompt for OpenCode.",
+                  `Intent: ${intent}`,
+                  `Rewrite mode: ${resolvedMode}`,
+                  `Effort: ${intensity}`,
+                  "Preserve the original user request exactly.",
+                  "Keep the output as a single prompt only.",
+                  "Do not add commentary, preambles, markdown fences, or explanations.",
+                  "If the prompt is already strong, return a minimally polished version.",
+                  "Return only the final rewritten prompt.",
+                  "",
+                  enhanced,
+                ].join("\n");
+
+                const promptResult = await sessionClient.prompt({
+                  sessionID,
+                  directory: ctx.directory,
+                  parts: [
+                    {
+                      type: "text",
+                      text: refinementPrompt,
+                    },
+                  ],
+                });
+
+                if (promptResult.error) {
+                  throw new Error("OpenCode prompt enhancement request failed.");
+                }
+
+                const textPart = promptResult.data?.parts?.find((part) => part.type === "text");
+                if (!textPart || !("text" in textPart) || typeof textPart.text !== "string") {
+                  throw new Error("OpenCode prompt enhancement returned no text output.");
+                }
+
+                return textPart.text;
+              } finally {
+                if (sessionClient.delete) {
+                  void sessionClient.delete({
+                    sessionID,
+                    directory: ctx.directory,
+                  }).catch(() => undefined);
+                }
+              }
+            } : undefined,
+          });
+
+          const injectedIntoTui = await injectPromptIntoTui(result.enhanced);
+          const completionTitle = "CliKit Augment";
+
+          if (result.fallbackReason) {
+            await showToast(
+              injectedIntoTui
+                ? `Injected deterministic fallback. ${result.fallbackReason}`
+                : `Using deterministic fallback. ${result.fallbackReason}`,
+              "warning",
+              completionTitle,
+            );
+          } else {
+            await showToast(
+              injectedIntoTui
+                ? `Enhanced prompt inserted (${result.enhancementSource ?? "deterministic"}).`
+                : `Enhanced prompt ready (${result.enhancementSource ?? "deterministic"}).`,
+              "success",
+              completionTitle,
+            );
+          }
 
           return JSON.stringify({
             success: true,
@@ -540,6 +811,9 @@ const CliKitPlugin: Plugin = async (ctx) => {
             intent: result.intent,
             mode: result.mode,
             intensity: result.intensity,
+            injectedIntoTui,
+            enhancementSource: result.enhancementSource,
+            fallbackReason: result.fallbackReason,
           }, null, 2);
         },
       }),

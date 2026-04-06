@@ -27,6 +27,19 @@ export interface AugmentPromptOptions {
   mode?: AugmentRewriteMode | "auto";
 }
 
+export interface AugmentRefinementInput {
+  original: string;
+  enhanced: string;
+  intent: AugmentTaskIntent;
+  mode: AugmentRewriteMode;
+  intensity: PromptLeverageIntensity;
+  blocks: PromptLeverageBlocks;
+}
+
+export interface AugmentRefinementOptions extends AugmentPromptOptions {
+  refine?: (input: AugmentRefinementInput) => Promise<string | undefined>;
+}
+
 export interface AugmentPromptResult {
   original: string;
   enhanced: string;
@@ -34,6 +47,8 @@ export interface AugmentPromptResult {
   mode: AugmentRewriteMode;
   intensity: PromptLeverageIntensity;
   blocks: PromptLeverageBlocks;
+  enhancementSource?: "deterministic" | "llm";
+  fallbackReason?: string;
 }
 
 interface IntentRule {
@@ -259,7 +274,50 @@ export function augmentPrompt(
       mode === "execution-contract"
         ? formatExecutionContract(normalized, blocks)
         : formatPlainRewrite(normalized, intent, blocks.outputContract),
+    enhancementSource: "deterministic",
   };
+}
+
+export async function augmentPromptWithRefinement(
+  draft: string,
+  options: AugmentRefinementOptions = {},
+): Promise<AugmentPromptResult> {
+  const deterministic = augmentPrompt(draft, options);
+
+  if (!options.refine) {
+    return deterministic;
+  }
+
+  try {
+    const refined = await options.refine({
+      original: deterministic.original,
+      enhanced: deterministic.enhanced,
+      intent: deterministic.intent,
+      mode: deterministic.mode,
+      intensity: deterministic.intensity,
+      blocks: deterministic.blocks,
+    });
+
+    const normalized = normalizeEnhancedPrompt(refined);
+    if (!normalized) {
+      return {
+        ...deterministic,
+        fallbackReason: "LLM refinement returned empty output.",
+      };
+    }
+
+    return {
+      ...deterministic,
+      enhanced: normalized,
+      enhancementSource: "llm",
+      fallbackReason: undefined,
+    };
+  } catch (error) {
+    return {
+      ...deterministic,
+      fallbackReason: error instanceof Error ? error.message : "LLM refinement failed.",
+    };
+  }
 }
 
 export function formatExecutionContract(
@@ -534,6 +592,10 @@ function stripObjectivePrefix(objective: string): string {
 
 function normalizeDraft(draft: string): string {
   return collapseWhitespace(draft).toLowerCase();
+}
+
+function normalizeEnhancedPrompt(value: string | undefined): string {
+  return (value ?? "").replace(/\r\n/g, "\n").trim();
 }
 
 function collapseWhitespace(value: string): string {

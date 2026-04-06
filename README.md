@@ -167,7 +167,7 @@ Workflow notes:
 - `/start` executes the plan, one Task Packet at a time — creates a minimal inline plan if none exists
 - `/verify` runs all 4 gates (typecheck, tests, lint, build) + deep review — use anytime, not just pre-ship
 - `/ship` finalizes work in the shared checkout — commit, sync, and land on the repo default branch; `/pr` is optional and only for explicit PR-based exceptions
-- `/augment <draft>` rewrites a prompt into a stronger, intent-aware version for review/copy/send; MVP returns the rewritten prompt instead of auto-inserting it into the editor draft, and it normalizes extra whitespace in the submitted draft as part of the rewrite
+- `/augment <draft>` rewrites a prompt into a stronger, intent-aware version, attempts an OpenCode-native LLM refinement pass, and auto-inserts the rewritten prompt into the editor when TUI controls are available; it falls back to the deterministic rewrite and manual copy/send workflow when refinement or prompt injection is unavailable
 - `/research` is an optional standalone research command — it reads discussion context first, closes decision gaps with external evidence, and saves a planning-ready report
 - `/design` implements UI/UX with variant exploration and a11y — uses Vision agent
 - `br` + `.beads/` is the preferred persistent task source of truth; `beads-village` is optional legacy compatibility only
@@ -298,7 +298,7 @@ Run with `/command-name` in OpenCode. **All 15 commands work standalone** — th
 ### Utilities (all standalone)
 | Command | One-liner |
 |---------|-----------|
-| `/augment` | Rewrite a draft prompt into a stronger, intent-aware prompt for manual review/copy/send; MVP does not auto-insert into the draft editor |
+| `/augment` | Rewrite a draft prompt into a stronger, intent-aware prompt with LLM refinement when available; supported runtimes auto-insert it into the draft editor, with manual review/copy/send as fallback |
 | `/debug` | Reproduce → 5-Whys root cause → fix → regression test |
 | `/status` | Workspace snapshot — task tracker state, git state, active artifacts |
 | `/init` | Bootstrap CliKit — scaffold dirs + write tailored AGENTS.md |
