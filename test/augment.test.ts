@@ -433,6 +433,243 @@ describe("augment prompt engine", () => {
     expect(tuiCalls).toContain("toast");
   });
 
+  test("intercepts inline /augment arguments and replaces the composer when TUI controls are available", async () => {
+    const toastMessages: string[] = [];
+    const tuiCalls: string[] = [];
+    const sessionCalls: Array<Record<string, unknown>> = [];
+    const plugin = await createPlugin({
+      tui: {
+        showToast: async (input: { message?: string }) => {
+          toastMessages.push(input.message ?? "");
+          return undefined;
+        },
+        clearPrompt: async (input: { directory?: string }) => {
+          expect(input.directory).toBe(process.cwd());
+          tuiCalls.push("clear");
+          return undefined;
+        },
+        appendPrompt: async (input: { directory?: string; text?: string }) => {
+          expect(input.directory).toBe(process.cwd());
+          tuiCalls.push(`append:${input.text ?? ""}`);
+          return undefined;
+        },
+      },
+      session: {
+        create: async (input?: Record<string, unknown>) => {
+          sessionCalls.push({ method: "create", input: input ?? {} });
+          return {
+            data: {
+              id: "session-inline-augment",
+            },
+            error: undefined,
+          };
+        },
+        prompt: async (input?: Record<string, unknown>) => {
+          sessionCalls.push({ method: "prompt", input: input ?? {} });
+          return {
+            data: {
+              parts: [
+                {
+                  type: "text",
+                  text: "Inline refined prompt.",
+                },
+              ],
+            },
+            error: undefined,
+          };
+        },
+        delete: async (input?: Record<string, unknown>) => {
+          sessionCalls.push({ method: "delete", input: input ?? {} });
+          return {
+            data: true,
+            error: undefined,
+          };
+        },
+      },
+    });
+
+    const commandHook = (plugin as unknown as Record<string, (input: Record<string, unknown>, output: {
+      parts: Array<Record<string, unknown>>;
+    }) => Promise<void>>)["command.execute.before"];
+
+    const output = {
+      parts: [
+        {
+          id: "part-1",
+          sessionID: "active-session",
+          messageID: "message-1",
+          type: "text",
+          text: "Original command payload",
+        },
+      ],
+    };
+
+    await commandHook({
+      command: "augment",
+      sessionID: "active-session",
+      arguments: "summarize what changed in the last 3 commits",
+    }, output);
+
+    expect(sessionCalls.map((entry) => entry.method)).toEqual(["create", "prompt", "delete"]);
+    expect(tuiCalls).toEqual([
+      "clear",
+      "append:Enhancing prompt.",
+      "clear",
+      "append:Inline refined prompt.",
+    ]);
+    expect(toastMessages).toContain("Enhancing prompt.");
+    expect(toastMessages).toContain("Enhanced prompt replaced in composer (llm).");
+    expect(output.parts).toHaveLength(1);
+    expect(output.parts[0]?.text).toContain("CliKit already handled the /augment command locally and updated the composer.");
+    expect(output.parts[0]?.text).toContain("Reply with exactly: Composer updated.");
+  });
+
+  test("uses the enhanced prompt as inline payload when TUI prompt controls are unavailable", async () => {
+    const toastMessages: string[] = [];
+    const plugin = await createPlugin({
+      tui: {
+        showToast: async (input: { message?: string }) => {
+          toastMessages.push(input.message ?? "");
+          return undefined;
+        },
+      },
+      session: {
+        create: async () => ({
+          data: {
+            id: "session-inline-no-tui",
+          },
+          error: undefined,
+        }),
+        prompt: async () => ({
+          data: {
+            parts: [
+              {
+                type: "text",
+                text: "Inline refined prompt without TUI.",
+              },
+            ],
+          },
+          error: undefined,
+        }),
+        delete: async () => ({
+          data: true,
+          error: undefined,
+        }),
+      },
+    });
+
+    const commandHook = (plugin as unknown as Record<string, (input: Record<string, unknown>, output: {
+      parts: Array<Record<string, unknown>>;
+    }) => Promise<void>>)["command.execute.before"];
+
+    const output = {
+      parts: [
+        {
+          id: "part-1",
+          sessionID: "active-session",
+          messageID: "message-1",
+          type: "text",
+          text: "Original command payload",
+        },
+      ],
+    };
+
+    await commandHook({
+      command: "augment",
+      sessionID: "active-session",
+      arguments: "summarize what changed in the last 3 commits",
+    }, output);
+
+    expect(output.parts).toHaveLength(1);
+    expect(output.parts[0]?.text).toBe("Inline refined prompt without TUI.");
+    expect(toastMessages).toContain("Enhancing prompt.");
+    expect(toastMessages).toContain("Enhanced prompt ready (llm).");
+  });
+
+  test("restores the original inline draft when composer replacement fails", async () => {
+    const toastMessages: string[] = [];
+    const tuiCalls: string[] = [];
+    let appendCount = 0;
+    const plugin = await createPlugin({
+      tui: {
+        showToast: async (input: { message?: string }) => {
+          toastMessages.push(input.message ?? "");
+          return undefined;
+        },
+        clearPrompt: async () => {
+          tuiCalls.push("clear");
+          return undefined;
+        },
+        appendPrompt: async (input: { text?: string }) => {
+          appendCount += 1;
+          tuiCalls.push(`append:${input.text ?? ""}`);
+
+          if (appendCount === 2) {
+            throw new Error("append failed");
+          }
+
+          return undefined;
+        },
+      },
+      session: {
+        create: async () => ({
+          data: {
+            id: "session-inline-restore",
+          },
+          error: undefined,
+        }),
+        prompt: async () => ({
+          data: {
+            parts: [
+              {
+                type: "text",
+                text: "Inline refined prompt that fails to inject.",
+              },
+            ],
+          },
+          error: undefined,
+        }),
+        delete: async () => ({
+          data: true,
+          error: undefined,
+        }),
+      },
+    });
+
+    const commandHook = (plugin as unknown as Record<string, (input: Record<string, unknown>, output: {
+      parts: Array<Record<string, unknown>>;
+    }) => Promise<void>>)["command.execute.before"];
+
+    const output = {
+      parts: [
+        {
+          id: "part-1",
+          sessionID: "active-session",
+          messageID: "message-1",
+          type: "text",
+          text: "Original command payload",
+        },
+      ],
+    };
+
+    await commandHook({
+      command: "augment",
+      sessionID: "active-session",
+      arguments: "summarize what changed in the last 3 commits",
+    }, output);
+
+    expect(tuiCalls).toEqual([
+      "clear",
+      "append:Enhancing prompt.",
+      "clear",
+      "append:Inline refined prompt that fails to inject.",
+      "clear",
+      "append:summarize what changed in the last 3 commits",
+    ]);
+    expect(toastMessages).toContain("append failed");
+    expect(output.parts[0]?.text).toBe("Original command payload");
+  });
+
   test("exports a separate TUI plugin module", () => {
     expect(CliKitTuiPlugin).toBeDefined();
     expect(typeof CliKitTuiPlugin.tui).toBe("function");

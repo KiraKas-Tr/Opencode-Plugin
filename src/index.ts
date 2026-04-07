@@ -69,8 +69,11 @@ import { cassMemoryContext, cassMemoryReflect } from "./tools/cass-memory";
 import { augmentPromptWithRefinement } from "./tools/augment";
 import { contextSummary } from "./tools/context-summary";
 
+type AugmentResult = Awaited<ReturnType<typeof augmentPromptWithRefinement>>;
+
 const DCP_PLUGIN_ENTRY = "@tarquinen/opencode-dcp@beta";
 const DCP_PLUGIN_BASE = "@tarquinen/opencode-dcp";
+const AUGMENT_LOADING_TEXT = "Enhancing prompt.";
 
 /**
  * Ensure @tarquinen/opencode-dcp@beta is present in the OpenCode config plugin list.
@@ -335,10 +338,10 @@ const CliKitPlugin: Plugin = async (ctx) => {
     }
   }
 
-  async function injectPromptIntoTui(prompt: string): Promise<boolean> {
+  async function injectPromptIntoTuiDetailed(prompt: string): Promise<{ ok: boolean; error?: string }> {
     const tuiClient = getTuiClient();
     if (!tuiClient?.appendPrompt) {
-      return false;
+      return { ok: false };
     }
 
     try {
@@ -353,10 +356,100 @@ const CliKitPlugin: Plugin = async (ctx) => {
         text: prompt,
       });
 
-      return true;
-    } catch {
+      return { ok: true };
+    } catch (error) {
+      return {
+        ok: false,
+        error: error instanceof Error ? error.message : "Unable to update the TUI composer.",
+      };
+    }
+  }
+
+  async function injectPromptIntoTui(prompt: string): Promise<boolean> {
+    const result = await injectPromptIntoTuiDetailed(prompt);
+    return result.ok;
+  }
+
+  function replaceCommandTextPart(
+    parts: Array<{ type?: string; text?: string } & Record<string, unknown>>,
+    text: string,
+  ): boolean {
+    const firstTextPart = parts.find((part) => part.type === "text");
+    if (!firstTextPart || typeof firstTextPart.text !== "string") {
       return false;
     }
+
+    firstTextPart.text = text;
+    parts.splice(0, parts.length, firstTextPart);
+    return true;
+  }
+
+  async function enhanceDraftPrompt(
+    draft: string,
+    mode: "auto" | "plain" | "execution-contract" = "auto",
+  ): Promise<AugmentResult> {
+    const sessionClient = getSessionClient();
+
+    return augmentPromptWithRefinement(draft, {
+      mode,
+      refine: sessionClient ? async ({ enhanced, mode: resolvedMode, intent, intensity }) => {
+        const createResult = await sessionClient.create({
+          directory: ctx.directory,
+          title: `augment:${intent}`,
+        });
+
+        if (createResult.error || !createResult.data?.id) {
+          throw new Error("Unable to create OpenCode session for prompt enhancement.");
+        }
+
+        const sessionID = createResult.data.id;
+
+        try {
+          const refinementPrompt = [
+            "You are refining an already-structured prompt for OpenCode.",
+            `Intent: ${intent}`,
+            `Rewrite mode: ${resolvedMode}`,
+            `Effort: ${intensity}`,
+            "Preserve the original user request exactly.",
+            "Keep the output as a single prompt only.",
+            "Do not add commentary, preambles, markdown fences, or explanations.",
+            "If the prompt is already strong, return a minimally polished version.",
+            "Return only the final rewritten prompt.",
+            "",
+            enhanced,
+          ].join("\n");
+
+          const promptResult = await sessionClient.prompt({
+            sessionID,
+            directory: ctx.directory,
+            parts: [
+              {
+                type: "text",
+                text: refinementPrompt,
+              },
+            ],
+          });
+
+          if (promptResult.error) {
+            throw new Error("OpenCode prompt enhancement request failed.");
+          }
+
+          const textPart = promptResult.data?.parts?.find((part) => part.type === "text");
+          if (!textPart || !("text" in textPart) || typeof textPart.text !== "string") {
+            throw new Error("OpenCode prompt enhancement returned no text output.");
+          }
+
+          return textPart.text;
+        } finally {
+          if (sessionClient.delete) {
+            void sessionClient.delete({
+              sessionID,
+              directory: ctx.directory,
+            }).catch(() => undefined);
+          }
+        }
+      } : undefined,
+    });
   }
 
   function normalizeTodos(rawTodos: unknown): OpenCodeTodo[] {
@@ -709,67 +802,7 @@ const CliKitPlugin: Plugin = async (ctx) => {
           await showToast("Enhancing prompt…", "info", "CliKit Augment");
 
           const mode = args.mode === "plain" || args.mode === "execution-contract" ? args.mode : "auto";
-          const sessionClient = getSessionClient();
-          const result = await augmentPromptWithRefinement(draft, {
-            mode,
-            refine: sessionClient ? async ({ enhanced, mode: resolvedMode, intent, intensity }) => {
-              const createResult = await sessionClient.create({
-                directory: ctx.directory,
-                title: `augment:${intent}`,
-              });
-
-              if (createResult.error || !createResult.data?.id) {
-                throw new Error("Unable to create OpenCode session for prompt enhancement.");
-              }
-
-              const sessionID = createResult.data.id;
-
-              try {
-                const refinementPrompt = [
-                  "You are refining an already-structured prompt for OpenCode.",
-                  `Intent: ${intent}`,
-                  `Rewrite mode: ${resolvedMode}`,
-                  `Effort: ${intensity}`,
-                  "Preserve the original user request exactly.",
-                  "Keep the output as a single prompt only.",
-                  "Do not add commentary, preambles, markdown fences, or explanations.",
-                  "If the prompt is already strong, return a minimally polished version.",
-                  "Return only the final rewritten prompt.",
-                  "",
-                  enhanced,
-                ].join("\n");
-
-                const promptResult = await sessionClient.prompt({
-                  sessionID,
-                  directory: ctx.directory,
-                  parts: [
-                    {
-                      type: "text",
-                      text: refinementPrompt,
-                    },
-                  ],
-                });
-
-                if (promptResult.error) {
-                  throw new Error("OpenCode prompt enhancement request failed.");
-                }
-
-                const textPart = promptResult.data?.parts?.find((part) => part.type === "text");
-                if (!textPart || !("text" in textPart) || typeof textPart.text !== "string") {
-                  throw new Error("OpenCode prompt enhancement returned no text output.");
-                }
-
-                return textPart.text;
-              } finally {
-                if (sessionClient.delete) {
-                  void sessionClient.delete({
-                    sessionID,
-                    directory: ctx.directory,
-                  }).catch(() => undefined);
-                }
-              }
-            } : undefined,
-          });
+          const result = await enhanceDraftPrompt(draft, mode);
 
           const injectedIntoTui = await injectPromptIntoTui(result.enhanced);
           const completionTitle = "CliKit Augment";
@@ -1100,6 +1133,75 @@ const CliKitPlugin: Plugin = async (ctx) => {
             todosBySession.delete(sessionID);
             sessionAgents.delete(sessionID);
           }
+        }
+      },
+
+      "command.execute.before": async (input, output) => {
+        if (!isToolNamed(input.command, "augment")) {
+          return;
+        }
+
+        const draft = input.arguments.trim();
+        if (!draft) {
+          return;
+        }
+
+        await showToast(AUGMENT_LOADING_TEXT, "info", "CliKit Augment");
+        const loadingInjection = await injectPromptIntoTuiDetailed(AUGMENT_LOADING_TEXT);
+        const showedComposerLoading = loadingInjection.ok;
+
+        try {
+          const result = await enhanceDraftPrompt(draft, "auto");
+          const finalInjection = await injectPromptIntoTuiDetailed(result.enhanced);
+          const injectedIntoTui = finalInjection.ok;
+
+          if (showedComposerLoading && !injectedIntoTui) {
+            await injectPromptIntoTui(draft);
+            await showToast(
+              finalInjection.error ?? "Unable to replace the composer with the enhanced prompt.",
+              "error",
+              "CliKit Augment",
+            );
+            return;
+          }
+
+          if (result.fallbackReason) {
+            await showToast(
+              injectedIntoTui
+                ? `Replaced composer with deterministic fallback. ${result.fallbackReason}`
+                : `Using deterministic fallback. ${result.fallbackReason}`,
+              "warning",
+              "CliKit Augment",
+            );
+          } else {
+            await showToast(
+              injectedIntoTui
+                ? `Enhanced prompt replaced in composer (${result.enhancementSource ?? "deterministic"}).`
+                : `Enhanced prompt ready (${result.enhancementSource ?? "deterministic"}).`,
+              "success",
+              "CliKit Augment",
+            );
+          }
+
+          const replacementText = injectedIntoTui
+            ? [
+              "CliKit already handled the /augment command locally and updated the composer.",
+              "Do not execute the original user request.",
+              "Reply with exactly: Composer updated.",
+            ].join("\n")
+            : result.enhanced;
+
+          replaceCommandTextPart(
+            output.parts as Array<{ type?: string; text?: string } & Record<string, unknown>>,
+            replacementText,
+          );
+        } catch (error) {
+          if (showedComposerLoading) {
+            await injectPromptIntoTui(draft);
+          }
+
+          const message = error instanceof Error ? error.message : "Prompt enhancement failed.";
+          await showToast(message, "error", "CliKit Augment");
         }
       },
 
