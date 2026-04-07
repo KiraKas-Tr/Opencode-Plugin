@@ -439,81 +439,234 @@ describe("augment prompt engine", () => {
     expect("server" in CliKitTuiPlugin).toBe(false);
   });
 
-  test("registers a TUI-native /augment slash command", async () => {
-    const registrations: Array<() => Array<Record<string, unknown>>> = [];
-    const dialogRenders: Array<(() => unknown)> = [];
+  function createTuiMeta() {
+    const now = Date.now();
+
+    return {
+      id: "clikit-tui",
+      source: "npm",
+      spec: "clikit-plugin@latest",
+      target: "clikit-plugin",
+      first_time: now,
+      last_time: now,
+      time_changed: now,
+      load_count: 1,
+      fingerprint: "test",
+      state: "same",
+    } as const;
+  }
+
+  function createMockPromptRef(input: string) {
+    const setCalls: Array<{ input: string; mode?: string; parts: unknown[] }> = [];
+    const blurCalls: string[] = [];
+    const focusCalls: string[] = [];
+
+    const promptRef = {
+      focused: true,
+      current: {
+        input,
+        mode: "normal" as const,
+        parts: [],
+      },
+      set(prompt: { input: string; mode?: "normal" | "shell"; parts: unknown[] }) {
+        this.current = {
+          input: prompt.input,
+          mode: prompt.mode,
+          parts: [...prompt.parts],
+        };
+        setCalls.push({
+          input: prompt.input,
+          mode: prompt.mode,
+          parts: [...prompt.parts],
+        });
+      },
+      reset() {
+        this.current = {
+          input: "",
+          mode: "normal",
+          parts: [],
+        };
+      },
+      blur() {
+        this.focused = false;
+        blurCalls.push("blur");
+      },
+      focus() {
+        this.focused = true;
+        focusCalls.push("focus");
+      },
+      submit() {
+        return undefined;
+      },
+    };
+
+    return { promptRef, setCalls, blurCalls, focusCalls };
+  }
+
+  async function flushAsyncWork(times = 6) {
+    for (let index = 0; index < times; index += 1) {
+      await Promise.resolve();
+    }
+  }
+
+  async function setupTuiAugment(options?: {
+    routeCurrent?: Record<string, unknown>;
+    createResult?: { data?: { id?: string }; error?: unknown };
+    promptText?: string;
+    withSlots?: boolean;
+  }) {
+    const registeredCommands: Array<Record<string, unknown>> = [];
+    const slotPlugins: Array<{ slots?: Record<string, (...args: unknown[]) => unknown> }> = [];
+    const toasts: Array<Record<string, unknown>> = [];
+    const promptCalls: Array<Record<string, unknown>> = [];
+    const deleteCalls: Array<Record<string, unknown>> = [];
+    const appendCalls: Array<Record<string, unknown>> = [];
+    const clearCalls: Array<Record<string, unknown>> = [];
+    let dialogFactory: (() => unknown) | undefined;
+    let promptRefToAttach: ReturnType<typeof createMockPromptRef>["promptRef"] | undefined;
 
     await CliKitTuiPlugin.tui({
       command: {
-        register: (cb: () => Array<Record<string, unknown>>) => {
-          registrations.push(cb);
+        register: (factory: () => Array<Record<string, unknown>>) => {
+          registeredCommands.push(...factory());
           return () => undefined;
         },
         trigger: () => undefined,
+        show: () => undefined,
       },
-      ui: {
-        DialogPrompt: (props: Record<string, unknown>) => props,
-        toast: () => undefined,
-        dialog: {
-          replace: (render: () => unknown) => {
-            dialogRenders.push(render as () => unknown);
+      lifecycle: {
+        onDispose: () => () => undefined,
+        signal: new AbortController().signal,
+      },
+      route: {
+        current: options?.routeCurrent ?? {
+          name: "session",
+          params: {
+            sessionID: "active-session",
           },
-          clear: () => undefined,
         },
       },
+      scopedClient: () => ({
+        session: {
+          create: async () => options?.createResult ?? {
+            data: {
+              id: "refinement-session",
+            },
+            error: undefined,
+          },
+          prompt: async (parameters?: Record<string, unknown>) => {
+            promptCalls.push(parameters ?? {});
+            return {
+              data: {
+                parts: [
+                  {
+                    type: "text",
+                    text: options?.promptText ?? "Enhanced prompt from LLM",
+                  },
+                ],
+              },
+              error: undefined,
+            };
+          },
+          delete: async (parameters?: Record<string, unknown>) => {
+            deleteCalls.push(parameters ?? {});
+            return {};
+          },
+        },
+        tui: {
+          clearPrompt: async (parameters?: Record<string, unknown>) => {
+            clearCalls.push(parameters ?? {});
+            return {};
+          },
+          appendPrompt: async (parameters?: Record<string, unknown>) => {
+            appendCalls.push(parameters ?? {});
+            return {};
+          },
+        },
+      }),
+      slots: options?.withSlots === false
+        ? undefined
+        : {
+          register: (plugin: { slots?: Record<string, (...args: unknown[]) => unknown> }) => {
+            slotPlugins.push(plugin);
+            return `slot-${slotPlugins.length}`;
+          },
+        },
       state: {
         path: {
           directory: process.cwd(),
         },
       },
       workspace: {
-        current: () => undefined,
+        current: () => "workspace-1",
       },
-      scopedClient: () => ({
-        session: {
-          create: async () => ({ data: { id: "unused" }, error: undefined }),
-          prompt: async () => ({ data: { parts: [] }, error: undefined }),
-          delete: async () => ({ data: true, error: undefined }),
+      ui: {
+        toast: (payload: Record<string, unknown>) => {
+          toasts.push(payload);
         },
-        tui: {
-          clearPrompt: async () => undefined,
-          appendPrompt: async () => undefined,
+        dialog: {
+          clear: () => {
+            dialogFactory = undefined;
+          },
+          replace: (factory: () => unknown) => {
+            dialogFactory = factory;
+          },
         },
-      }),
-      lifecycle: {
-        onDispose: () => () => undefined,
+        DialogPrompt: (props: Record<string, unknown>) => props,
+        Prompt: (props: Record<string, unknown>) => {
+          const ref = props.ref as ((value: ReturnType<typeof createMockPromptRef>["promptRef"] | undefined) => void) | undefined;
+          ref?.(promptRefToAttach);
+          return props;
+        },
       },
-    } as never, undefined, {
-      id: "clikit-tui",
-      source: "npm",
-      spec: "clikit-plugin@latest",
-      target: "clikit-plugin",
-      first_time: Date.now(),
-      last_time: Date.now(),
-      time_changed: Date.now(),
-      load_count: 1,
-      fingerprint: "test",
-      state: "same",
-    });
+    } as never, undefined, createTuiMeta());
 
-    expect(registrations.length).toBe(1);
-    const commands = registrations[0]!();
-    const augmentCommand = commands.find((entry) => entry.value === "clikit.augment") as {
-      slash?: { name: string };
-      description?: string;
-      onSelect?: () => void;
-    } | undefined;
+    function renderSessionPrompt(promptRef: ReturnType<typeof createMockPromptRef>["promptRef"], sessionID = "active-session") {
+      const plugin = slotPlugins[0];
+      const renderer = plugin?.slots?.session_prompt as ((ctx: unknown, props: Record<string, unknown>) => unknown) | undefined;
+
+      promptRefToAttach = promptRef;
+      renderer?.({}, { session_id: sessionID });
+      promptRefToAttach = undefined;
+    }
+
+    function renderHomePrompt(promptRef: ReturnType<typeof createMockPromptRef>["promptRef"]) {
+      const plugin = slotPlugins[0];
+      const renderer = plugin?.slots?.home_prompt as ((ctx: unknown, props: Record<string, unknown>) => unknown) | undefined;
+
+      promptRefToAttach = promptRef;
+      renderer?.({}, { workspace_id: "workspace-1" });
+      promptRefToAttach = undefined;
+    }
+
+    return {
+      slotPlugins,
+      toasts,
+      promptCalls,
+      deleteCalls,
+      appendCalls,
+      clearCalls,
+      getDialog: () => dialogFactory?.() as {
+        onConfirm?: (value: string) => void | Promise<void>;
+      } | undefined,
+      getAugmentCommand: () => registeredCommands.find((entry) => entry.value === "clikit.augment") as {
+        slash?: { name: string };
+        description?: string;
+        onSelect?: () => void;
+      } | undefined,
+      renderSessionPrompt,
+      renderHomePrompt,
+    };
+  }
+
+  test("registers a TUI-native /augment slash command", async () => {
+    const setup = await setupTuiAugment();
+    const augmentCommand = setup.getAugmentCommand();
 
     expect(augmentCommand).toBeDefined();
     expect(augmentCommand?.slash).toEqual({ name: "augment" });
-    expect(augmentCommand?.description).toContain("send the enhanced prompt immediately");
-
-    augmentCommand?.onSelect?.();
-    expect(dialogRenders.length).toBe(1);
-    const renderDialog = dialogRenders[0] as (() => unknown);
-    const dialog = renderDialog() as { title?: string; placeholder?: string };
-    expect(dialog.title).toBe("CliKit Augment");
-    expect(dialog.placeholder).toContain("prompt draft");
+    expect(augmentCommand?.description).toContain("Rewrite the current composer prompt when available");
+    expect(setup.slotPlugins).toHaveLength(1);
   });
 
   test("ships a package export for the separate TUI plugin module", async () => {
@@ -551,468 +704,160 @@ describe("augment prompt engine", () => {
     expect(result.enhanced).toContain("Summarize what changed in the last 3 commits.");
   });
 
-  test("submits the enhanced prompt into the active session from the tui slash command", async () => {
-    const registeredCommands: Array<Record<string, unknown>> = [];
-    const promptCalls: Array<Record<string, unknown>> = [];
-    const deleteCalls: Array<Record<string, unknown>> = [];
-    const appendCalls: Array<Record<string, unknown>> = [];
-    const clearCalls: Array<Record<string, unknown>> = [];
-    const toasts: Array<Record<string, unknown>> = [];
-    let dialogFactory: (() => unknown) | undefined;
-
-    await CliKitTuiPlugin.tui({
-      command: {
-        register: (factory: () => Array<Record<string, unknown>>) => {
-          registeredCommands.push(...factory());
-          return () => undefined;
-        },
-      },
-      lifecycle: {
-        onDispose: () => undefined,
-      },
-      route: {
-        current: {
-          name: "session",
-          params: {
-            sessionID: "active-session",
-          },
-        },
-      },
-      scopedClient: () => ({
-        session: {
-          create: async () => ({
-            data: {
-              id: "refinement-session",
-            },
-          }),
-          prompt: async (parameters?: Record<string, unknown>) => {
-            promptCalls.push(parameters ?? {});
-
-            if (parameters?.sessionID === "refinement-session") {
-              return {
-                data: {
-                  parts: [
-                    {
-                      type: "text",
-                      text: "Refined prompt for active send",
-                    },
-                  ],
-                },
-              };
-            }
-
-            return {
-              data: {
-                parts: [],
-              },
-            };
-          },
-          delete: async (parameters?: Record<string, unknown>) => {
-            deleteCalls.push(parameters ?? {});
-            return {};
-          },
-        },
-        tui: {
-          clearPrompt: async (parameters?: Record<string, unknown>) => {
-            clearCalls.push(parameters ?? {});
-            return {};
-          },
-          appendPrompt: async (parameters?: Record<string, unknown>) => {
-            appendCalls.push(parameters ?? {});
-            return {};
-          },
-        },
-      }),
-      state: {
-        path: {
-          directory: process.cwd(),
-        },
-      },
-      workspace: {
-        current: () => "workspace-1",
-      },
-      ui: {
-        toast: (payload: Record<string, unknown>) => {
-          toasts.push(payload);
-        },
-        dialog: {
-          clear: () => undefined,
-          replace: (factory: () => unknown) => {
-            dialogFactory = factory;
-          },
-        },
-        DialogPrompt: (props: Record<string, unknown>) => props,
-      },
-    } as never, undefined, {
-      id: "clikit-tui",
-      source: "npm",
-      spec: "clikit-plugin@latest",
-      target: "clikit-plugin",
-      first_time: Date.now(),
-      last_time: Date.now(),
-      time_changed: Date.now(),
-      load_count: 1,
-      fingerprint: "test",
-      state: "same",
+  test("replaces the active session composer directly from the tui slash command", async () => {
+    const setup = await setupTuiAugment({
+      promptText: "Refined prompt for active composer",
     });
+    const tracked = createMockPromptRef("please help me fix");
 
-    const augmentCommand = registeredCommands.find((entry) => entry.value === "clikit.augment") as {
-      onSelect?: () => void;
-    };
+    setup.renderSessionPrompt(tracked.promptRef);
 
+    const augmentCommand = setup.getAugmentCommand();
     augmentCommand?.onSelect?.();
 
-    const dialog = dialogFactory?.() as {
-      onConfirm?: (value: string) => void | Promise<void>;
-    } | undefined;
+    await flushAsyncWork();
 
-    await dialog?.onConfirm?.("please help me fix");
-
-    expect(promptCalls).toHaveLength(2);
-    expect(promptCalls[0]?.sessionID).toBe("refinement-session");
-    expect(promptCalls[1]?.sessionID).toBe("active-session");
-    expect(promptCalls[1]?.parts).toEqual([
-      {
-        type: "text",
-        text: "Refined prompt for active send",
-      },
-    ]);
-    expect(deleteCalls).toEqual([
+    expect(setup.getDialog()).toBeUndefined();
+    expect(setup.promptCalls).toHaveLength(1);
+    expect(setup.promptCalls[0]?.sessionID).toBe("refinement-session");
+    expect(setup.deleteCalls).toEqual([
       {
         sessionID: "refinement-session",
         directory: process.cwd(),
         workspace: "workspace-1",
       },
     ]);
-    expect(clearCalls).toHaveLength(0);
-    expect(appendCalls).toHaveLength(0);
-    expect(toasts.some((toast) => toast.message === "Enhanced prompt sent (llm)."))
+    expect(setup.clearCalls).toHaveLength(0);
+    expect(setup.appendCalls).toHaveLength(0);
+    expect(tracked.blurCalls).toEqual(["blur"]);
+    expect(tracked.focusCalls).toEqual(["focus"]);
+    expect(tracked.setCalls.map((call) => call.input)).toEqual([
+      "⏳ Enhancing prompt…",
+      "Refined prompt for active composer",
+    ]);
+    expect(setup.toasts.some((toast) => toast.message === "Enhanced prompt replaced in composer (llm)."))
       .toBe(true);
   });
 
-  test("falls back to composer injection when the active-session send throws", async () => {
-    const registeredCommands: Array<Record<string, unknown>> = [];
-    const promptCalls: Array<Record<string, unknown>> = [];
-    const appendCalls: Array<Record<string, unknown>> = [];
-    const clearCalls: Array<Record<string, unknown>> = [];
-    const toasts: Array<Record<string, unknown>> = [];
-    let dialogFactory: (() => unknown) | undefined;
-
-    await CliKitTuiPlugin.tui({
-      command: {
-        register: (factory: () => Array<Record<string, unknown>>) => {
-          registeredCommands.push(...factory());
-          return () => undefined;
-        },
-      },
-      lifecycle: {
-        onDispose: () => undefined,
-      },
-      route: {
-        current: {
-          name: "session",
-          params: {
-            sessionID: "active-session",
-          },
-        },
-      },
-      scopedClient: () => ({
-        session: {
-          create: async () => ({
-            data: {
-              id: "refinement-session",
-            },
-          }),
-          prompt: async (parameters?: Record<string, unknown>) => {
-            promptCalls.push(parameters ?? {});
-
-            if (parameters?.sessionID === "refinement-session") {
-              return {
-                data: {
-                  parts: [
-                    {
-                      type: "text",
-                      text: "Fallback injected prompt",
-                    },
-                  ],
-                },
-              };
-            }
-
-            throw new Error("session send failed");
-          },
-          delete: async () => ({}),
-        },
-        tui: {
-          clearPrompt: async (parameters?: Record<string, unknown>) => {
-            clearCalls.push(parameters ?? {});
-            return {};
-          },
-          appendPrompt: async (parameters?: Record<string, unknown>) => {
-            appendCalls.push(parameters ?? {});
-            return {};
-          },
-        },
-      }),
-      state: {
-        path: {
-          directory: process.cwd(),
-        },
-      },
-      workspace: {
-        current: () => "workspace-1",
-      },
-      ui: {
-        toast: (payload: Record<string, unknown>) => {
-          toasts.push(payload);
-        },
-        dialog: {
-          clear: () => undefined,
-          replace: (factory: () => unknown) => {
-            dialogFactory = factory;
-          },
-        },
-        DialogPrompt: (props: Record<string, unknown>) => props,
-      },
-    } as never, undefined, {
-      id: "clikit-tui",
-      source: "npm",
-      spec: "clikit-plugin@latest",
-      target: "clikit-plugin",
-      first_time: Date.now(),
-      last_time: Date.now(),
-      time_changed: Date.now(),
-      load_count: 1,
-      fingerprint: "test",
-      state: "same",
+  test("still replaces the current composer when an active session route exists", async () => {
+    const setup = await setupTuiAugment({
+      promptText: "Session route replacement",
     });
+    const tracked = createMockPromptRef("please help me fix");
 
-    const augmentCommand = registeredCommands.find((entry) => entry.value === "clikit.augment") as {
-      onSelect?: () => void;
-    };
+    setup.renderSessionPrompt(tracked.promptRef, "active-session");
 
+    const augmentCommand = setup.getAugmentCommand();
     augmentCommand?.onSelect?.();
 
-    const dialog = dialogFactory?.() as {
-      onConfirm?: (value: string) => void | Promise<void>;
-    } | undefined;
+    await flushAsyncWork();
+
+    expect(setup.promptCalls).toHaveLength(1);
+    expect(setup.deleteCalls).toEqual([
+      {
+        sessionID: "refinement-session",
+        directory: process.cwd(),
+        workspace: "workspace-1",
+      },
+    ]);
+    expect(setup.clearCalls).toHaveLength(0);
+    expect(setup.appendCalls).toHaveLength(0);
+    expect(tracked.setCalls.map((call) => call.input)).toEqual([
+      "⏳ Enhancing prompt…",
+      "Session route replacement",
+    ]);
+    expect(setup.toasts.some((toast) => toast.message === "Enhanced prompt replaced in composer (llm)."))
+      .toBe(true);
+  });
+
+  test("replaces the home composer when no active session route exists", async () => {
+    const setup = await setupTuiAugment({
+      routeCurrent: {
+        name: "home",
+      },
+      promptText: "Home prompt replacement",
+    });
+    const tracked = createMockPromptRef("please help me fix");
+
+    setup.renderHomePrompt(tracked.promptRef);
+
+    const augmentCommand = setup.getAugmentCommand();
+    augmentCommand?.onSelect?.();
+
+    await flushAsyncWork();
+
+    expect(setup.promptCalls).toHaveLength(1);
+    expect(setup.promptCalls[0]?.sessionID).toBe("refinement-session");
+    expect(setup.deleteCalls).toEqual([
+      {
+        sessionID: "refinement-session",
+        directory: process.cwd(),
+        workspace: "workspace-1",
+      },
+    ]);
+    expect(setup.appendCalls).toHaveLength(0);
+    expect(tracked.setCalls.map((call) => call.input)).toEqual([
+      "⏳ Enhancing prompt…",
+      "Home prompt replacement",
+    ]);
+    expect(setup.toasts.some((toast) => toast.message === "Enhanced prompt replaced in composer (llm)."))
+      .toBe(true);
+  });
+
+  test("falls back to the dialog flow when no prompt ref is available", async () => {
+    const setup = await setupTuiAugment({
+      withSlots: false,
+      promptText: "Fallback injected prompt",
+    });
+
+    const augmentCommand = setup.getAugmentCommand();
+    augmentCommand?.onSelect?.();
+
+    const dialog = setup.getDialog();
+    expect(dialog).toBeDefined();
 
     await dialog?.onConfirm?.("please help me fix");
 
-    expect(promptCalls).toHaveLength(2);
-    expect(appendCalls).toEqual([
+    expect(setup.promptCalls).toHaveLength(1);
+    expect(setup.clearCalls).toEqual([
+      {
+        directory: process.cwd(),
+        workspace: "workspace-1",
+      },
+    ]);
+    expect(setup.appendCalls).toEqual([
       {
         directory: process.cwd(),
         workspace: "workspace-1",
         text: "Fallback injected prompt",
       },
     ]);
-    expect(clearCalls).toHaveLength(0);
-    expect(toasts.some((toast) => toast.message === "Enhanced prompt inserted (llm)."))
+    expect(setup.toasts.some((toast) => toast.message === "Enhanced prompt inserted (llm)."))
       .toBe(true);
   });
 
-  test("injects into the composer when no active session route exists", async () => {
-    const registeredCommands: Array<Record<string, unknown>> = [];
-    const promptCalls: Array<Record<string, unknown>> = [];
-    const appendCalls: Array<Record<string, unknown>> = [];
-    const toasts: Array<Record<string, unknown>> = [];
-    let dialogFactory: (() => unknown) | undefined;
-
-    await CliKitTuiPlugin.tui({
-      command: {
-        register: (factory: () => Array<Record<string, unknown>>) => {
-          registeredCommands.push(...factory());
-          return () => undefined;
-        },
+  test("replaces the composer with the deterministic fallback when refinement fails", async () => {
+    const setup = await setupTuiAugment({
+      createResult: {
+        error: true,
       },
-      lifecycle: {
-        onDispose: () => undefined,
-      },
-      route: {
-        current: {
-          name: "home",
-        },
-      },
-      scopedClient: () => ({
-        session: {
-          create: async () => ({
-            data: {
-              id: "refinement-session",
-            },
-          }),
-          prompt: async (parameters?: Record<string, unknown>) => {
-            promptCalls.push(parameters ?? {});
-            return {
-              data: {
-                parts: [
-                  {
-                    type: "text",
-                    text: "Injected without active session",
-                  },
-                ],
-              },
-            };
-          },
-          delete: async () => ({}),
-        },
-        tui: {
-          appendPrompt: async (parameters?: Record<string, unknown>) => {
-            appendCalls.push(parameters ?? {});
-            return {};
-          },
-        },
-      }),
-      state: {
-        path: {
-          directory: process.cwd(),
-        },
-      },
-      workspace: {
-        current: () => "workspace-1",
-      },
-      ui: {
-        toast: (payload: Record<string, unknown>) => {
-          toasts.push(payload);
-        },
-        dialog: {
-          clear: () => undefined,
-          replace: (factory: () => unknown) => {
-            dialogFactory = factory;
-          },
-        },
-        DialogPrompt: (props: Record<string, unknown>) => props,
-      },
-    } as never, undefined, {
-      id: "clikit-tui",
-      source: "npm",
-      spec: "clikit-plugin@latest",
-      target: "clikit-plugin",
-      first_time: Date.now(),
-      last_time: Date.now(),
-      time_changed: Date.now(),
-      load_count: 1,
-      fingerprint: "test",
-      state: "same",
     });
+    const tracked = createMockPromptRef("please help me fix");
 
-    const augmentCommand = registeredCommands.find((entry) => entry.value === "clikit.augment") as {
-      onSelect?: () => void;
-    };
+    setup.renderSessionPrompt(tracked.promptRef);
 
+    const augmentCommand = setup.getAugmentCommand();
     augmentCommand?.onSelect?.();
 
-    const dialog = dialogFactory?.() as {
-      onConfirm?: (value: string) => void | Promise<void>;
-    } | undefined;
+    await flushAsyncWork();
 
-    await dialog?.onConfirm?.("please help me fix");
-
-    expect(promptCalls).toHaveLength(1);
-    expect(promptCalls[0]?.sessionID).toBe("refinement-session");
-    expect(appendCalls).toEqual([
-      {
-        directory: process.cwd(),
-        workspace: "workspace-1",
-        text: "Injected without active session",
-      },
+    expect(setup.promptCalls).toHaveLength(0);
+    expect(setup.appendCalls).toHaveLength(0);
+    expect(tracked.setCalls.map((call) => call.input)).toEqual([
+      "⏳ Enhancing prompt…",
+      augmentPrompt("please help me fix").enhanced,
     ]);
-    expect(toasts.some((toast) => toast.message === "Enhanced prompt inserted (llm)."))
-      .toBe(true);
-  });
-
-  test("sends deterministic fallback to the active session when refinement fails before delivery", async () => {
-    const registeredCommands: Array<Record<string, unknown>> = [];
-    const promptCalls: Array<Record<string, unknown>> = [];
-    const appendCalls: Array<Record<string, unknown>> = [];
-    const toasts: Array<Record<string, unknown>> = [];
-    let dialogFactory: (() => unknown) | undefined;
-
-    await CliKitTuiPlugin.tui({
-      command: {
-        register: (factory: () => Array<Record<string, unknown>>) => {
-          registeredCommands.push(...factory());
-          return () => undefined;
-        },
-      },
-      lifecycle: {
-        onDispose: () => undefined,
-      },
-      route: {
-        current: {
-          name: "session",
-          params: {
-            sessionID: "active-session",
-          },
-        },
-      },
-      scopedClient: () => ({
-        session: {
-          create: async () => ({
-            error: true,
-          }),
-          prompt: async (parameters?: Record<string, unknown>) => {
-            promptCalls.push(parameters ?? {});
-            return { data: { parts: [] } };
-          },
-          delete: async () => ({}),
-        },
-        tui: {
-          appendPrompt: async (parameters?: Record<string, unknown>) => {
-            appendCalls.push(parameters ?? {});
-            return {};
-          },
-        },
-      }),
-      state: {
-        path: {
-          directory: process.cwd(),
-        },
-      },
-      workspace: {
-        current: () => "workspace-1",
-      },
-      ui: {
-        toast: (payload: Record<string, unknown>) => {
-          toasts.push(payload);
-        },
-        dialog: {
-          clear: () => undefined,
-          replace: (factory: () => unknown) => {
-            dialogFactory = factory;
-          },
-        },
-        DialogPrompt: (props: Record<string, unknown>) => props,
-      },
-    } as never, undefined, {
-      id: "clikit-tui",
-      source: "npm",
-      spec: "clikit-plugin@latest",
-      target: "clikit-plugin",
-      first_time: Date.now(),
-      last_time: Date.now(),
-      time_changed: Date.now(),
-      load_count: 1,
-      fingerprint: "test",
-      state: "same",
-    });
-
-    const augmentCommand = registeredCommands.find((entry) => entry.value === "clikit.augment") as {
-      onSelect?: () => void;
-    };
-
-    augmentCommand?.onSelect?.();
-
-    const dialog = dialogFactory?.() as {
-      onConfirm?: (value: string) => void | Promise<void>;
-    } | undefined;
-
-    await dialog?.onConfirm?.("please help me fix");
-
-    expect(promptCalls).toHaveLength(1);
-    expect(promptCalls[0]?.sessionID).toBe("active-session");
-    expect(appendCalls).toHaveLength(0);
-    expect(toasts.some((toast) => typeof toast.message === "string"
+    expect(setup.toasts.some((toast) => typeof toast.message === "string"
       && toast.message.includes("deterministic fallback")
       && toast.message.includes("Unable to create OpenCode session for prompt enhancement.")))
       .toBe(true);

@@ -1,6 +1,6 @@
 {
   "name": "clikit-plugin",
-  "version": "0.3.17",
+  "version": "0.3.18",
   "description": "Workflow layer for OpenCode — agents, commands, hooks, memory, and verification",
   "type": "module",
   "main": "./dist/index.js",
@@ -60,7 +60,7 @@
   },
   "homepage": "https://github.com/KiraKas-Tr/CliKit#readme",
   "dependencies": {
-    "@opencode-ai/plugin": "1.3.13",
+    "@opencode-ai/plugin": "1.3.17",
     "gray-matter": "^4.0.3"
   },
   "devDependencies": {
