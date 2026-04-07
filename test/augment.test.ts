@@ -976,6 +976,29 @@ describe("augment prompt engine", () => {
       .toBe(true);
   });
 
+  test("does not ignore command selection when the composer currently contains /augment text", async () => {
+    const setup = await setupTuiAugment({
+      promptText: "Refined prompt after command selection",
+    });
+    const tracked = createMockPromptRef("/augment summarize what changed in the last 3 commits");
+
+    setup.renderSessionPrompt(tracked.promptRef);
+
+    const augmentCommand = setup.getAugmentCommand();
+    augmentCommand?.onSelect?.();
+
+    await flushAsyncWork();
+
+    expect(setup.getDialog()).toBeUndefined();
+    expect(setup.promptCalls).toHaveLength(1);
+    expect(tracked.setCalls.map((call) => call.input)).toEqual([
+      "⏳ Enhancing prompt…",
+      "Refined prompt after command selection",
+    ]);
+    expect(setup.toasts.some((toast) => toast.message === "Enhanced prompt replaced in composer (llm)."))
+      .toBe(true);
+  });
+
   test("still replaces the current composer when an active session route exists", async () => {
     const setup = await setupTuiAugment({
       promptText: "Session route replacement",
