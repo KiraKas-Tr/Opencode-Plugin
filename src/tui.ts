@@ -18,6 +18,11 @@ type AugmentResult = Awaited<ReturnType<typeof augmentPromptWithRefinement>>;
 
 const PROMPT_LOADING_TEXT = "⏳ Enhancing prompt…";
 
+function stripAugmentSlashCommand(value: string): string {
+  const normalized = value.replace(/\r\n/g, "\n").trim();
+  return normalized.replace(/^\/augment(?:\s+|$)/i, "").trim();
+}
+
 function buildRefinementPrompt(input: {
   enhanced: string;
   intent: string;
@@ -246,14 +251,9 @@ function openAugmentDialog(api: TuiPluginApi, initialValue?: string): void {
 }
 
 async function runDialogAugment(api: TuiPluginApi, draft: string): Promise<void> {
-  const normalized = draft.trim();
+  const normalized = stripAugmentSlashCommand(draft);
   if (!normalized) {
-    api.ui.toast({
-      variant: "error",
-      title: "CliKit Augment",
-      message: "Prompt is required.",
-      duration: 2500,
-    });
+    api.ui.dialog.clear();
     return;
   }
 
@@ -283,15 +283,21 @@ async function runDialogAugment(api: TuiPluginApi, draft: string): Promise<void>
 
 async function runComposerAugment(api: TuiPluginApi, promptRef: TuiPromptRef): Promise<void> {
   const originalPrompt = clonePromptInfo(promptRef.current);
-  const normalized = originalPrompt.input.trim();
+  const normalized = stripAugmentSlashCommand(originalPrompt.input);
 
   if (!normalized) {
-    api.ui.toast({
-      variant: "error",
-      title: "CliKit Augment",
-      message: "Prompt is required.",
-      duration: 2500,
-    });
+    if (/^\/augment(?:\s+|$)/i.test(originalPrompt.input.trim())) {
+      try {
+        updatePromptRef(promptRef, {
+          ...originalPrompt,
+          input: "",
+        });
+        promptRef.focus();
+      } catch {
+        // Keep the original prompt untouched when inline cleanup is not available.
+      }
+    }
+
     return;
   }
 

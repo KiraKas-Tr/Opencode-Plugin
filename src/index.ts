@@ -318,6 +318,15 @@ const CliKitPlugin: Plugin = async (ctx) => {
   }
 
   async function showToast(message: string, variant: "info" | "success" | "warning" | "error", title = "CliKit"): Promise<boolean> {
+    return showToastForWorkspace(message, variant, title);
+  }
+
+  async function showToastForWorkspace(
+    message: string,
+    variant: "info" | "success" | "warning" | "error",
+    title = "CliKit",
+    workspace?: string,
+  ): Promise<boolean> {
     const tuiClient = getTuiClient();
     if (!tuiClient?.showToast) {
       return false;
@@ -326,6 +335,7 @@ const CliKitPlugin: Plugin = async (ctx) => {
     try {
       await tuiClient.showToast({
         directory: ctx.directory,
+        workspace,
         title,
         message,
         variant,
@@ -338,7 +348,24 @@ const CliKitPlugin: Plugin = async (ctx) => {
     }
   }
 
-  async function injectPromptIntoTuiDetailed(prompt: string): Promise<{ ok: boolean; error?: string }> {
+  function getWorkspaceFromPayload(payload: unknown): string | undefined {
+    if (!payload || typeof payload !== "object") {
+      return undefined;
+    }
+
+    const workspace = (payload as Record<string, unknown>).workspace;
+    return typeof workspace === "string" && workspace.trim() ? workspace : undefined;
+  }
+
+  function stripAugmentSlashCommand(value: string): string {
+    const normalized = value.replace(/\r\n/g, "\n").trim();
+    return normalized.replace(/^\/augment(?:\s+|$)/i, "").trim();
+  }
+
+  async function injectPromptIntoTuiDetailed(
+    prompt: string,
+    workspace?: string,
+  ): Promise<{ ok: boolean; error?: string }> {
     const tuiClient = getTuiClient();
     if (!tuiClient?.appendPrompt) {
       return { ok: false };
@@ -348,11 +375,13 @@ const CliKitPlugin: Plugin = async (ctx) => {
       if (tuiClient.clearPrompt) {
         await tuiClient.clearPrompt({
           directory: ctx.directory,
+          workspace,
         });
       }
 
       await tuiClient.appendPrompt({
         directory: ctx.directory,
+        workspace,
         text: prompt,
       });
 
@@ -365,8 +394,8 @@ const CliKitPlugin: Plugin = async (ctx) => {
     }
   }
 
-  async function injectPromptIntoTui(prompt: string): Promise<boolean> {
-    const result = await injectPromptIntoTuiDetailed(prompt);
+  async function injectPromptIntoTui(prompt: string, workspace?: string): Promise<boolean> {
+    const result = await injectPromptIntoTuiDetailed(prompt, workspace);
     return result.ok;
   }
 
@@ -787,15 +816,21 @@ const CliKitPlugin: Plugin = async (ctx) => {
       augment_prompt: tool({
         description: "Rewrite a draft prompt into a stronger, intent-aware prompt for user review.",
         args: {
-          draft: tool.schema.string().describe("Draft prompt to enhance before sending to the model."),
+          draft: tool.schema.string().optional().describe("Draft prompt to enhance before sending to the model."),
           mode: tool.schema.enum(["auto", "plain", "execution-contract"]).optional().describe("Optional rewrite mode override (default: auto)."),
         },
         async execute(args) {
-          const draft = typeof args.draft === "string" ? args.draft.trim() : "";
+          const draft = typeof args.draft === "string" ? stripAugmentSlashCommand(args.draft) : "";
           if (!draft) {
             return JSON.stringify({
-              success: false,
-              error: "Draft prompt is required.",
+              success: true,
+              skipped: true,
+              original: "",
+              enhanced: "",
+              intent: "general",
+              mode: "plain",
+              intensity: "Light",
+              injectedIntoTui: false,
             }, null, 2);
           }
 
@@ -1141,45 +1176,49 @@ const CliKitPlugin: Plugin = async (ctx) => {
           return;
         }
 
-        const draft = input.arguments.trim();
+        const workspace = getWorkspaceFromPayload(input);
+        const draft = stripAugmentSlashCommand(input.arguments);
         if (!draft) {
           return;
         }
 
-        await showToast(AUGMENT_LOADING_TEXT, "info", "CliKit Augment");
-        const loadingInjection = await injectPromptIntoTuiDetailed(AUGMENT_LOADING_TEXT);
+        await showToastForWorkspace(AUGMENT_LOADING_TEXT, "info", "CliKit Augment", workspace);
+        const loadingInjection = await injectPromptIntoTuiDetailed(AUGMENT_LOADING_TEXT, workspace);
         const showedComposerLoading = loadingInjection.ok;
 
         try {
           const result = await enhanceDraftPrompt(draft, "auto");
-          const finalInjection = await injectPromptIntoTuiDetailed(result.enhanced);
+          const finalInjection = await injectPromptIntoTuiDetailed(result.enhanced, workspace);
           const injectedIntoTui = finalInjection.ok;
 
           if (showedComposerLoading && !injectedIntoTui) {
-            await injectPromptIntoTui(draft);
-            await showToast(
+            await injectPromptIntoTui(draft, workspace);
+            await showToastForWorkspace(
               finalInjection.error ?? "Unable to replace the composer with the enhanced prompt.",
               "error",
               "CliKit Augment",
+              workspace,
             );
             return;
           }
 
           if (result.fallbackReason) {
-            await showToast(
+            await showToastForWorkspace(
               injectedIntoTui
                 ? `Replaced composer with deterministic fallback. ${result.fallbackReason}`
                 : `Using deterministic fallback. ${result.fallbackReason}`,
               "warning",
               "CliKit Augment",
+              workspace,
             );
           } else {
-            await showToast(
+            await showToastForWorkspace(
               injectedIntoTui
                 ? `Enhanced prompt replaced in composer (${result.enhancementSource ?? "deterministic"}).`
                 : `Enhanced prompt ready (${result.enhancementSource ?? "deterministic"}).`,
               "success",
               "CliKit Augment",
+              workspace,
             );
           }
 
@@ -1197,11 +1236,11 @@ const CliKitPlugin: Plugin = async (ctx) => {
           );
         } catch (error) {
           if (showedComposerLoading) {
-            await injectPromptIntoTui(draft);
+            await injectPromptIntoTui(draft, workspace);
           }
 
           const message = error instanceof Error ? error.message : "Prompt enhancement failed.";
-          await showToast(message, "error", "CliKit Augment");
+          await showToastForWorkspace(message, "error", "CliKit Augment", workspace);
         }
       },
 

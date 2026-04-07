@@ -51,6 +51,16 @@ export interface AugmentPromptResult {
   fallbackReason?: string;
 }
 
+const EMPTY_PROMPT_BLOCKS: PromptLeverageBlocks = {
+  objective: "",
+  context: "",
+  workStyle: "",
+  toolRules: "",
+  outputContract: "",
+  verification: "",
+  doneCriteria: "",
+};
+
 interface IntentRule {
   intent: AugmentTaskIntent;
   patterns: RegExp[];
@@ -256,7 +266,15 @@ export function augmentPrompt(
 ): AugmentPromptResult {
   const normalized = collapseWhitespace(draft);
   if (!normalized) {
-    throw new Error("Prompt is required.");
+    return {
+      original: "",
+      enhanced: "",
+      intent: "general",
+      mode: resolveRewriteMode(options.mode ?? "auto", "general"),
+      intensity: "Light",
+      blocks: EMPTY_PROMPT_BLOCKS,
+      enhancementSource: "deterministic",
+    };
   }
 
   const intent = detectTaskIntent(normalized);
@@ -283,6 +301,10 @@ export async function augmentPromptWithRefinement(
   options: AugmentRefinementOptions = {},
 ): Promise<AugmentPromptResult> {
   const deterministic = augmentPrompt(draft, options);
+
+  if (!deterministic.original) {
+    return deterministic;
+  }
 
   if (!options.refine) {
     return deterministic;

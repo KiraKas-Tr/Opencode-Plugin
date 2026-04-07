@@ -927,11 +927,13 @@ describe("augment prompt engine", () => {
     }, undefined);
     const result = JSON.parse(raw) as {
       success: boolean;
-      error: string;
+      skipped?: boolean;
+      enhanced?: string;
     };
 
-    expect(result.success).toBe(false);
-    expect(result.error).toBe("Draft prompt is required.");
+    expect(result.success).toBe(true);
+    expect(result.skipped).toBe(true);
+    expect(result.enhanced).toBe("");
   });
 
   test("normalizes multiline whitespace before rewriting the draft", () => {
