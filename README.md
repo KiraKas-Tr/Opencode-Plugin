@@ -55,7 +55,7 @@ Need the full install notes, Windows binary path, or MCP details? Jump to [Insta
 ## What you get
 
 - **7 specialized agents** — build, plan, explore, review, vision, oracle, research
-- **15 slash commands** — including `/discuss`, `/create`, `/start`, `/verify`, `/ship`, `/augment`, `/debug`, `/research`, `/design`, `/status`
+- **14 slash commands** — including `/discuss`, `/create`, `/start`, `/verify`, `/ship`, `/debug`, `/research`, `/design`, `/status`
 - **26 workflow skills** — planning, debugging, testing, integration, and session-management skills
 - **11 runtime hooks/modules** — git guard, security check, truncator, memory digest, beads context, tilth reading, and more
 - **Structured memory** — templates plus saved discussions, plans, research, reviews, handoffs, and PRDs
@@ -84,7 +84,7 @@ Need the full install notes, Windows binary path, or MCP details? Jump to [Insta
 ## Features
 
 - **7 Specialized Agents**: build, plan, explore, review, vision, oracle, research
-- **15 Slash Commands**: /discuss, /create, /start, /ship, /verify, /augment, /debug, /design, /research, /commit, /pr, and more
+- **14 Slash Commands**: /discuss, /create, /start, /ship, /verify, /debug, /design, /research, /commit, /pr, and more
 - **26 Workflow Skills**: TDD, debugging, research, integrations, ritual-workflow, and more
 - **7 Internal Utilities**: memory (read/search/get/timeline/update/admin), observation, context-summary, cass-memory (used by hooks, not directly registered as agent tools)
 - **11 Runtime Hooks/Modules**: todo enforcer, empty output sanitizer, git guard, security check, subagent blocker, truncator, memory digest, todo→beads sync, beads-context, cass-memory, and tilth-reading
@@ -161,13 +161,12 @@ After installation, use these commands:
 ```
 
 Workflow notes:
-- All 15 commands work **standalone** - the pipeline is recommended, not required
+- All 14 commands work **standalone** - the pipeline is recommended, not required
 - `/discuss` runs a pre-create discussion phase — clarify intent, confirm assumptions, and save a planning-ready discussion artifact
 - `/create` explores codebase first, consumes discussion context, runs a mandatory pre-plan research pass, then produces a single XML-structured plan
 - `/start` executes the plan, one Task Packet at a time — creates a minimal inline plan if none exists
 - `/verify` runs all 4 gates (typecheck, tests, lint, build) + deep review — use anytime, not just pre-ship
 - `/ship` finalizes work in the shared checkout — commit, sync, and land on the repo default branch; `/pr` is optional and only for explicit PR-based exceptions
-- `/augment <draft>` rewrites a prompt into a stronger, intent-aware version, attempts an OpenCode-native LLM refinement pass, and, on prompt-ref-capable TUI runtimes, shows in-composer loading before replacing the current composer text with the enhanced prompt; it falls back to dialog-driven injection or deterministic rewrite when refinement/runtime support is unavailable
 - `/research` is an optional standalone research command — it reads discussion context first, closes decision gaps with external evidence, and saves a planning-ready report
 - `/design` implements UI/UX with variant exploration and a11y — uses Vision agent
 - `br` + `.beads/` is the preferred persistent task source of truth; `beads-village` is optional legacy compatibility only
@@ -282,7 +281,7 @@ Default active roles in compressed workflow: `build`, `plan`, `review`, plus coo
 
 ## Commands
 
-Run with `/command-name` in OpenCode. **All 15 commands work standalone** — the pipeline is a recommended flow, not a requirement.
+Run with `/command-name` in OpenCode. **All 14 commands work standalone** — the pipeline is a recommended flow, not a requirement.
 
 ### Workflow pipeline
 | Command | Standalone? | One-liner |
@@ -298,7 +297,6 @@ Run with `/command-name` in OpenCode. **All 15 commands work standalone** — th
 ### Utilities (all standalone)
 | Command | One-liner |
 |---------|-----------|
-| `/augment` | Rewrite a draft prompt into a stronger, intent-aware prompt with LLM refinement when available; prompt-ref-capable runtimes enhance the current composer in place with loading and full replacement, with dialog fallback on unsupported runtimes |
 | `/debug` | Reproduce → 5-Whys root cause → fix → regression test |
 | `/status` | Workspace snapshot — task tracker state, git state, active artifacts |
 | `/init` | Bootstrap CliKit — scaffold dirs + write tailored AGENTS.md |

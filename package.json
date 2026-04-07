@@ -13,10 +13,6 @@
       "types": "./dist/index.d.ts",
       "import": "./dist/index.js"
     },
-    "./tui": {
-      "types": "./dist/tui.d.ts",
-      "import": "./dist/tui.js"
-    },
     "./schema.json": "./dist/clikit.schema.json"
   },
   "files": [
@@ -30,7 +26,7 @@
     "README.md"
   ],
   "scripts": {
-    "build": "bun build src/index.ts src/cli.ts src/tui.ts --outdir dist --target bun --format esm && tsc --emitDeclarationOnly && cp src/clikit.schema.json dist/clikit.schema.json",
+    "build": "bun build src/index.ts src/cli.ts --outdir dist --target bun --format esm && tsc --emitDeclarationOnly && cp src/clikit.schema.json dist/clikit.schema.json",
     "clean": "node -e \"const fs=require('fs'); fs.rmSync('dist',{recursive:true,force:true});\"",
     "lint": "tsc --noEmit",
     "prepublishOnly": "bun run clean && bun run build",

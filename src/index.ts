@@ -66,14 +66,10 @@ import {
   type OpenCodeTodo,
 } from "./hooks";
 import { cassMemoryContext, cassMemoryReflect } from "./tools/cass-memory";
-import { augmentPromptWithRefinement } from "./tools/augment";
 import { contextSummary } from "./tools/context-summary";
-
-type AugmentResult = Awaited<ReturnType<typeof augmentPromptWithRefinement>>;
 
 const DCP_PLUGIN_ENTRY = "@tarquinen/opencode-dcp@beta";
 const DCP_PLUGIN_BASE = "@tarquinen/opencode-dcp";
-const AUGMENT_LOADING_TEXT = "Enhancing prompt.";
 
 /**
  * Ensure @tarquinen/opencode-dcp@beta is present in the OpenCode config plugin list.
@@ -348,138 +344,6 @@ const CliKitPlugin: Plugin = async (ctx) => {
     }
   }
 
-  function getWorkspaceFromPayload(payload: unknown): string | undefined {
-    if (!payload || typeof payload !== "object") {
-      return undefined;
-    }
-
-    const workspace = (payload as Record<string, unknown>).workspace;
-    return typeof workspace === "string" && workspace.trim() ? workspace : undefined;
-  }
-
-  function stripAugmentSlashCommand(value: string): string {
-    const normalized = value.replace(/\r\n/g, "\n").trim();
-    return normalized.replace(/^\/augment(?:\s+|$)/i, "").trim();
-  }
-
-  async function injectPromptIntoTuiDetailed(
-    prompt: string,
-    workspace?: string,
-  ): Promise<{ ok: boolean; error?: string }> {
-    const tuiClient = getTuiClient();
-    if (!tuiClient?.appendPrompt) {
-      return { ok: false };
-    }
-
-    try {
-      if (tuiClient.clearPrompt) {
-        await tuiClient.clearPrompt({
-          directory: ctx.directory,
-          workspace,
-        });
-      }
-
-      await tuiClient.appendPrompt({
-        directory: ctx.directory,
-        workspace,
-        text: prompt,
-      });
-
-      return { ok: true };
-    } catch (error) {
-      return {
-        ok: false,
-        error: error instanceof Error ? error.message : "Unable to update the TUI composer.",
-      };
-    }
-  }
-
-  async function injectPromptIntoTui(prompt: string, workspace?: string): Promise<boolean> {
-    const result = await injectPromptIntoTuiDetailed(prompt, workspace);
-    return result.ok;
-  }
-
-  function replaceCommandTextPart(
-    parts: Array<{ type?: string; text?: string } & Record<string, unknown>>,
-    text: string,
-  ): boolean {
-    const firstTextPart = parts.find((part) => part.type === "text");
-    if (!firstTextPart || typeof firstTextPart.text !== "string") {
-      return false;
-    }
-
-    firstTextPart.text = text;
-    parts.splice(0, parts.length, firstTextPart);
-    return true;
-  }
-
-  async function enhanceDraftPrompt(
-    draft: string,
-    mode: "auto" | "plain" | "execution-contract" = "auto",
-  ): Promise<AugmentResult> {
-    const sessionClient = getSessionClient();
-
-    return augmentPromptWithRefinement(draft, {
-      mode,
-      refine: sessionClient ? async ({ enhanced, mode: resolvedMode, intent, intensity }) => {
-        const createResult = await sessionClient.create({
-          directory: ctx.directory,
-          title: `augment:${intent}`,
-        });
-
-        if (createResult.error || !createResult.data?.id) {
-          throw new Error("Unable to create OpenCode session for prompt enhancement.");
-        }
-
-        const sessionID = createResult.data.id;
-
-        try {
-          const refinementPrompt = [
-            "You are refining an already-structured prompt for OpenCode.",
-            `Intent: ${intent}`,
-            `Rewrite mode: ${resolvedMode}`,
-            `Effort: ${intensity}`,
-            "Preserve the original user request exactly.",
-            "Keep the output as a single prompt only.",
-            "Do not add commentary, preambles, markdown fences, or explanations.",
-            "If the prompt is already strong, return a minimally polished version.",
-            "Return only the final rewritten prompt.",
-            "",
-            enhanced,
-          ].join("\n");
-
-          const promptResult = await sessionClient.prompt({
-            sessionID,
-            directory: ctx.directory,
-            parts: [
-              {
-                type: "text",
-                text: refinementPrompt,
-              },
-            ],
-          });
-
-          if (promptResult.error) {
-            throw new Error("OpenCode prompt enhancement request failed.");
-          }
-
-          const textPart = promptResult.data?.parts?.find((part) => part.type === "text");
-          if (!textPart || !("text" in textPart) || typeof textPart.text !== "string") {
-            throw new Error("OpenCode prompt enhancement returned no text output.");
-          }
-
-          return textPart.text;
-        } finally {
-          if (sessionClient.delete) {
-            void sessionClient.delete({
-              sessionID,
-              directory: ctx.directory,
-            }).catch(() => undefined);
-          }
-        }
-      } : undefined,
-    });
-  }
 
   function normalizeTodos(rawTodos: unknown): OpenCodeTodo[] {
     if (!Array.isArray(rawTodos)) {
@@ -811,68 +675,7 @@ const CliKitPlugin: Plugin = async (ctx) => {
   }
 
   return {
-    tool: {
-      // augment_prompt - rewrite a draft prompt into a stronger, structured prompt for review
-      augment_prompt: tool({
-        description: "Rewrite a draft prompt into a stronger, intent-aware prompt for user review.",
-        args: {
-          draft: tool.schema.string().optional().describe("Draft prompt to enhance before sending to the model."),
-          mode: tool.schema.enum(["auto", "plain", "execution-contract"]).optional().describe("Optional rewrite mode override (default: auto)."),
-        },
-        async execute(args) {
-          const draft = typeof args.draft === "string" ? stripAugmentSlashCommand(args.draft) : "";
-          if (!draft) {
-            return JSON.stringify({
-              success: true,
-              skipped: true,
-              original: "",
-              enhanced: "",
-              intent: "general",
-              mode: "plain",
-              intensity: "Light",
-              injectedIntoTui: false,
-            }, null, 2);
-          }
-
-          await showToast("Enhancing prompt…", "info", "CliKit Augment");
-
-          const mode = args.mode === "plain" || args.mode === "execution-contract" ? args.mode : "auto";
-          const result = await enhanceDraftPrompt(draft, mode);
-
-          const injectedIntoTui = await injectPromptIntoTui(result.enhanced);
-          const completionTitle = "CliKit Augment";
-
-          if (result.fallbackReason) {
-            await showToast(
-              injectedIntoTui
-                ? `Injected deterministic fallback. ${result.fallbackReason}`
-                : `Using deterministic fallback. ${result.fallbackReason}`,
-              "warning",
-              completionTitle,
-            );
-          } else {
-            await showToast(
-              injectedIntoTui
-                ? `Enhanced prompt inserted (${result.enhancementSource ?? "deterministic"}).`
-                : `Enhanced prompt ready (${result.enhancementSource ?? "deterministic"}).`,
-              "success",
-              completionTitle,
-            );
-          }
-
-          return JSON.stringify({
-            success: true,
-            original: result.original,
-            enhanced: result.enhanced,
-            intent: result.intent,
-            mode: result.mode,
-            intensity: result.intensity,
-            injectedIntoTui,
-            enhancementSource: result.enhancementSource,
-            fallbackReason: result.fallbackReason,
-          }, null, 2);
-        },
-      }),
+      tool: {
 
       // context_summary - summarize memory observations into structured context
       context_summary: tool({
@@ -1171,78 +974,6 @@ const CliKitPlugin: Plugin = async (ctx) => {
         }
       },
 
-      "command.execute.before": async (input, output) => {
-        if (!isToolNamed(input.command, "augment")) {
-          return;
-        }
-
-        const workspace = getWorkspaceFromPayload(input);
-        const draft = stripAugmentSlashCommand(input.arguments);
-        if (!draft) {
-          return;
-        }
-
-        await showToastForWorkspace(AUGMENT_LOADING_TEXT, "info", "CliKit Augment", workspace);
-        const loadingInjection = await injectPromptIntoTuiDetailed(AUGMENT_LOADING_TEXT, workspace);
-        const showedComposerLoading = loadingInjection.ok;
-
-        try {
-          const result = await enhanceDraftPrompt(draft, "auto");
-          const finalInjection = await injectPromptIntoTuiDetailed(result.enhanced, workspace);
-          const injectedIntoTui = finalInjection.ok;
-
-          if (showedComposerLoading && !injectedIntoTui) {
-            await injectPromptIntoTui(draft, workspace);
-            await showToastForWorkspace(
-              finalInjection.error ?? "Unable to replace the composer with the enhanced prompt.",
-              "error",
-              "CliKit Augment",
-              workspace,
-            );
-            return;
-          }
-
-          if (result.fallbackReason) {
-            await showToastForWorkspace(
-              injectedIntoTui
-                ? `Replaced composer with deterministic fallback. ${result.fallbackReason}`
-                : `Using deterministic fallback. ${result.fallbackReason}`,
-              "warning",
-              "CliKit Augment",
-              workspace,
-            );
-          } else {
-            await showToastForWorkspace(
-              injectedIntoTui
-                ? `Enhanced prompt replaced in composer (${result.enhancementSource ?? "deterministic"}).`
-                : `Enhanced prompt ready (${result.enhancementSource ?? "deterministic"}).`,
-              "success",
-              "CliKit Augment",
-              workspace,
-            );
-          }
-
-          const replacementText = injectedIntoTui
-            ? [
-              "CliKit already handled the /augment command locally and updated the composer.",
-              "Do not execute the original user request.",
-              "Reply with exactly: Composer updated.",
-            ].join("\n")
-            : result.enhanced;
-
-          replaceCommandTextPart(
-            output.parts as Array<{ type?: string; text?: string } & Record<string, unknown>>,
-            replacementText,
-          );
-        } catch (error) {
-          if (showedComposerLoading) {
-            await injectPromptIntoTui(draft, workspace);
-          }
-
-          const message = error instanceof Error ? error.message : "Prompt enhancement failed.";
-          await showToastForWorkspace(message, "error", "CliKit Augment", workspace);
-        }
-      },
 
       "tool.execute.before": async (input, output) => {
         const toolName = input.tool;

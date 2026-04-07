@@ -49,20 +49,3 @@ export {
   type CassMemoryExecOptions,
   type CassMemoryResult,
 } from "./cass-memory";
-
-// Augmentation Engine
-export {
-  augmentPrompt,
-  buildPromptLeverageBlocks,
-  detectTaskIntent,
-  formatExecutionContract,
-  formatPlainRewrite,
-  inferIntensity,
-  resolveRewriteMode,
-  type AugmentPromptOptions,
-  type AugmentPromptResult,
-  type AugmentRewriteMode,
-  type AugmentTaskIntent,
-  type PromptLeverageBlocks,
-  type PromptLeverageIntensity,
-} from "./augment";
